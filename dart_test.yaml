@@ -1,0 +1,4 @@
+tags:
+  # 需要联网访问网易云接口的测试：flutter test --tags live
+  live:
+    skip: "联网测试默认跳过，使用 --run-skipped --tags live 运行"

@@ -1,0 +1,240 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+
+import '../theme/palette.dart';
+
+/// CSS 的 blur 半径对应高斯 sigma = blur / 2。
+double cssSigma(double blur) => blur / 2;
+
+/// 按 CSS `linear-gradient(<angle>deg, ...)` 语义计算渐变线的线性渐变。
+class CssGradient extends LinearGradient {
+  const CssGradient(this.angle, {required super.colors, super.stops});
+
+  /// 角度，0deg 指向上方，顺时针。
+  final double angle;
+
+  @override
+  Shader createShader(Rect rect, {TextDirection? textDirection}) {
+    final rad = angle * math.pi / 180;
+    final dir = Offset(math.sin(rad), -math.cos(rad));
+    final len = (rect.width * math.sin(rad)).abs() + (rect.height * math.cos(rad)).abs();
+    final c = rect.center;
+    return ui.Gradient.linear(c - dir * (len / 2), c + dir * (len / 2), colors, stops);
+  }
+
+  static CssGradient vertical(List<Color> colors) => CssGradient(180, colors: colors);
+}
+
+/// 只绘制在盒子外侧的阴影（CSS 外阴影不会透过半透明背景显示）。
+class _OuterShadowPainter extends CustomPainter {
+  _OuterShadowPainter(this.radius, this.shadows);
+
+  final BorderRadius radius;
+  final List<Shadow2> shadows;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (shadows.isEmpty) return;
+    final rrect = radius.toRRect(Offset.zero & size);
+    final big = (Offset.zero & size).inflate(200);
+    canvas.save();
+    canvas.clipPath(Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect(big)
+      ..addRRect(rrect));
+    for (final s in shadows) {
+      final p = Paint()..color = s.color;
+      if (s.blur > 0) p.maskFilter = MaskFilter.blur(BlurStyle.normal, cssSigma(s.blur));
+      canvas.drawRRect(rrect.shift(s.offset).inflate(s.spread), p);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_OuterShadowPainter old) => old.radius != radius || old.shadows != shadows;
+}
+
+/// CSS `inset` 阴影。
+class InsetShadowPainter extends CustomPainter {
+  InsetShadowPainter(this.radius, this.shadows, {this.border});
+
+  final BorderRadius radius;
+  final List<Shadow2> shadows;
+  final Color? border;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = radius.toRRect(Offset.zero & size);
+    if (shadows.isNotEmpty) {
+      canvas.save();
+      canvas.clipRRect(rrect);
+      final big = (Offset.zero & size).inflate(200);
+      for (final s in shadows) {
+        final p = Paint()..color = s.color;
+        if (s.blur > 0) p.maskFilter = MaskFilter.blur(BlurStyle.normal, cssSigma(s.blur));
+        final hole = rrect.shift(s.offset).deflate(s.spread);
+        canvas.drawPath(
+          Path()
+            ..fillType = PathFillType.evenOdd
+            ..addRect(big)
+            ..addRRect(hole),
+          p,
+        );
+      }
+      canvas.restore();
+    }
+    if (border != null) {
+      canvas.drawRRect(
+        rrect.deflate(0.5),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = border!,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(InsetShadowPainter old) =>
+      old.radius != radius || old.shadows != shadows || old.border != border;
+}
+
+/// CSS `saturate(200%)` 对应的颜色矩阵。
+List<double> saturateMatrix(double s) => [
+      0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0, 0,
+      0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0, 0,
+      0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s, 0, 0,
+      0, 0, 0, 1, 0,
+    ];
+
+final ui.ImageFilter _glassFilter = ui.ImageFilter.compose(
+  outer: ui.ColorFilter.matrix(saturateMatrix(2)),
+  inner: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30, tileMode: TileMode.mirror),
+);
+
+/// 是否启用毛玻璃（设置项“窗口毛玻璃效果”）。
+class GlassScope extends InheritedWidget {
+  const GlassScope({super.key, required this.enabled, required super.child});
+
+  final bool enabled;
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<GlassScope>()?.enabled ?? true;
+
+  @override
+  bool updateShouldNotify(GlassScope old) => old.enabled != enabled;
+}
+
+/// 通用盒子：背景色/渐变、圆角、外阴影、内阴影、描边、可选背景模糊。
+class YBox extends StatelessWidget {
+  const YBox({
+    super.key,
+    this.width,
+    this.height,
+    this.radius = BorderRadius.zero,
+    this.color,
+    this.gradient,
+    this.shadows = const [],
+    this.insets = const [],
+    this.border,
+    this.blur = false,
+    this.padding,
+    this.alignment,
+    this.clip = true,
+    this.child,
+  });
+
+  final double? width;
+  final double? height;
+  final BorderRadius radius;
+  final Color? color;
+  final Gradient? gradient;
+  final List<Shadow2> shadows;
+  final List<Shadow2> insets;
+  final Color? border;
+  final bool blur;
+  final EdgeInsetsGeometry? padding;
+  final AlignmentGeometry? alignment;
+  final bool clip;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget content = Container(
+      padding: padding,
+      alignment: alignment,
+      decoration: BoxDecoration(color: color, gradient: gradient, borderRadius: radius),
+      child: child,
+    );
+    if (insets.isNotEmpty || border != null) {
+      content = CustomPaint(
+        foregroundPainter: InsetShadowPainter(radius, insets, border: border),
+        child: content,
+      );
+    }
+    if (blur && GlassScope.of(context)) {
+      content = ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(filter: _glassFilter, child: content),
+      );
+    } else if (clip) {
+      content = ClipRRect(borderRadius: radius, child: content);
+    }
+    if (shadows.isNotEmpty) {
+      content = CustomPaint(painter: _OuterShadowPainter(radius, shadows), child: content);
+    }
+    if (width != null || height != null) {
+      content = SizedBox(width: width, height: height, child: content);
+    }
+    return content;
+  }
+}
+
+/// Liquid Glass 材质。
+class Glass extends StatelessWidget {
+  const Glass({
+    super.key,
+    required this.radius,
+    this.width,
+    this.height,
+    this.padding,
+    this.color,
+    this.shadows,
+    this.insets,
+    this.alignment,
+    this.child,
+  });
+
+  final double radius;
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry? padding;
+  final Color? color;
+  final List<Shadow2>? shadows;
+  final List<Shadow2>? insets;
+  final AlignmentGeometry? alignment;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final enabled = GlassScope.of(context);
+    var bg = color ?? p.glass;
+    if (!enabled) bg = Color.alphaBlend(bg, p.isDark ? const Color(0xFF26272C) : const Color(0xFFF2F3F7));
+    return YBox(
+      width: width,
+      height: height,
+      radius: BorderRadius.circular(radius),
+      color: bg,
+      blur: true,
+      shadows: shadows ?? p.glassShadow,
+      insets: insets ?? p.glassInset,
+      border: p.glassBorder,
+      padding: padding,
+      alignment: alignment,
+      child: child,
+    );
+  }
+}

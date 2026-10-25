@@ -1,0 +1,18 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+  language:
+    strict-casts: false
+
+linter:
+  rules:
+    # 页面骨架同时接收 children 与 slivers，按阅读顺序排列更清晰。
+    sort_child_properties_last: false
