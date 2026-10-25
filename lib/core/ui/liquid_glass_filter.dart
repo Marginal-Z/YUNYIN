@@ -2,7 +2,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../settings.dart';
@@ -25,8 +24,8 @@ abstract final class LiquidGlassShader {
 
 /// 在子组件背后用液态玻璃着色器处理背景。
 ///
-/// 着色器需要知道玻璃在当前画面中的位置，所以每次绘制时把全局坐标写入 uniform；
-/// 位置因祖先变换（滚动、转场）而变化但自身没有重绘时，下一帧会自动补绘一次。
+/// 两层背景滤镜：外层先按材质模糊（清透半径 1、柔和半径 16 物理像素，与原版一致），并把背景截取到
+/// 玻璃自己的图层里；内层着色器读取这张以玻璃为中心的纹理，因此不依赖玻璃在屏幕上的位置。
 class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
   const LiquidGlassBackdrop({super.key, required this.radius, required this.material, super.child});
 
@@ -49,14 +48,16 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
 class RenderLiquidGlass extends RenderProxyBox {
   RenderLiquidGlass(this._radius, this._material, this._dpr);
 
+  /// 裁剪区域比玻璃每边多出的逻辑像素，着色器据此在纹理中居中定位玻璃。
+  static const _pad = 1.0;
+
   double _radius;
   GlassMaterial _material;
   double _dpr;
-  Offset? _painted;
-  bool _checkScheduled = false;
   ui.FragmentShader? _shader;
   final _clip = LayerHandle<ClipRectLayer>();
-  final _backdrop = LayerHandle<BackdropFilterLayer>();
+  final _blur = LayerHandle<BackdropFilterLayer>();
+  final _glass = LayerHandle<BackdropFilterLayer>();
 
   set radius(double v) {
     if (v == _radius) return;
@@ -82,24 +83,19 @@ class RenderLiquidGlass extends RenderProxyBox {
   @override
   void dispose() {
     _clip.layer = null;
-    _backdrop.layer = null;
+    _blur.layer = null;
+    _glass.layer = null;
     _shader?.dispose();
     super.dispose();
   }
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    final global = localToGlobal(Offset.zero);
-    _painted = global;
-    _scheduleCheck();
-
     _shader?.dispose();
     final shader = _shader = LiquidGlassShader._program!.fragmentShader();
     final regular = _material == GlassMaterial.regular;
     var i = 2; // 0、1 是输入纹理尺寸，由引擎填写。
     void f(double v) => shader.setFloat(i++, v);
-    f(global.dx * _dpr);
-    f(global.dy * _dpr);
     f(size.width * _dpr);
     f(size.height * _dpr);
     f(_radius * _dpr);
@@ -109,30 +105,17 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(7); // 色散
     f(0.9); // 边缘高光 90%
     f(regular ? 0.11 : 0); // 色调
-    ui.ImageFilter filter = ui.ImageFilter.shader(shader);
-    if (regular) {
-      // 原版「柔和」材质先做半径 16 物理像素（sigma = 半径 / 3）的高斯模糊。
-      final sigma = 16 / 3 / _dpr;
-      filter = ui.ImageFilter.compose(
-        outer: filter,
-        inner: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp),
-      );
-    }
+    // 原版模糊：半径 r 物理像素的高斯核，sigma = r / 3。
+    final sigma = (regular ? 16 : 1) / 3 / _dpr;
 
-    _clip.layer = context.pushClipRect(needsCompositing, offset, (Offset.zero & size).inflate(1), (context, offset) {
-      final layer = _backdrop.layer ??= BackdropFilterLayer();
-      layer.filter = filter;
-      context.pushLayer(layer, super.paint, offset);
+    _clip.layer = context.pushClipRect(needsCompositing, offset, (Offset.zero & size).inflate(_pad), (context, offset) {
+      final blur = _blur.layer ??= BackdropFilterLayer();
+      blur.filter = ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp);
+      context.pushLayer(blur, (context, offset) {
+        final glass = _glass.layer ??= BackdropFilterLayer();
+        glass.filter = ui.ImageFilter.shader(shader);
+        context.pushLayer(glass, super.paint, offset);
+      }, offset);
     }, oldLayer: _clip.layer);
-  }
-
-  void _scheduleCheck() {
-    if (_checkScheduled) return;
-    _checkScheduled = true;
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _checkScheduled = false;
-      if (!attached || _painted == null) return;
-      if ((localToGlobal(Offset.zero) - _painted!).distanceSquared > 0.01) markNeedsPaint();
-    });
   }
 }

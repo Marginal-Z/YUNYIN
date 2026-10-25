@@ -8,8 +8,8 @@
 //   · 按法线角度计算的高光（左上与右下最亮），在 LCH 空间提高亮度与彩度；
 //   · 「柔和」材质叠加白色色调（模糊由 Dart 端在滤镜链中先行完成）。
 //
-// 与 WebGL 原版的差异只在宿主：输入纹理由 Flutter 的 BackdropFilter 提供，
-// 形状位置由 uniform 传入（物理像素、y 轴向下），法线用中心差分计算。
+// 与 WebGL 原版的差异只在宿主：输入纹理是 Flutter 背景滤镜截取的、以玻璃为中心的图层
+// （模糊已在外层完成），坐标为物理像素、y 轴向下，法线用中心差分计算。
 
 #version 460 core
 #include <flutter/runtime_effect.glsl>
@@ -18,8 +18,7 @@ precision highp float;
 
 #define PI 3.14159265359
 
-uniform vec2 uSize;        // 输入纹理尺寸（由引擎填写）
-uniform vec2 uOrigin;      // 玻璃左上角，物理像素
+uniform vec2 uSize;        // 输入纹理尺寸（由引擎填写）；玻璃位于纹理正中
 uniform vec2 uShape;       // 玻璃宽高，物理像素
 uniform float uRadius;     // 圆角半径，物理像素
 uniform float uDpr;        // 设备像素比
@@ -40,9 +39,6 @@ const float ROUNDNESS = 5.0;
 const float REF_FACTOR = 1.4;
 
 vec4 sampleBg(vec2 uv) {
-#ifdef IMPELLER_TARGET_OPENGLES
-  uv.y = 1.0 - uv.y;
-#endif
   return texture(uTexture, uv);
 }
 
@@ -101,7 +97,7 @@ vec3 lchToSrgb(vec3 lch) {
 void main() {
   vec2 frag = FlutterFragCoord().xy;
   vec2 uv = frag / uSize;
-  vec2 p = frag - (uOrigin + uShape * 0.5);
+  vec2 p = frag - uSize * 0.5;
 
   // 玻璃以外直接输出背景（裁剪区域只比玻璃略大）。
   if (abs(p.x) > uShape.x * 0.5 + 2.0 || abs(p.y) > uShape.y * 0.5 + 2.0) {
