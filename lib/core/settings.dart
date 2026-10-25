@@ -4,6 +4,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/models.dart';
 import 'theme/palette.dart';
 
+/// 液态玻璃材质（与 Liquid Glass 演示中的两种材质一致）。
+enum GlassMaterial {
+  /// 清透：几乎不模糊，没有色调。
+  clear('清透'),
+
+  /// 柔和：轻度模糊并叠加白色色调。
+  regular('柔和');
+
+  const GlassMaterial(this.label);
+  final String label;
+}
+
+/// 界面背景。
+enum BackgroundMode {
+  /// 默认光晕。
+  glow('默认'),
+
+  /// 根据正在播放歌曲的封面取色。
+  cover('封面取色'),
+
+  /// 自定义图片。
+  image('自定义图片');
+
+  const BackgroundMode(this.label);
+  final String label;
+}
+
 /// 用户设置，持久化在 SharedPreferences。
 class AppSettings extends ChangeNotifier {
   late SharedPreferences _p;
@@ -26,6 +53,18 @@ class AppSettings extends ChangeNotifier {
 
   /// 播放页背景按封面取色。
   bool coverColors = true;
+
+  /// 液态玻璃材质。
+  GlassMaterial glassMaterial = GlassMaterial.clear;
+
+  /// 界面背景。
+  BackgroundMode background = BackgroundMode.glow;
+
+  /// 自定义背景图片（应用数据目录中的副本）。
+  String? backgroundImage;
+
+  /// 自定义背景图片是否模糊。
+  bool backgroundBlur = false;
 
   /// 启动时检查更新。
   bool autoUpdate = true;
@@ -60,6 +99,11 @@ class AppSettings extends ChangeNotifier {
     iconFollowsAccent = _p.getBool('iconFollowsAccent') ?? true;
     coverColors = _p.getBool('coverColors') ?? true;
     autoUpdate = _p.getBool('autoUpdate') ?? true;
+    glassMaterial = GlassMaterial.values[(_p.getInt('glassMaterial') ?? 0).clamp(0, GlassMaterial.values.length - 1)];
+    background = BackgroundMode.values[(_p.getInt('background') ?? 0).clamp(0, BackgroundMode.values.length - 1)];
+    backgroundImage = _p.getString('backgroundImage');
+    backgroundBlur = _p.getBool('backgroundBlur') ?? false;
+    if (background == BackgroundMode.image && backgroundImage == null) background = BackgroundMode.glow;
     skippedUpdate = _p.getString('skippedUpdate');
     lyricScale = _p.getDouble('lyricScale') ?? 1.0;
     downloadDir = _p.getString('downloadDir');
@@ -115,8 +159,26 @@ class AppSettings extends ChangeNotifier {
         coverColors = v;
       case 'autoUpdate':
         autoUpdate = v;
+      case 'backgroundBlur':
+        backgroundBlur = v;
     }
     _p.setBool(key, v);
+    notifyListeners();
+  }
+
+  void setGlassMaterial(GlassMaterial m) {
+    glassMaterial = m;
+    _p.setInt('glassMaterial', m.index);
+    notifyListeners();
+  }
+
+  void setBackground(BackgroundMode m, {String? image}) {
+    background = m;
+    _p.setInt('background', m.index);
+    if (image != null) {
+      backgroundImage = image;
+      _p.setString('backgroundImage', image);
+    }
     notifyListeners();
   }
 

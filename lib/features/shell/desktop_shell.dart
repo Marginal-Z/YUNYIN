@@ -7,6 +7,7 @@ import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/glow_background.dart';
+import '../../core/ui/app_background.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
@@ -92,8 +93,7 @@ class _DesktopShellState extends State<DesktopShell> {
 
   Widget _full(BuildContext context, AppNav nav) {
     final p = Palette.of(context);
-    return GlowBackground.page(
-      context,
+    return AppBackground(
       scale: 2.4,
       child: Stack(
         children: [
@@ -279,12 +279,7 @@ class _Sidebar extends StatelessWidget {
                     active: active == 'collection:downloaded',
                     onTap: () => open(CollectionRoute(PlaylistKind.downloaded)),
                   ),
-                  _SideItem(
-                    icon: YIcons.folder,
-                    label: '本地音乐',
-                    active: active == 'collection:local',
-                    onTap: () => open(CollectionRoute(PlaylistKind.local)),
-                  ),
+                  _SideItem(icon: YIcons.folder, label: '本地音乐', active: active == 'collection:local', onTap: () => open(CollectionRoute(PlaylistKind.local))),
                   _SideItem(icon: YIcons.library, label: '专辑与歌手', active: active == 'collections', onTap: () => open(MyCollectionsRoute())),
                   label('我的歌单', 18),
                   _SidePlaylists(key: ValueKey(sm.generation), source: source, active: active),

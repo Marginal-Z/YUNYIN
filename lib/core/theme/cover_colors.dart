@@ -132,6 +132,28 @@ class CoverColors {
     );
   }
 
+  /// 页面背景（封面取色模式）：底色接近白 / 黑以保证文字对比度，三团光晕取封面颜色。
+  (Color, List<Glow>) page(bool dark) {
+    if (dark) {
+      return (
+        Color.lerp(dominant, Colors.black, 0.9)!,
+        [
+          Glow(0, 0, 380, 300, vibrant.withValues(alpha: 0.34)),
+          Glow(1, 0.04, 340, 300, secondary.withValues(alpha: 0.2)),
+          Glow(0.55, 1, 420, 360, Color.lerp(vibrant, dominant, 0.5)!.withValues(alpha: 0.2)),
+        ],
+      );
+    }
+    return (
+      Color.lerp(dominant, Colors.white, 0.9)!,
+      [
+        Glow(0, 0, 380, 300, vibrant.withValues(alpha: 0.3)),
+        Glow(1, 0.04, 340, 300, secondary.withValues(alpha: 0.28)),
+        Glow(0.55, 1, 420, 360, Color.lerp(vibrant, dominant, 0.5)!.withValues(alpha: 0.2)),
+      ],
+    );
+  }
+
   /// 封面投影颜色。
   Color get shadow => vibrant;
 }

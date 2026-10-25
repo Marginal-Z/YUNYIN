@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/palette.dart';
 import '../../core/ui/glow_background.dart';
+import '../../core/ui/app_background.dart';
 import '../shell/nav.dart';
 
 /// 当前是桌面布局还是移动布局。
@@ -70,7 +71,7 @@ class MobilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final safeTop = MediaQuery.paddingOf(context).top;
-    final bg = player ? GlowBackground.player(context) : GlowBackground.page(context);
+    final bg = player ? GlowBackground.player(context) : const AppBackground();
     return Stack(
       children: [
         Positioned.fill(child: bg),

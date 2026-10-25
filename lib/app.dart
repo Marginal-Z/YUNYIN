@@ -91,6 +91,7 @@ class YunyinApp extends StatelessWidget {
         palette: p,
         child: GlassScope(
           enabled: s.glass,
+          material: s.glassMaterial,
           child: LayoutScope(
             desktop: width >= kDesktopBreakpoint,
             child: DefaultTextStyle(

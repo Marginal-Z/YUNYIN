@@ -9,7 +9,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/feedback.dart';
-import '../../core/ui/glow_background.dart';
+import '../../core/ui/app_background.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
@@ -336,8 +336,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
 
-    return GlowBackground.page(
-      context,
+    return AppBackground(
       scale: desktop ? 2.4 : 1,
       child: LayoutBuilder(
         builder: (context, c) {

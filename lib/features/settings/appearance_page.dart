@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
+import '../../core/ui/app_background.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
@@ -60,6 +61,68 @@ class AppearancePage extends StatelessWidget {
         ),
         const GroupLabel('主题'),
         AppearanceGroup(desktop: desktop),
+        const GroupLabel('液态玻璃'),
+        CardList(
+          indent: 14,
+          children: [
+            SettingsRow(
+              title: '液态玻璃效果',
+              trailing: YSwitch(value: s.glass, label: '液态玻璃效果', onChanged: (v) => s.setFlag('glass', v)),
+            ),
+            if (s.glass)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Segmented(
+                      labels: [for (final m in GlassMaterial.values) m.label],
+                      index: s.glassMaterial.index,
+                      onChanged: (i) => s.setGlassMaterial(GlassMaterial.values[i]),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      s.glassMaterial == GlassMaterial.clear ? '清透：几乎不模糊，边缘折射与高光最明显。' : '柔和：轻度模糊并带一层白色色调，文字更易阅读。',
+                      style: ts(13, height: 1.45, color: p.text2),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const GroupLabel('界面背景'),
+        CardList(
+          indent: 14,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Segmented(
+                labels: [for (final m in BackgroundMode.values) m.label],
+                index: s.background.index,
+                onChanged: (i) async {
+                  final mode = BackgroundMode.values[i];
+                  if (mode == BackgroundMode.image && s.backgroundImage == null) {
+                    await pickBackgroundImage(s);
+                  } else {
+                    s.setBackground(mode);
+                  }
+                },
+              ),
+            ),
+            if (s.background == BackgroundMode.cover)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: Text('界面底色与光晕取自正在播放歌曲的封面，切歌时平滑过渡。', style: ts(13, height: 1.45, color: p.text2)),
+              ),
+            if (s.background == BackgroundMode.image) ...[
+              SettingsRow(title: '更换图片', value: '从相册或文件选择', onTap: () => pickBackgroundImage(s)),
+              SettingsRow(
+                title: '背景模糊',
+                trailing: YSwitch(value: s.backgroundBlur, label: '背景模糊', onChanged: (v) => s.setFlag('backgroundBlur', v)),
+              ),
+            ],
+          ],
+        ),
         const GroupLabel('图标与播放页'),
         CardList(
           indent: 56,

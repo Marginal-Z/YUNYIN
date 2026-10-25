@@ -5,6 +5,7 @@ import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
@@ -66,11 +67,7 @@ class LocalLibrary extends ChangeNotifier {
 
   /// 选择若干音频文件导入。
   Future<ImportResult?> importFiles() async {
-    final files = await FilePicker.pickFiles(
-      dialogTitle: '选择要导入的音乐',
-      type: FileType.custom,
-      allowedExtensions: kAudioExtensions,
-    );
+    final files = await FilePicker.pickFiles(dialogTitle: '选择要导入的音乐', type: FileType.custom, allowedExtensions: kAudioExtensions);
     if (files.isEmpty) return null;
     return _run(() async {
       var added = 0, skipped = 0;
@@ -116,6 +113,82 @@ class LocalLibrary extends ChangeNotifier {
     });
   }
 
+  /// 扫描本机歌曲：Android 读取系统媒体库（需要音频权限），桌面端遍历“音乐”与“下载”目录。
+  /// 扫描到的文件直接引用原路径，不复制；短于 30 秒的音频（铃声、提示音）不导入。
+  Future<ImportResult?> scanDevice() async {
+    if (!supported || importing) return null;
+    return _run(() async {
+      progress = '正在扫描本机歌曲…';
+      notifyListeners();
+      final paths = Platform.isAndroid ? await _scanMediaStore() : await _scanFolders();
+      var added = 0, skipped = 0;
+      for (var i = 0; i < paths.length; i++) {
+        progress = '正在读取 ${i + 1}/${paths.length}';
+        notifyListeners();
+        try {
+          (await _add(paths[i], minDuration: const Duration(seconds: 30))) ? added++ : skipped++;
+        } catch (e) {
+          skipped++;
+        }
+      }
+      return ImportResult(added, skipped);
+    });
+  }
+
+  static const _media = MethodChannel('yunyin/media');
+
+  Future<List<String>> _scanMediaStore() async {
+    try {
+      final list = await _media.invokeListMethod<String>('scanAudio');
+      return [
+        for (final p in list ?? const <String>[])
+          if (File(p).existsSync()) p,
+      ];
+    } on PlatformException catch (e) {
+      throw Exception(e.code == 'denied' ? '需要允许访问音乐与音频才能扫描本机歌曲' : (e.message ?? e.code));
+    }
+  }
+
+  /// 桌面端的音乐目录：XDG 用户目录（Linux）与家目录下的常见名称。
+  List<Directory> _musicFolders() {
+    final home = Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
+    if (home == null) return [];
+    final names = <String>{'Music', '音乐', 'Downloads', '下载'};
+    if (Platform.isLinux) {
+      try {
+        final dirs = File('$home/.config/user-dirs.dirs').readAsLinesSync();
+        for (final l in dirs) {
+          final m = RegExp(r'^XDG_(MUSIC|DOWNLOAD)_DIR="(.+)"$').firstMatch(l.trim());
+          if (m != null) names.add(m.group(2)!.replaceFirst(r'$HOME/', ''));
+        }
+      } catch (_) {}
+    }
+    final sep = Platform.pathSeparator;
+    final seen = <String>{};
+    return [
+      for (final n in names)
+        if (Directory('$home$sep$n').existsSync() && seen.add(Directory('$home$sep$n').resolveSymbolicLinksSync())) Directory('$home$sep$n'),
+    ];
+  }
+
+  Future<List<String>> _scanFolders() async {
+    final paths = <String>[];
+    for (final dir in _musicFolders()) {
+      try {
+        await for (final e in dir.list(recursive: true, followLinks: false).handleError((_) {})) {
+          if (e is! File || !_isAudio(e.path)) continue;
+          // 跳过隐藏目录与很小的文件（提示音等）。
+          if (e.path.split(Platform.pathSeparator).any((part) => part.startsWith('.') && part.length > 1)) continue;
+          if (await e.length() < 300 * 1024) continue;
+          paths.add(e.path);
+        }
+      } catch (e) {
+        debugPrint('scan ${dir.path}: $e');
+      }
+    }
+    return paths;
+  }
+
   Future<ImportResult> _run(Future<ImportResult> Function() body) async {
     importing = true;
     notifyListeners();
@@ -145,7 +218,7 @@ class LocalLibrary extends ChangeNotifier {
 
   String _id(String path) => sha1.convert(utf8.encode(path)).toString().substring(0, 16);
 
-  Future<bool> _add(String path) async {
+  Future<bool> _add(String path, {Duration? minDuration}) async {
     final id = _id(path);
     if (_songs.any((s) => s.id == id)) return false;
     final file = File(path);
@@ -157,6 +230,7 @@ class LocalLibrary extends ChangeNotifier {
       artist = m.artist ?? m.albumArtist;
       album = m.album;
       duration = m.duration ?? Duration.zero;
+      if (minDuration != null && duration > Duration.zero && duration < minDuration) return false;
       if (m.pictures.isNotEmpty) {
         final pic = m.pictures.first;
         final ext = pic.mimetype.contains('png') ? 'png' : 'jpg';
@@ -181,16 +255,18 @@ class LocalLibrary extends ChangeNotifier {
         title = base;
       }
     }
-    _songs.add(Song(
-      id: id,
-      sourceId: LocalSource.sourceId,
-      name: title!.trim(),
-      artists: [ArtistRef('local:${artist ?? ''}', (artist ?? '').trim().isEmpty ? '未知歌手' : artist!.trim())],
-      album: (album ?? '').trim().isEmpty ? null : AlbumRef('local:$album', album!.trim(), cover: cover),
-      duration: duration,
-      cover: cover,
-      localPath: path,
-    ));
+    _songs.add(
+      Song(
+        id: id,
+        sourceId: LocalSource.sourceId,
+        name: title!.trim(),
+        artists: [ArtistRef('local:${artist ?? ''}', (artist ?? '').trim().isEmpty ? '未知歌手' : artist!.trim())],
+        album: (album ?? '').trim().isEmpty ? null : AlbumRef('local:$album', album!.trim(), cover: cover),
+        duration: duration,
+        cover: cover,
+        localPath: path,
+      ),
+    );
     return true;
   }
 

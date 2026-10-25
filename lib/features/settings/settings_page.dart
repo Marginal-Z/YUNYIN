@@ -223,10 +223,6 @@ class AppearanceGroup extends StatelessWidget {
             ),
           ),
         ),
-        SettingsRow(
-          title: desktop ? '窗口毛玻璃效果' : '毛玻璃效果',
-          trailing: YSwitch(value: s.glass, label: '窗口毛玻璃效果', onChanged: (v) => s.setFlag('glass', v)),
-        ),
       ],
     );
   }

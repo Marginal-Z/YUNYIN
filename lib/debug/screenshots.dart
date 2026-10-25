@@ -156,6 +156,24 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   await tour('desktop', _desktop, dark: true);
   await tour('mobile', _mobile, dark: false);
   await tour('mobile', _mobile, dark: true);
+
+  // 「柔和」玻璃材质与封面取色背景。
+  settings.setThemeMode(ThemeMode.light);
+  settings.setGlassMaterial(GlassMaterial.regular);
+  _spec.value = _mobile;
+  home();
+  await shot('mobile-home-regular', settle: 3000);
+  openPlayer(ctx());
+  await shot('mobile-player-regular', settle: 3000);
+  navKey.currentState!.pop();
+  settings.setGlassMaterial(GlassMaterial.clear);
+  settings.setBackground(BackgroundMode.cover);
+  home();
+  await shot('mobile-home-cover', settle: 3500);
+  _spec.value = _desktop;
+  home();
+  await shot('desktop-home-cover', settle: 3500);
+  settings.setBackground(BackgroundMode.glow);
   stderr.writeln('shots: 完成 → ${out.path}');
   exit(0);
 }

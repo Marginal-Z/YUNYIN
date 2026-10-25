@@ -3,7 +3,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../settings.dart';
 import '../theme/palette.dart';
+import 'liquid_glass_filter.dart';
 
 /// CSS 的 blur 半径对应高斯 sigma = blur / 2。
 double cssSigma(double blur) => blur / 2;
@@ -153,16 +155,40 @@ final ui.ImageFilter _glassFilter = ui.ImageFilter.compose(
   inner: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24, tileMode: TileMode.clamp),
 );
 
-/// 是否启用毛玻璃（设置项“窗口毛玻璃效果”）。
+/// 是否启用毛玻璃（设置项“窗口毛玻璃效果”）与液态玻璃材质。
 class GlassScope extends InheritedWidget {
-  const GlassScope({super.key, required this.enabled, required super.child});
+  const GlassScope({super.key, required this.enabled, this.material = GlassMaterial.clear, required super.child});
 
   final bool enabled;
+  final GlassMaterial material;
 
   static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<GlassScope>()?.enabled ?? true;
 
+  static GlassMaterial materialOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<GlassScope>()?.material ?? GlassMaterial.clear;
+
   @override
-  bool updateShouldNotify(GlassScope old) => old.enabled != enabled;
+  bool updateShouldNotify(GlassScope old) => old.enabled != enabled || old.material != material;
+}
+
+/// 液态玻璃（着色器版本，见 shaders/liquid_glass.frag）：玻璃本身没有填充色，
+/// 只靠折射、色散、边缘高光与「柔和」材质的模糊和色调呈现，外加原版背景中的柔和投影。
+Widget _shaderGlass({
+  required double radius,
+  required GlassMaterial material,
+  double? width,
+  double? height,
+  EdgeInsetsGeometry? padding,
+  AlignmentGeometry? alignment,
+  Widget? child,
+}) {
+  Widget content = Container(padding: padding, alignment: alignment, child: child);
+  content = LiquidGlassBackdrop(radius: radius, material: material, child: content);
+  // 原版投影：向下 10 像素、约 25 像素的指数衰减，最深处约 9%。
+  content = CustomPaint(
+    painter: _OuterShadowPainter(BorderRadius.circular(radius), const [Shadow2(0, 10, 40, Color.fromRGBO(0, 0, 0, 0.14))], clipInside: true),
+    child: content,
+  );
+  return width != null || height != null ? SizedBox(width: width, height: height, child: content) : content;
 }
 
 /// 通用盒子：背景色/渐变、圆角、外阴影、内阴影、描边、可选背景模糊。
@@ -257,6 +283,17 @@ class Glass extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final enabled = GlassScope.of(context);
+    if (enabled && LiquidGlassShader.available) {
+      return _shaderGlass(
+        radius: radius,
+        material: GlassScope.materialOf(context),
+        width: width,
+        height: height,
+        padding: padding,
+        alignment: alignment,
+        child: child,
+      );
+    }
     var bg = color ?? p.glass;
     if (!enabled) bg = Color.alphaBlend(bg, p.isDark ? const Color(0xFF26272C) : const Color(0xFFF2F3F7));
     return YBox(
@@ -275,7 +312,7 @@ class Glass extends StatelessWidget {
   }
 }
 
-/// 更通透的液态玻璃：背景几乎透明，靠模糊、提饱和与高光描边勾勒轮廓（播放页功能卡片、歌词页控制卡片）。
+/// 播放页功能卡片、歌词页控制卡片使用的液态玻璃。不支持着色器时退回通透的毛玻璃加高光描边。
 class LiquidGlass extends StatelessWidget {
   const LiquidGlass({super.key, required this.radius, this.width, this.height, this.padding, this.child});
 
@@ -292,6 +329,9 @@ class LiquidGlass extends StatelessWidget {
     final dark = p.isDark;
     // 关闭毛玻璃时退回半透明实色，保证内容可读。
     final blur = GlassScope.of(context);
+    if (blur && LiquidGlassShader.available) {
+      return _shaderGlass(radius: radius, material: GlassScope.materialOf(context), width: width, height: height, padding: padding, child: child);
+    }
     final fill = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,

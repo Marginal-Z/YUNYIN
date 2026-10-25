@@ -8,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'core/app_icon.dart';
+import 'core/ui/liquid_glass_filter.dart';
 import 'core/update/updater.dart';
 import 'core/settings.dart';
 import 'debug/benchmark.dart';
@@ -48,6 +49,7 @@ Future<void> main() async {
     }
   }
 
+  await LiquidGlassShader.init();
   final settings = AppSettings();
   await settings.init();
   final local = LocalLibrary();

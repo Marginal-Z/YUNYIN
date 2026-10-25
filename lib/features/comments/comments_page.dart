@@ -6,7 +6,7 @@ import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/feedback.dart';
-import '../../core/ui/glow_background.dart';
+import '../../core/ui/app_background.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
@@ -146,8 +146,7 @@ class _CommentsPageState extends State<CommentsPage> {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     return Material(
       type: MaterialType.transparency,
-      child: GlowBackground.page(
-        context,
+      child: AppBackground(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640),
