@@ -162,11 +162,19 @@ class YBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 未指定宽 / 高时，对齐不应撑满父级（与 CSS 中 inline-flex 的行为一致）。
+    final aligned = alignment == null || child == null
+        ? child
+        : Align(
+            alignment: alignment!,
+            widthFactor: width == null ? 1 : null,
+            heightFactor: height == null ? 1 : null,
+            child: child,
+          );
     Widget content = Container(
       padding: padding,
-      alignment: alignment,
       decoration: BoxDecoration(color: color, gradient: gradient, borderRadius: radius),
-      child: child,
+      child: aligned,
     );
     if (insets.isNotEmpty || border != null) {
       content = CustomPaint(

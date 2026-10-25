@@ -247,6 +247,7 @@ class SkeletonList extends StatelessWidget {
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [bar(0.58, 12), const SizedBox(height: 8), bar(0.32, 10)],
                     ),
                   ),
