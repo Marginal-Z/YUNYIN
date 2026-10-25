@@ -105,6 +105,8 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(7); // 色散
     f(0.9); // 边缘高光 90%
     f(regular ? 0.11 : 0); // 色调
+    // 圆角达到短边一半（圆形、胶囊）时用正圆弧，否则用原版面板的超椭圆圆角。
+    f(_radius >= size.shortestSide / 2 - 0.5 ? 2 : 5);
     // 原版模糊：半径 r 的高斯核，sigma = r / 3。原版以 1 倍屏的像素设计，这里按逻辑像素换算，
     // 使高分屏手机上的模糊程度与原版观感一致。
     final sigma = (regular ? 16 : 1) / 3;

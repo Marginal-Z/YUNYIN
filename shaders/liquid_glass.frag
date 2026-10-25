@@ -27,6 +27,7 @@ uniform float uRefraction; // 折射强度（原版 refraction / 100）
 uniform float uDispersion; // 色散（原版默认 7）
 uniform float uGlare;      // 边缘高光（原版 glare / 100）
 uniform float uTint;       // 白色色调强度（清透 0，柔和 0.11）
+uniform float uRoundness;  // 圆角指数：圆形与胶囊为 2，面板为 5（同原版形状预设）
 
 uniform sampler2D uTexture;
 
@@ -35,7 +36,6 @@ out vec4 fragColor;
 const float N_R = 1.0 - 0.02;
 const float N_G = 1.0;
 const float N_B = 1.0 + 0.02;
-const float ROUNDNESS = 5.0;
 const float REF_FACTOR = 1.4;
 
 vec4 sampleBg(vec2 uv) {
@@ -55,7 +55,7 @@ float shapeSDF(vec2 p) {
   vec2 d = abs(p) - halfSize;
   if (d.x > -cr && d.y > -cr) {
     vec2 cornerCenter = sign(p) * (halfSize - vec2(cr));
-    return superellipseCornerSDF(p - cornerCenter, cr, ROUNDNESS);
+    return superellipseCornerSDF(p - cornerCenter, cr, uRoundness);
   }
   return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
