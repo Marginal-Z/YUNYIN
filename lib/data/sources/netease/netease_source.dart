@@ -110,7 +110,7 @@ class NeteaseSource extends MusicSource {
 
   Future<void>? _anonymous;
 
-  /// 保证请求带有身份（登录用户或匿名游客），并在遇到风控（-462）时重新注册游客重试一次。
+  /// 保证请求带有身份（登录用户或匿名游客），并在遇到风控（-462）或 400 时重新注册游客重试一次。
   Future<Map<String, dynamic>> _withIdentity(Future<Map<String, dynamic>> Function() send) async {
     if (!_cookies.containsKey('MUSIC_U') && !_cookies.containsKey('MUSIC_A')) {
       try {
@@ -123,11 +123,20 @@ class NeteaseSource extends MusicSource {
     try {
       return await send();
     } on NeteaseApiException catch (e) {
-      if (e.code != -462 || _cookies.containsKey('MUSIC_U')) rethrow;
-      await ensureAnonymous(force: true);
+      // 风控（-462）或首次启动时游客注册偶发失败导致的 400：重新注册游客后重试一次（并发请求共用一次注册）。
+      if ((e.code != -462 && e.code != 400) || _cookies.containsKey('MUSIC_U')) rethrow;
+      try {
+        await (_reRegister ??= Future<void>.delayed(const Duration(milliseconds: 400))
+            .then((_) => ensureAnonymous(force: true))
+            .whenComplete(() => _reRegister = null));
+      } catch (err) {
+        debugPrint('netease anonymous retry failed: $err');
+      }
       return send();
     }
   }
+
+  Future<void>? _reRegister;
 
   Future<Map<String, dynamic>> _weapi(String path, [Map<String, dynamic> data = const {}]) {
     if (path == '/register/anonimous') return _postWeapi(path, data);
