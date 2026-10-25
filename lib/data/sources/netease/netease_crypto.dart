@@ -24,8 +24,7 @@ abstract final class NeteaseCrypto {
   static Uint8List _aes(Uint8List data, Uint8List key, {Uint8List? iv}) {
     final BlockCipher cipher = iv == null ? ECBBlockCipher(AESEngine()) : CBCBlockCipher(AESEngine());
     final params = iv == null ? KeyParameter(key) : ParametersWithIV<KeyParameter>(KeyParameter(key), iv);
-    final padded = PaddedBlockCipherImpl(PKCS7Padding(), cipher)
-      ..init(true, PaddedBlockCipherParameters<CipherParameters, CipherParameters?>(params, null));
+    final padded = PaddedBlockCipherImpl(PKCS7Padding(), cipher)..init(true, PaddedBlockCipherParameters<CipherParameters, CipherParameters?>(params, null));
     return padded.process(data);
   }
 
@@ -71,6 +70,5 @@ abstract final class NeteaseCrypto {
 
   static String md5(String s) => hash.md5.convert(utf8.encode(s)).toString();
 
-  static String randomHex(int length) =>
-      List.generate(length, (_) => _rand.nextInt(16).toRadixString(16)).join();
+  static String randomHex(int length) => List.generate(length, (_) => _rand.nextInt(16).toRadixString(16)).join();
 }

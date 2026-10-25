@@ -15,21 +15,21 @@ import '../settings/settings_page.dart';
 import 'nav.dart';
 
 Widget buildMobileRoute(AppRoute r) => switch (r) {
-      HomeRoute() => const HomePage(),
-      DiscoverRoute(:final tab) => DiscoverPage(initialTab: tab),
-      LibraryRoute() => const LibraryPage(),
-      PlaylistRoute() || AlbumRoute() || RadioRoute() || CollectionRoute() => PlaylistPage(route: r),
-      ArtistRoute() => ArtistPage(route: r),
-      MyCollectionsRoute(:final tab) => CollectionsPage(initialTab: tab),
-      SearchRoute() => const SearchPage(),
-      SearchResultRoute() => SearchResultPage(key: ValueKey(r.uid), route: r),
-      SettingsRoute() => const SettingsPage(),
-      SettingsMoreRoute() => const SettingsMorePage(),
-      LoginRoute() => const LoginPage(),
-    };
+  HomeRoute() => const HomePage(),
+  DiscoverRoute(:final tab) => DiscoverPage(initialTab: tab),
+  LibraryRoute() => const LibraryPage(),
+  PlaylistRoute() || AlbumRoute() || RadioRoute() || CollectionRoute() => PlaylistPage(route: r),
+  ArtistRoute() => ArtistPage(route: r),
+  MyCollectionsRoute(:final tab) => CollectionsPage(initialTab: tab),
+  SearchRoute() => const SearchPage(),
+  SearchResultRoute() => SearchResultPage(key: ValueKey(r.uid), route: r),
+  SettingsRoute() => const SettingsPage(),
+  SettingsMoreRoute() => const SettingsMorePage(),
+  LoginRoute() => const LoginPage(),
+};
 
 Widget buildDesktopRoute(AppRoute r) => switch (r) {
-      HomeRoute() => const DesktopHomePage(),
-      LibraryRoute() => const CollectionsPage(),
-      _ => buildMobileRoute(r),
-    };
+  HomeRoute() => const DesktopHomePage(),
+  LibraryRoute() => const CollectionsPage(),
+  _ => buildMobileRoute(r),
+};

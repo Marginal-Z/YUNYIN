@@ -63,44 +63,44 @@ class Song {
   String? get coverUrl => cover ?? album?.cover;
 
   Song copyWith({String? localPath, String? cover, Duration? duration}) => Song(
-        id: id,
-        sourceId: sourceId,
-        name: name,
-        artists: artists,
-        album: album,
-        duration: duration ?? this.duration,
-        cover: cover ?? this.cover,
-        playable: playable,
-        alias: alias,
-        localPath: localPath ?? this.localPath,
-        playCount: playCount,
-      );
+    id: id,
+    sourceId: sourceId,
+    name: name,
+    artists: artists,
+    album: album,
+    duration: duration ?? this.duration,
+    cover: cover ?? this.cover,
+    playable: playable,
+    alias: alias,
+    localPath: localPath ?? this.localPath,
+    playCount: playCount,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'sourceId': sourceId,
-        'name': name,
-        'artists': artists.map((a) => a.toJson()).toList(),
-        'album': album?.toJson(),
-        'duration': duration.inMilliseconds,
-        'cover': cover,
-        'playable': playable,
-        'alias': alias,
-        'localPath': localPath,
-      };
+    'id': id,
+    'sourceId': sourceId,
+    'name': name,
+    'artists': artists.map((a) => a.toJson()).toList(),
+    'album': album?.toJson(),
+    'duration': duration.inMilliseconds,
+    'cover': cover,
+    'playable': playable,
+    'alias': alias,
+    'localPath': localPath,
+  };
 
   factory Song.fromJson(Map<String, dynamic> j) => Song(
-        id: '${j['id']}',
-        sourceId: '${j['sourceId']}',
-        name: '${j['name']}',
-        artists: [for (final a in (j['artists'] as List? ?? const [])) ArtistRef.fromJson(Map<String, dynamic>.from(a as Map))],
-        album: j['album'] == null ? null : AlbumRef.fromJson(Map<String, dynamic>.from(j['album'] as Map)),
-        duration: Duration(milliseconds: (j['duration'] as num?)?.toInt() ?? 0),
-        cover: j['cover'] as String?,
-        playable: j['playable'] as bool? ?? true,
-        alias: j['alias'] as String?,
-        localPath: j['localPath'] as String?,
-      );
+    id: '${j['id']}',
+    sourceId: '${j['sourceId']}',
+    name: '${j['name']}',
+    artists: [for (final a in (j['artists'] as List? ?? const [])) ArtistRef.fromJson(Map<String, dynamic>.from(a as Map))],
+    album: j['album'] == null ? null : AlbumRef.fromJson(Map<String, dynamic>.from(j['album'] as Map)),
+    duration: Duration(milliseconds: (j['duration'] as num?)?.toInt() ?? 0),
+    cover: j['cover'] as String?,
+    playable: j['playable'] as bool? ?? true,
+    alias: j['alias'] as String?,
+    localPath: j['localPath'] as String?,
+  );
 
   @override
   bool operator ==(Object other) => other is Song && other.key == key;
@@ -146,26 +146,25 @@ class PlaylistInfo {
 
   String get genre => tags.isEmpty ? '' : tags.first;
 
-  Duration get totalDuration =>
-      (tracks ?? const <Song>[]).fold(Duration.zero, (a, s) => a + s.duration);
+  Duration get totalDuration => (tracks ?? const <Song>[]).fold(Duration.zero, (a, s) => a + s.duration);
 
   PlaylistInfo withTracks(List<Song> songs) => PlaylistInfo(
-        id: id,
-        sourceId: sourceId,
-        name: name,
-        cover: cover,
-        trackCount: trackCount == 0 ? songs.length : trackCount,
-        creator: creator,
-        description: description,
-        tags: tags,
-        playCount: playCount,
-        tracks: songs,
-        subscribed: subscribed,
-        isLikedList: isLikedList,
-        ownedByMe: ownedByMe,
-        downloaded: downloaded,
-        kind: kind,
-      );
+    id: id,
+    sourceId: sourceId,
+    name: name,
+    cover: cover,
+    trackCount: trackCount == 0 ? songs.length : trackCount,
+    creator: creator,
+    description: description,
+    tags: tags,
+    playCount: playCount,
+    tracks: songs,
+    subscribed: subscribed,
+    isLikedList: isLikedList,
+    ownedByMe: ownedByMe,
+    downloaded: downloaded,
+    kind: kind,
+  );
 }
 
 enum PlaylistKind { playlist, album, chart, daily, recent, liked, downloaded, radio, local }
@@ -350,14 +349,11 @@ class HotSearch {
 
 /// 首页数据。
 class HomeFeed {
-  const HomeFeed({required this.daily, required this.playlists, this.radar});
+  const HomeFeed({required this.daily, required this.playlists});
 
   /// 每日推荐歌曲。
   final List<Song> daily;
   final List<PlaylistInfo> playlists;
-
-  /// 私人雷达（桌面端首页右侧卡片）。
-  final PlaylistInfo? radar;
 }
 
 enum AudioQuality {
@@ -374,15 +370,17 @@ enum AudioQuality {
   final int bitrate;
 }
 
-/// 播放地址。[url] 为空且 [simulated] 为 true 时由播放器模拟播放进度（演示源）。
+/// 播放地址。[url] 为空表示无法播放（无版权等）。
 class StreamInfo {
-  const StreamInfo({this.url, this.headers = const {}, this.simulated = false, this.trial = false, this.quality});
+  const StreamInfo({this.url, this.headers = const {}, this.trial = false, this.quality, this.gainDb});
 
   final String? url;
   final Map<String, String> headers;
-  final bool simulated;
   final bool trial;
   final AudioQuality? quality;
+
+  /// 平台提供的响度增益（dB，类似 ReplayGain），用于音量均衡。
+  final double? gainDb;
 }
 
 /// 二维码登录凭据。

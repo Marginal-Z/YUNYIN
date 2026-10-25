@@ -32,16 +32,16 @@ String greeting([DateTime? now]) {
 }
 
 PlaylistInfo dailyPlaylist(MusicSource source, List<Song> songs) => PlaylistInfo(
-      id: 'daily',
-      sourceId: source.id,
-      name: '每日推荐',
-      cover: songs.firstOrNull?.coverUrl,
-      creator: source.loggedIn ? '根据你的口味生成' : '飙升榜精选',
-      description: '新歌与老朋友，每天清晨更新',
-      trackCount: songs.length,
-      kind: PlaylistKind.daily,
-      tracks: songs,
-    );
+  id: 'daily',
+  sourceId: source.id,
+  name: '每日推荐',
+  cover: songs.firstOrNull?.coverUrl,
+  creator: source.loggedIn ? '根据你的口味生成' : '飙升榜精选',
+  description: '新歌与老朋友，每天清晨更新',
+  trackCount: songs.length,
+  kind: PlaylistKind.daily,
+  tracks: songs,
+);
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -55,33 +55,38 @@ class HomePage extends StatelessWidget {
     return MobilePage(
       top: 26,
       children: [
-        Row(children: [
-          const AppLogo(size: 30),
-          const SizedBox(width: 9),
-          Text('云音', style: ts(19, weight: w700, em: -0.01, color: p.text)),
-          const Spacer(),
-          if (user?.avatar != null)
-            Pressable(
-              onTap: () => context.read<AppNav>().switchTab(2),
-              semanticLabel: '个人主页',
-              child: Cover(user!.avatar, size: 36, circle: true),
-            )
-          else
-            CircleButton(
-              YIcons.user,
-              size: 36,
-              iconSize: 19,
-              color: p.text3,
-              label: '个人主页',
-              onTap: () => user == null && source.supports(SourceFeature.login)
-                  ? go(context, LoginRoute())
-                  : context.read<AppNav>().switchTab(2),
+        Row(
+          children: [
+            const AppLogo(size: 30),
+            const SizedBox(width: 9),
+            Text(
+              '云音',
+              style: ts(19, weight: w700, em: -0.01, color: p.text),
             ),
-        ]),
+            const Spacer(),
+            if (user?.avatar != null)
+              Pressable(onTap: () => context.read<AppNav>().switchTab(2), semanticLabel: '个人主页', child: Cover(user!.avatar, size: 36, circle: true))
+            else
+              CircleButton(
+                YIcons.user,
+                size: 36,
+                iconSize: 19,
+                color: p.text3,
+                label: '个人主页',
+                onTap: () => user == null && source.supports(SourceFeature.login) ? go(context, LoginRoute()) : context.read<AppNav>().switchTab(2),
+              ),
+          ],
+        ),
         const SizedBox(height: 20),
-        Text(todayText(), style: ts(13, weight: w600, color: p.text2)),
+        Text(
+          todayText(),
+          style: ts(13, weight: w600, color: p.text2),
+        ),
         const SizedBox(height: 2),
-        Text(greeting(), style: ts(36, weight: w700, em: -0.02, height: 1.1, color: p.text)),
+        Text(
+          greeting(),
+          style: ts(36, weight: w700, em: -0.02, height: 1.1, color: p.text),
+        ),
         AsyncView<HomeFeed>(
           keyValue: sources.generation,
           load: source.homeFeed,
@@ -102,7 +107,7 @@ class _HomeBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final source = context.read<SourceManager>().current;
     final player = context.watch<PlayerController>();
-    final recent = player.history.isNotEmpty ? player.history.take(4).toList() : feed.daily.take(4).toList();
+    final recent = player.history.take(4).toList();
     final daily = dailyPlaylist(source, feed.daily);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -127,25 +132,25 @@ class _HomeBody extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(width: 14),
               itemBuilder: (context, i) {
                 final pl = feed.playlists[i];
-                return PlaylistTile(
-                  width: 132,
-                  cover: pl.cover,
-                  title: pl.name,
-                  subtitle: playlistSubtitle(pl),
-                  onTap: () => openPlaylist(context, pl),
-                );
+                return PlaylistTile(width: 132, cover: pl.cover, title: pl.name, subtitle: playlistSubtitle(pl), onTap: () => openPlaylist(context, pl));
               },
             ),
           ),
         ),
         SectionHeader('最近播放', action: '更多', onAction: () => go(context, CollectionRoute(PlaylistKind.recent))),
-        CardList(
-          indent: 70,
-          children: [
-            for (final s in recent)
-              SongRow(song: s, onTap: () => playAll(context, recent, start: recent.indexOf(s), title: '最近播放')),
-          ],
-        ),
+        if (recent.isEmpty)
+          const EmptyRecent()
+        else
+          CardList(
+            indent: 70,
+            children: [
+              for (final s in recent)
+                SongRow(
+                  song: s,
+                  onTap: () => playAll(context, recent, start: recent.indexOf(s), title: '最近播放'),
+                ),
+            ],
+          ),
       ],
     );
   }
@@ -161,18 +166,15 @@ class _Bleed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      return SizedBox(
-        width: c.maxWidth,
-        height: height,
-        child: OverflowBox(
-          alignment: Alignment.centerLeft,
-          minWidth: c.maxWidth + right,
-          maxWidth: c.maxWidth + right,
-          child: child,
-        ),
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, c) {
+        return SizedBox(
+          width: c.maxWidth,
+          height: height,
+          child: OverflowBox(alignment: Alignment.centerLeft, minWidth: c.maxWidth + right, maxWidth: c.maxWidth + right, child: child),
+        );
+      },
+    );
   }
 }
 
@@ -192,6 +194,7 @@ class DailyCard extends StatelessWidget {
       onTap: onOpen,
       scale: 0.99,
       child: YBox(
+        clip: true,
         height: height,
         radius: BorderRadius.circular(desktop ? 30 : 28),
         gradient: CssGradient(150, colors: p.dailyGradient),
@@ -219,15 +222,23 @@ class DailyCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                         decoration: BoxDecoration(color: p.dailyLabelBg, borderRadius: BorderRadius.circular(9)),
-                        child: Text('DAILY MIX', style: ts(11, weight: w700, em: 0.1, color: p.dailyLabel)),
+                        child: Text(
+                          'DAILY MIX',
+                          style: ts(11, weight: w700, em: 0.1, color: p.dailyLabel),
+                        ),
                       ),
                       SizedBox(height: desktop ? 8 : 6),
-                      Text('每日推荐', style: ts(desktop ? 36 : 30, weight: w700, em: -0.02, height: 1.12, color: p.text)),
+                      Text(
+                        '每日推荐',
+                        style: ts(desktop ? 36 : 30, weight: w700, em: -0.02, height: 1.12, color: p.text),
+                      ),
                       const SizedBox(height: 6),
                       ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: desktop ? 400 : 150),
-                        child: Text('新歌与老朋友，每天清晨更新',
-                            style: ts(desktop ? 14 : 13, height: desktop ? null : 1.5, color: p.dailyDesc)),
+                        child: Text(
+                          '新歌与老朋友，每天清晨更新',
+                          style: ts(desktop ? 14 : 13, height: desktop ? null : 1.5, color: p.dailyDesc),
+                        ),
                       ),
                     ],
                   ),
@@ -291,24 +302,40 @@ class RadarCard extends StatelessWidget {
       onTap: onTap,
       scale: 0.99,
       child: YBox(
+        clip: true,
         height: 208,
         radius: BorderRadius.circular(30),
         gradient: CssGradient(150, colors: p.albumGradient),
         shadows: const [Shadow2(0, 16, 34, Color.fromRGBO(20, 145, 127, 0.20))],
         insets: [Shadow2(0, 1, 0, p.highlightInset)],
-        child: Stack(children: [
-          Positioned(right: 0, bottom: 0, child: CustomPaint(size: const Size(170, 208), painter: _RadarArt())),
-          Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('RADAR', style: ts(12, weight: w600, em: 0.12, color: p.albumDesc)),
-              const SizedBox(height: 8),
-              Text('私人雷达', style: ts(28, weight: w700, em: -0.02, height: 1.12, color: p.text)),
-              const SizedBox(height: 6),
-              Text('按你的口味发现新歌', style: ts(14, color: p.albumDesc)),
-            ]),
-          ),
-        ]),
+        child: Stack(
+          children: [
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: CustomPaint(size: const Size(170, 208), painter: _RadarArt()),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'RADAR',
+                    style: ts(12, weight: w600, em: 0.12, color: p.albumDesc),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '私人雷达',
+                    style: ts(28, weight: w700, em: -0.02, height: 1.12, color: p.text),
+                  ),
+                  const SizedBox(height: 6),
+                  Text('按你的口味发现新歌', style: ts(14, color: p.albumDesc)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -326,4 +353,16 @@ class _RadarArt extends CustomPainter {
 
   @override
   bool shouldRepaint(_RadarArt old) => false;
+}
+
+/// 还没有播放记录时的提示。
+class EmptyRecent extends StatelessWidget {
+  const EmptyRecent({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return YCard(
+      child: StateView.empty(title: '还没有播放记录', message: '播放过的歌曲会出现在这里。', icon: YIcons.clock),
+    );
+  }
 }

@@ -95,71 +95,91 @@ class _DesktopShellState extends State<DesktopShell> {
     return GlowBackground.page(
       context,
       scale: 2.4,
-      child: Stack(children: [
-        Positioned.fill(
-          child: Navigator(
-            key: _navKey,
-            pages: [for (final r in nav.stacks[0]) _FadePage(key: ValueKey(r.uid), child: buildDesktopRoute(r))],
-            onDidRemovePage: (page) {
-              final key = page.key;
-              if (key is ValueKey<int>) {
-                final r = nav.stacks[0].where((x) => x.uid == key.value).firstOrNull;
-                if (r != null) nav.removed(0, r);
-              }
-            },
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Navigator(
+              key: _navKey,
+              pages: [for (final r in nav.stacks[0]) _FadePage(key: ValueKey(r.uid), child: buildDesktopRoute(r))],
+              onDidRemovePage: (page) {
+                final key = page.key;
+                if (key is ValueKey<int>) {
+                  final r = nav.stacks[0].where((x) => x.uid == key.value).firstOrNull;
+                  if (r != null) nav.removed(0, r);
+                }
+              },
+            ),
           ),
-        ),
-        // 顶栏背后的拖动区域。
-        const Positioned(left: 252, right: 0, top: 0, height: 72, child: WindowDragArea(child: SizedBox.expand())),
-        Positioned(
-          left: 262,
-          right: 28,
-          top: 16,
-          height: 44,
-          child: Row(children: [
-            GlassButton(YIcons.back, size: 40, iconSize: 20, strokeWidth: 1.9, label: '后退',
-                color: nav.canBack ? p.text : p.text2, onTap: nav.canBack ? nav.pop : null),
-            const SizedBox(width: 10),
-            GlassButton(YIcons.forward, size: 40, iconSize: 20, strokeWidth: 1.9, label: '前进',
-                color: nav.canForward ? p.text : p.text2, onTap: nav.canForward ? nav.forward : null),
-            const SizedBox(width: 18),
-            Glass(
-              width: 340,
-              height: 40,
-              radius: 20,
-              shadows: p.glassButtonShadow,
-              insets: p.glassButtonInset,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(children: [
-                YIcon(YIcons.search, size: 18, strokeWidth: 1.9, color: p.text3),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _search,
-                    focusNode: _searchFocus,
-                    style: ts(14, color: p.text),
-                    cursorColor: p.accentText,
-                    textInputAction: TextInputAction.search,
-                    onTap: () {
-                      if (nav.top is! SearchRoute && nav.top is! SearchResultRoute && _search.text.isEmpty) nav.push(SearchRoute());
-                    },
-                    onSubmitted: (q) => submitSearch(context, q),
-                    decoration: InputDecoration(
-                      isCollapsed: true,
-                      border: InputBorder.none,
-                      hintText: '搜索歌曲、歌手、歌单',
-                      hintStyle: ts(14, color: p.text2),
-                    ),
+          // 顶栏背后的拖动区域。
+          const Positioned(left: 252, right: 0, top: 0, height: 72, child: WindowDragArea(child: SizedBox.expand())),
+          Positioned(
+            left: 262,
+            right: 28,
+            top: 16,
+            height: 44,
+            child: Row(
+              children: [
+                GlassButton(
+                  YIcons.back,
+                  size: 40,
+                  iconSize: 20,
+                  strokeWidth: 1.9,
+                  label: '后退',
+                  color: nav.canBack ? p.text : p.text2,
+                  onTap: nav.canBack ? nav.pop : null,
+                ),
+                const SizedBox(width: 10),
+                GlassButton(
+                  YIcons.forward,
+                  size: 40,
+                  iconSize: 20,
+                  strokeWidth: 1.9,
+                  label: '前进',
+                  color: nav.canForward ? p.text : p.text2,
+                  onTap: nav.canForward ? nav.forward : null,
+                ),
+                const SizedBox(width: 18),
+                Glass(
+                  width: 340,
+                  height: 40,
+                  radius: 20,
+                  shadows: p.glassButtonShadow,
+                  insets: p.glassButtonInset,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      YIcon(YIcons.search, size: 18, strokeWidth: 1.9, color: p.text3),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _search,
+                          focusNode: _searchFocus,
+                          style: ts(14, color: p.text),
+                          cursorColor: p.accentText,
+                          textInputAction: TextInputAction.search,
+                          onTap: () {
+                            if (nav.top is! SearchRoute && nav.top is! SearchResultRoute && _search.text.isEmpty) nav.push(SearchRoute());
+                          },
+                          onSubmitted: (q) => submitSearch(context, q),
+                          decoration: InputDecoration(
+                            isCollapsed: true,
+                            border: InputBorder.none,
+                            hintText: '搜索歌曲、歌手、歌单',
+                            hintStyle: ts(14, color: p.text2),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ]),
+                const Spacer(),
+              ],
             ),
-            const Spacer(),
-          ]),
-        ),
-        const Positioned(left: 10, top: 10, bottom: 10, width: 232, child: _Sidebar()),
-        const Positioned(left: 262, right: 28, bottom: 14, child: DesktopPlayerBar()),
-      ]),
+          ),
+          const Positioned(left: 10, top: 10, bottom: 10, width: 232, child: _Sidebar()),
+          const Positioned(left: 262, right: 28, bottom: 14, child: DesktopPlayerBar()),
+        ],
+      ),
     );
   }
 }
@@ -171,12 +191,12 @@ class _FadePage extends Page<void> {
 
   @override
   Route<void> createRoute(BuildContext context) => PageRouteBuilder<void>(
-        settings: this,
-        transitionDuration: const Duration(milliseconds: 180),
-        reverseTransitionDuration: const Duration(milliseconds: 140),
-        pageBuilder: (_, _, _) => child,
-        transitionsBuilder: (_, a, _, c) => FadeTransition(opacity: a, child: c),
-      );
+    settings: this,
+    transitionDuration: const Duration(milliseconds: 180),
+    reverseTransitionDuration: const Duration(milliseconds: 140),
+    pageBuilder: (_, _, _) => child,
+    transitionsBuilder: (_, a, _, c) => FadeTransition(opacity: a, child: c),
+  );
 }
 
 class _Sidebar extends StatelessWidget {
@@ -195,9 +215,12 @@ class _Sidebar extends StatelessWidget {
     }
 
     Widget label(String t, double top) => Padding(
-          padding: EdgeInsets.fromLTRB(10, top, 0, 6),
-          child: Text(t, style: ts(12, weight: w600, color: p.text2)),
-        );
+      padding: EdgeInsets.fromLTRB(10, top, 0, 6),
+      child: Text(
+        t,
+        style: ts(12, weight: w600, color: p.text2),
+      ),
+    );
 
     return YBox(
       radius: BorderRadius.circular(26),
@@ -207,62 +230,90 @@ class _Sidebar extends StatelessWidget {
       shadows: p.sidebarShadow,
       insets: p.glassButtonInset,
       padding: const EdgeInsets.fromLTRB(12, 18, 12, 14),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        WindowDragArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Row(children: const [WindowControls(), Spacer()]),
-          ),
-        ),
-        const SizedBox(height: 20),
-        WindowDragArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(children: [
-              const AppLogo(size: 28),
-              const SizedBox(width: 9),
-              Text('云音', style: ts(18, weight: w700, em: -0.01, color: p.text)),
-            ]),
-          ),
-        ),
-        Expanded(
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-            child: ListView(padding: EdgeInsets.zero, children: [
-              label('发现', 20),
-              _SideItem(icon: YIcons.home, label: '首页', active: active == 'home', onTap: () => open(HomeRoute())),
-              _SideItem(icon: YIcons.discover, label: '发现', active: active == 'discover', onTap: () => open(DiscoverRoute())),
-              _SideItem(icon: YIcons.radio, label: '电台', active: active == 'radio', onTap: () => open(DiscoverRoute(tab: 2))),
-              label('乐库', 18),
-              _SideItem(icon: YIcons.clock, label: '最近播放', active: active == 'collection:recent', onTap: () => open(CollectionRoute(PlaylistKind.recent))),
-              _SideItem(icon: YIcons.heartOutline, label: '我喜欢的音乐', active: active == 'collection:liked', onTap: () => open(CollectionRoute(PlaylistKind.liked))),
-              _SideItem(icon: YIcons.download, label: '已下载', active: active == 'collection:downloaded', onTap: () => open(CollectionRoute(PlaylistKind.downloaded))),
-              _SideItem(icon: YIcons.library, label: '专辑与歌手', active: active == 'collections', onTap: () => open(MyCollectionsRoute())),
-              label('我的歌单', 18),
-              _SidePlaylists(key: ValueKey(sm.generation), source: source, active: active),
-            ]),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(6, 0, 4, 0),
-          child: Row(children: [
-            Pressable(
-              onTap: () => open(source.user == null && source.supports(SourceFeature.login) ? LoginRoute() : SettingsMoreRoute()),
-              child: Cover(source.user?.avatar ?? 'art:avatarCoral', size: 34, circle: true),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          WindowDragArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(children: const [WindowControls(), Spacer()]),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Pressable(
-                onTap: () => open(source.user == null && source.supports(SourceFeature.login) ? LoginRoute() : SettingsMoreRoute()),
-                scale: 1,
-                child: Text(source.user?.nickname ?? '点击登录', style: ts(14, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          const SizedBox(height: 20),
+          WindowDragArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  const AppLogo(size: 28),
+                  const SizedBox(width: 9),
+                  Text(
+                    '云音',
+                    style: ts(18, weight: w700, em: -0.01, color: p.text),
+                  ),
+                ],
               ),
             ),
-            YIconButton(YIcons.sliders, size: 36, iconSize: 20, color: p.text3, label: '设置', onTap: () => open(SettingsRoute())),
-          ]),
-        ),
-      ]),
+          ),
+          Expanded(
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  label('发现', 20),
+                  _SideItem(icon: YIcons.home, label: '首页', active: active == 'home', onTap: () => open(HomeRoute())),
+                  _SideItem(icon: YIcons.discover, label: '发现', active: active == 'discover', onTap: () => open(DiscoverRoute())),
+                  _SideItem(icon: YIcons.radio, label: '电台', active: active == 'radio', onTap: () => open(DiscoverRoute(tab: 2))),
+                  label('乐库', 18),
+                  _SideItem(icon: YIcons.clock, label: '最近播放', active: active == 'collection:recent', onTap: () => open(CollectionRoute(PlaylistKind.recent))),
+                  _SideItem(
+                    icon: YIcons.heartOutline,
+                    label: '我喜欢的音乐',
+                    active: active == 'collection:liked',
+                    onTap: () => open(CollectionRoute(PlaylistKind.liked)),
+                  ),
+                  _SideItem(
+                    icon: YIcons.download,
+                    label: '已下载',
+                    active: active == 'collection:downloaded',
+                    onTap: () => open(CollectionRoute(PlaylistKind.downloaded)),
+                  ),
+                  _SideItem(icon: YIcons.library, label: '专辑与歌手', active: active == 'collections', onTap: () => open(MyCollectionsRoute())),
+                  label('我的歌单', 18),
+                  _SidePlaylists(key: ValueKey(sm.generation), source: source, active: active),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 0, 4, 0),
+            child: Row(
+              children: [
+                Pressable(
+                  onTap: () => open(source.user == null && source.supports(SourceFeature.login) ? LoginRoute() : SettingsMoreRoute()),
+                  child: Avatar(source.user?.avatar, size: 34),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Pressable(
+                    onTap: () => open(source.user == null && source.supports(SourceFeature.login) ? LoginRoute() : SettingsMoreRoute()),
+                    scale: 1,
+                    child: Text(
+                      source.user?.nickname ?? '点击登录',
+                      style: ts(14, weight: w600, color: p.text),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                YIconButton(YIcons.sliders, size: 36, iconSize: 20, color: p.text3, label: '设置', onTap: () => open(SettingsRoute())),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -289,11 +340,20 @@ class _SideItem extends StatelessWidget {
         height: 36,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(color: active ? p.sidebarActive : Colors.transparent, borderRadius: BorderRadius.circular(12)),
-        child: Row(children: [
-          if (icon != null) YIcon(icon!, size: 18, color: color) else Cover(cover, size: 22, radius: 6),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: ts(14, weight: active ? w600 : w500, color: color), maxLines: 1, overflow: TextOverflow.ellipsis)),
-        ]),
+        child: Row(
+          children: [
+            if (icon != null) YIcon(icon!, size: 18, color: color) else Cover(cover, size: 22, radius: 6),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: ts(14, weight: active ? w600 : w500, color: color),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -316,9 +376,12 @@ class _SidePlaylistsState extends State<_SidePlaylists> {
   void initState() {
     super.initState();
     if (!widget.source.loggedIn && widget.source.supports(SourceFeature.login)) return;
-    widget.source.userPlaylists().then((l) {
-      if (mounted) setState(() => _lists = l.where((x) => !x.isLikedList).toList());
-    }).catchError((_) {});
+    widget.source
+        .userPlaylists()
+        .then((l) {
+          if (mounted) setState(() => _lists = l.where((x) => !x.isLikedList).toList());
+        })
+        .catchError((_) {});
   }
 
   @override
@@ -331,19 +394,21 @@ class _SidePlaylistsState extends State<_SidePlaylists> {
         child: Text(widget.source.loggedIn ? '加载中…' : '登录后显示你的歌单', style: ts(13, color: p.text2)),
       );
     }
-    return Column(children: [
-      for (final pl in lists)
-        _SideItem(
-          cover: pl.cover,
-          label: pl.name,
-          active: widget.active == 'playlist:${pl.id}',
-          onTap: () {
-            final nav = context.read<AppNav>();
-            if (nav.top.sideKey == 'playlist:${pl.id}') return;
-            openPlaylist(context, pl);
-          },
-        ),
-    ]);
+    return Column(
+      children: [
+        for (final pl in lists)
+          _SideItem(
+            cover: pl.cover,
+            label: pl.name,
+            active: widget.active == 'playlist:${pl.id}',
+            onTap: () {
+              final nav = context.read<AppNav>();
+              if (nav.top.sideKey == 'playlist:${pl.id}') return;
+              openPlaylist(context, pl);
+            },
+          ),
+      ],
+    );
   }
 }
 
@@ -366,21 +431,37 @@ class _MiniWindow extends StatelessWidget {
           child: Glass(
             radius: 38,
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
-            child: Row(children: [
-              Cover(song?.coverUrl, size: 52, circle: true),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(song?.name ?? '云音', style: ts(14, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 2),
-                  Text(song?.artistText ?? '', style: ts(12, color: p.text4), maxLines: 1, overflow: TextOverflow.ellipsis),
-                ]),
-              ),
-              YIconButton(YIcons.prev, size: 32, iconSize: 20, label: '上一首', onTap: player.previous),
-              const PlayButton(size: 36, iconSize: 18),
-              YIconButton(YIcons.next, size: 32, iconSize: 20, label: '下一首', onTap: player.next),
-              YIconButton(YIcons.miniMode, size: 32, iconSize: 20, color: p.text3, label: '退出迷你模式', onTap: onRestore),
-            ]),
+            child: Row(
+              children: [
+                Cover(song?.coverUrl, size: 52, circle: true),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song?.name ?? '云音',
+                        style: ts(14, weight: w600, color: p.text),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        song?.artistText ?? '',
+                        style: ts(12, color: p.text4),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                YIconButton(YIcons.prev, size: 32, iconSize: 20, label: '上一首', onTap: player.previous),
+                const PlayButton(size: 36, iconSize: 18),
+                YIconButton(YIcons.next, size: 32, iconSize: 20, label: '下一首', onTap: player.next),
+                YIconButton(YIcons.miniMode, size: 32, iconSize: 20, color: p.text3, label: '退出迷你模式', onTap: onRestore),
+              ],
+            ),
           ),
         ),
       ),

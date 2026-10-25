@@ -57,8 +57,6 @@ class PlayerController extends ChangeNotifier {
   /// 查找已下载的本地副本（由下载管理器提供）。
   Song? Function(Song song)? localLookup;
 
-  Timer? _simTimer;
-  bool _simulated = false;
   Timer? _sleepTimer;
   DateTime? sleepAt;
   int _loadToken = 0;
@@ -88,7 +86,7 @@ class PlayerController extends ChangeNotifier {
       engineError = e.toString();
       debugPrint('player engine unavailable: $e');
     }
-    settings.addListener(_applyNormalize);
+    settings.addListener(_applyVolume);
     sources.addListener(_refreshLikes);
     await _restore();
     _refreshLikes();
@@ -108,21 +106,21 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> _initEngine() async {
     if (!kIsWeb) MediaKit.ensureInitialized(libmpv: bundledLibmpv());
-    final p = Player(configuration: const PlayerConfiguration(title: '云音', logLevel: MPVLogLevel.error));
+    final p = Player(
+      configuration: const PlayerConfiguration(title: '云音', logLevel: MPVLogLevel.error),
+    );
     _player = p;
     _subs.addAll([
       p.stream.playing.listen((v) {
-        if (_simulated) return;
         playing = v;
         notifyListeners();
       }),
       p.stream.position.listen((v) {
         // 界面上的进度每 250ms 刷新一次即可，避免每帧重绘（玻璃模糊开销很大）。
-        if (_simulated) return;
         if ((v - position.value).abs() >= const Duration(milliseconds: 250) || v < position.value) position.value = v;
       }),
       p.stream.duration.listen((v) {
-        if (_simulated || v == Duration.zero) return;
+        if (v == Duration.zero) return;
         duration = v;
         notifyListeners();
       }),
@@ -131,32 +129,41 @@ class PlayerController extends ChangeNotifier {
         notifyListeners();
       }),
       p.stream.completed.listen((done) {
-        if (done && !_simulated) _onCompleted();
+        if (done) _onCompleted();
       }),
       p.stream.error.listen((e) {
         if (current != null && e.isNotEmpty) debugPrint('player error: $e');
       }),
     ]);
-    await p.setVolume(settings.volume * 100);
-    _applyNormalize();
+    await _applyVolume();
   }
 
-  PlayerNotice get _engineNotice => PlayerNotice(
-        '缺少播放组件',
-        message: !kIsWeb && Platform.isLinux
-            ? '没有找到 libmpv。请在终端运行 sudo apt install libmpv2 后重新打开云音。'
-            : '播放引擎初始化失败：$engineError',
-        blocking: true,
-      );
+  /// 底层播放器，供集成测试检查音频输出状态。
+  @visibleForTesting
+  Player? get engine => _player;
 
-  bool? _normalizeApplied;
-  void _applyNormalize() {
-    if (kIsWeb || _player == null || _normalizeApplied == settings.normalize) return;
-    _normalizeApplied = settings.normalize;
-    try {
-      (_player!.platform as dynamic)
-          .setProperty('af', settings.normalize ? 'lavfi=[loudnorm=I=-16:TP=-1.5:LRA=11]' : '');
-    } catch (_) {}
+  PlayerNotice get _engineNotice => PlayerNotice(
+    '缺少播放组件',
+    message: !kIsWeb && Platform.isLinux ? '没有找到 libmpv。请在终端运行 sudo apt install libmpv2 后重新打开云音。' : '播放引擎初始化失败：$engineError',
+    blocking: true,
+  );
+
+  /// 当前歌曲的音量均衡系数。
+  ///
+  /// 不使用 mpv 的 loudnorm 滤镜：Android / Windows / macOS 使用的精简版 libmpv 没有这个滤镜，
+  /// 设置后音频链初始化失败会导致完全无声。改为按平台提供的响度增益调整音量：
+  /// 比参考响度（-8 dB）更响的歌曲按差值衰减，较轻的歌曲保持原音量，避免削波。
+  double _gain = 1;
+
+  static double gainFactor(double? gainDb) {
+    if (gainDb == null || gainDb == 0) return 1;
+    return math.pow(10, (gainDb + 8) / 20).toDouble().clamp(0.3, 1.0);
+  }
+
+  double get _effectiveVolume => settings.volume * _fade * (settings.normalize ? _gain : 1) * 100;
+
+  Future<void> _applyVolume() async {
+    await _player?.setVolume(_effectiveVolume);
   }
 
   Future<void> _refreshLikes() async {
@@ -305,12 +312,6 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> play() async {
     if (current == null) return;
-    if (_simulated) {
-      playing = true;
-      _startSim();
-      notifyListeners();
-      return;
-    }
     if (_player?.state.playlist.medias.isEmpty ?? true) {
       await _load(autoplay: true, keepPosition: true);
       return;
@@ -325,12 +326,6 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> pause() async {
-    if (_simulated) {
-      playing = false;
-      _simTimer?.cancel();
-      notifyListeners();
-      return;
-    }
     if (settings.crossfade && playing) {
       await _rampFade(0, 320);
       await _player?.pause();
@@ -373,10 +368,6 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> seek(Duration d) async {
-    if (_simulated) {
-      position.value = d;
-      return;
-    }
     position.value = d;
     await _player?.seek(d);
   }
@@ -388,13 +379,13 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> setVolume(double v) async {
     settings.setVolume(v.clamp(0, 1));
-    await _player?.setVolume(settings.volume * 100 * _fade);
+    await _applyVolume();
     notifyListeners();
   }
 
   Future<void> _setFade(double f) async {
     _fade = f;
-    await _player?.setVolume(settings.volume * 100 * f);
+    await _applyVolume();
   }
 
   Future<void> _rampFade(double to, int ms) async {
@@ -414,25 +405,10 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
-  void _startSim() {
-    _simTimer?.cancel();
-    _simTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
-      if (!playing) return;
-      final p = position.value + const Duration(milliseconds: 250);
-      if (p >= duration && duration > Duration.zero) {
-        _simTimer?.cancel();
-        mode == PlayMode.repeatOne ? seek(Duration.zero).then((_) => _startSim()) : next(auto: true);
-        return;
-      }
-      position.value = p;
-    });
-  }
-
   Future<void> _load({required bool autoplay, bool keepPosition = false}) async {
     final song = current;
     if (song == null) return;
     final token = ++_loadToken;
-    _simTimer?.cancel();
     final resume = keepPosition ? position.value : Duration.zero;
     if (!keepPosition) position.value = Duration.zero;
     duration = song.duration;
@@ -461,17 +437,6 @@ class PlayerController extends ChangeNotifier {
     }
     if (token != _loadToken) return;
 
-    if (info.simulated) {
-      _simulated = true;
-      await _player?.stop();
-      buffering = false;
-      playing = autoplay;
-      position.value = resume;
-      if (autoplay) _startSim();
-      notifyListeners();
-      return;
-    }
-    _simulated = false;
     if (_player == null) {
       buffering = false;
       notifyListeners();
@@ -491,6 +456,7 @@ class PlayerController extends ChangeNotifier {
     if (info.trial) _notices.add(const PlayerNotice('当前为试听片段'));
     final p = _player!;
     if (settings.crossfade && playing) await _rampFade(0, 260);
+    _gain = gainFactor(info.gainDb);
     await p.open(Media(info.url!, httpHeaders: info.headers), play: false);
     if (resume > Duration.zero) await p.seek(resume);
     if (autoplay) {
@@ -548,10 +514,7 @@ class PlayerController extends ChangeNotifier {
     history.remove(s);
     history.insert(0, s);
     if (history.length > 200) history.removeLast();
-    SharedPreferences.getInstance().then((p) => p.setString(
-          'player.history',
-          jsonEncode([for (final h in history.take(200)) h.toJson()]),
-        ));
+    SharedPreferences.getInstance().then((p) => p.setString('player.history', jsonEncode([for (final h in history.take(200)) h.toJson()])));
   }
 
   void _saveQueue() {
@@ -580,7 +543,6 @@ class PlayerController extends ChangeNotifier {
           duration = current!.duration;
           final source = sources.byId(current!.sourceId);
           _loadLyrics(source, current!, _loadToken);
-          _simulated = source.id == 'demo';
         }
       }
     } catch (_) {}
@@ -591,9 +553,8 @@ class PlayerController extends ChangeNotifier {
     for (final s in _subs) {
       s.cancel();
     }
-    settings.removeListener(_applyNormalize);
+    settings.removeListener(_applyVolume);
     sources.removeListener(_refreshLikes);
-    _simTimer?.cancel();
     _sleepTimer?.cancel();
     _player?.dispose();
     _notices.close();

@@ -23,13 +23,7 @@ import 'player/player_controller.dart';
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 class YunyinApp extends StatelessWidget {
-  const YunyinApp({
-    super.key,
-    required this.settings,
-    required this.sources,
-    required this.player,
-    required this.downloads,
-  });
+  const YunyinApp({super.key, required this.settings, required this.sources, required this.player, required this.downloads});
 
   final AppSettings settings;
   final SourceManager sources;
@@ -99,33 +93,35 @@ class YunyinApp extends StatelessWidget {
   }
 
   ThemeData _theme(Palette p) => ThemeData(
-        useMaterial3: true,
-        brightness: p.isDark ? Brightness.dark : Brightness.light,
-        fontFamily: kFontFamily,
-        fontFamilyFallback: kFontFallback,
-        scaffoldBackgroundColor: p.bg,
-        canvasColor: p.bg,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: p.accent.base,
-          brightness: p.isDark ? Brightness.dark : Brightness.light,
-          primary: p.accentText,
-          surface: p.bg,
-        ),
-        textSelectionTheme: TextSelectionThemeData(
-          cursorColor: p.accentText,
-          selectionColor: p.accentText.withValues(alpha: 0.25),
-          selectionHandleColor: p.accentText,
-        ),
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: Colors.transparent,
-        pageTransitionsTheme: const PageTransitionsTheme(builders: {
-          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
-        }),
-      );
+    useMaterial3: true,
+    brightness: p.isDark ? Brightness.dark : Brightness.light,
+    fontFamily: kFontFamily,
+    fontFamilyFallback: kFontFallback,
+    scaffoldBackgroundColor: p.bg,
+    canvasColor: p.bg,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: p.accent.base,
+      brightness: p.isDark ? Brightness.dark : Brightness.light,
+      primary: p.accentText,
+      surface: p.bg,
+    ),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: p.accentText,
+      selectionColor: p.accentText.withValues(alpha: 0.25),
+      selectionHandleColor: p.accentText,
+    ),
+    splashFactory: NoSplash.splashFactory,
+    highlightColor: Colors.transparent,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
+      },
+    ),
+  );
 }
 
 class _Root extends StatelessWidget {

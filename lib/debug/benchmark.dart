@@ -34,7 +34,34 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
   _Phase? current;
   SchedulerBinding.instance.addTimingsCallback((list) => current?.frames.addAll(list));
 
+  void report() {
+    final rate = PlatformDispatcher.instance.displays.map((d) => d.refreshRate).fold<double>(0, math.max);
+    final out = StringBuffer('\n===== 云音性能测试 =====\n显示器刷新率: ${rate.toStringAsFixed(0)} Hz\n');
+    out.writeln('阶段 | 帧数 | 帧率 | 构建 平均/P90/最大 ms | 光栅 平均/P90/最大 ms');
+    for (final p in phases) {
+      final secs = math.max(p.watch.elapsedMilliseconds, 1) / 1000;
+      String stats(Iterable<Duration> ds) {
+        final v = ds.map((d) => d.inMicroseconds / 1000).toList()..sort();
+        if (v.isEmpty) return '-';
+        final avg = v.reduce((a, b) => a + b) / v.length;
+        return '${avg.toStringAsFixed(1)}/${v[(v.length * 0.9).floor().clamp(0, v.length - 1)].toStringAsFixed(1)}/${v.last.toStringAsFixed(1)}';
+      }
+
+      out.writeln('${p.name} | ${p.frames.length} | ${(p.frames.length / secs).toStringAsFixed(0)} | '
+          '${stats(p.frames.map((f) => f.buildDuration))} | ${stats(p.frames.map((f) => f.rasterDuration))}');
+    }
+    stderr.writeln(out);
+  }
+
+  // 看门狗：任何一步卡住都输出已收集的数据并退出。
+  Timer(const Duration(seconds: 100), () {
+    stderr.writeln('bench: 超时，输出已收集的数据');
+    report();
+    exit(1);
+  });
+
   Future<void> phase(String name, Future<void> Function() body) async {
+    stderr.writeln('bench: $name');
     final p = _Phase(name);
     phases.add(p);
     current = p;
@@ -48,25 +75,21 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
 
   Future<void> wait(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
 
-  /// 每帧发送一次滚轮事件，模拟持续滚动。
-  Future<void> scroll(Offset at, double perFrame, int ms) async {
+  /// 以 4ms 间隔持续发送滚轮事件，帧率只受渲染能力和屏幕刷新率限制。
+  Future<void> scroll(Offset at, double perEvent, int ms) {
     final done = Completer<void>();
-    final end = DateTime.now().add(Duration(milliseconds: ms));
-    void tick(Duration _) {
-      GestureBinding.instance.handlePointerEvent(PointerScrollEvent(position: at, scrollDelta: Offset(0, perFrame)));
-      if (DateTime.now().isBefore(end)) {
-        SchedulerBinding.instance.scheduleFrameCallback(tick);
-        SchedulerBinding.instance.scheduleFrame();
-      } else {
+    final sw = Stopwatch()..start();
+    Timer.periodic(const Duration(milliseconds: 4), (t) {
+      GestureBinding.instance.handlePointerEvent(PointerScrollEvent(position: at, scrollDelta: Offset(0, perEvent)));
+      if (sw.elapsedMilliseconds >= ms) {
+        t.cancel();
         done.complete();
       }
-    }
-
-    SchedulerBinding.instance.scheduleFrameCallback(tick);
-    SchedulerBinding.instance.scheduleFrame();
+    });
     return done.future;
   }
 
+  stderr.writeln('bench: 等待首页数据');
   await wait(9000);
   final ctx = navKey.currentContext!;
   final nav = ctx.read<AppNav>();
@@ -78,8 +101,8 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
   await phase('桌面·空闲', () => wait(2000));
   await phase('桌面·首页滚动', () async {
     final s = logical();
-    await scroll(Offset(s.width * 0.6, s.height * 0.5), 18, 2500);
-    await scroll(Offset(s.width * 0.6, s.height * 0.5), -18, 2500);
+    await scroll(Offset(s.width * 0.6, s.height * 0.5), 6, 2500);
+    await scroll(Offset(s.width * 0.6, s.height * 0.5), -6, 2500);
   });
 
   List<Song> songs = const [];
@@ -94,13 +117,12 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
   await wait(1500);
   await phase('桌面·歌单滚动', () async {
     final s = logical();
-    await scroll(Offset(s.width * 0.6, s.height * 0.5), 24, 3000);
+    await scroll(Offset(s.width * 0.6, s.height * 0.5), 8, 3000);
   });
-  if (songs.isNotEmpty) await player.playSongs(songs.take(5).toList());
-  await wait(1500);
+  if (songs.isNotEmpty) unawaited(player.playSongs(songs.take(5).toList()));
+  await wait(2500);
   await phase('桌面·播放中空闲', () => wait(3000));
-  final pctx = navKey.currentContext!;
-  if (pctx.mounted) openPlayer(pctx);
+  openPlayer(navKey.currentContext!);
   await phase('桌面·正在播放页', () => wait(4000));
   navKey.currentState?.maybePop();
   await wait(800);
@@ -111,25 +133,10 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
   await wait(800);
   await phase('移动·首页滚动', () async {
     final s = logical();
-    await scroll(Offset(s.width * 0.5, s.height * 0.45), 18, 2500);
-    await scroll(Offset(s.width * 0.5, s.height * 0.45), -18, 2500);
+    await scroll(Offset(s.width * 0.5, s.height * 0.45), 6, 2500);
+    await scroll(Offset(s.width * 0.5, s.height * 0.45), -6, 2500);
   });
 
-  final rate = PlatformDispatcher.instance.displays.map((d) => d.refreshRate).fold<double>(0, math.max);
-  final out = StringBuffer('\n===== 云音性能测试 =====\n显示器刷新率: ${rate.toStringAsFixed(0)} Hz\n');
-  out.writeln('阶段 | 帧数 | 帧率 | 构建 平均/P90/最大 ms | 光栅 平均/P90/最大 ms');
-  for (final p in phases) {
-    final secs = p.watch.elapsedMilliseconds / 1000;
-    String stats(Iterable<Duration> ds) {
-      final v = ds.map((d) => d.inMicroseconds / 1000).toList()..sort();
-      if (v.isEmpty) return '-';
-      final avg = v.reduce((a, b) => a + b) / v.length;
-      return '${avg.toStringAsFixed(1)}/${v[(v.length * 0.9).floor().clamp(0, v.length - 1)].toStringAsFixed(1)}/${v.last.toStringAsFixed(1)}';
-    }
-
-    out.writeln('${p.name} | ${p.frames.length} | ${(p.frames.length / secs).toStringAsFixed(0)} | '
-        '${stats(p.frames.map((f) => f.buildDuration))} | ${stats(p.frames.map((f) => f.rasterDuration))}');
-  }
-  stderr.writeln(out);
+  report();
   exit(0);
 }

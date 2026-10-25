@@ -54,11 +54,27 @@ Future<PlaylistInfo> loadCollection(BuildContext context, AppRoute route) async 
           if (source.loggedIn && source.supports(SourceFeature.recentPlays) && songs.isEmpty) {
             songs = await source.recentSongs();
           }
-          return PlaylistInfo(id: 'recent', sourceId: source.id, name: '最近播放', kind: PlaylistKind.recent, cover: songs.firstOrNull?.coverUrl, creator: '本机', tracks: songs);
+          return PlaylistInfo(
+            id: 'recent',
+            sourceId: source.id,
+            name: '最近播放',
+            kind: PlaylistKind.recent,
+            cover: songs.firstOrNull?.coverUrl,
+            creator: '本机',
+            tracks: songs,
+          );
         case PlaylistKind.downloaded:
         case PlaylistKind.local:
           final songs = downloads.items;
-          return PlaylistInfo(id: 'downloaded', sourceId: source.id, name: '已下载', kind: PlaylistKind.downloaded, cover: songs.firstOrNull?.coverUrl, creator: '本机', tracks: songs);
+          return PlaylistInfo(
+            id: 'downloaded',
+            sourceId: source.id,
+            name: '已下载',
+            kind: PlaylistKind.downloaded,
+            cover: songs.firstOrNull?.coverUrl,
+            creator: '本机',
+            tracks: songs,
+          );
         default:
           throw Exception('不支持的列表');
       }
@@ -86,12 +102,12 @@ String collectionMeta(PlaylistInfo p) {
 }
 
 String collectionLabel(PlaylistKind k) => switch (k) {
-      PlaylistKind.album => '专辑',
-      PlaylistKind.chart => '榜单',
-      PlaylistKind.daily => '每日推荐',
-      PlaylistKind.radio => '电台',
-      _ => '歌单',
-    };
+  PlaylistKind.album => '专辑',
+  PlaylistKind.chart => '榜单',
+  PlaylistKind.daily => '每日推荐',
+  PlaylistKind.radio => '电台',
+  _ => '歌单',
+};
 
 class PlaylistPage extends StatelessWidget {
   const PlaylistPage({super.key, required this.route});
@@ -102,7 +118,10 @@ class PlaylistPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final gen = context.select<SourceManager, int>((s) => s.generation);
     final desktop = LayoutScope.isDesktop(context);
-    final preview = switch (route) { PlaylistRoute(:final preview) => preview, _ => null };
+    final preview = switch (route) {
+      PlaylistRoute(:final preview) => preview,
+      _ => null,
+    };
     return AsyncView<PlaylistInfo>(
       keyValue: route is CollectionRoute ? gen : null,
       load: () => loadCollection(context, route),
@@ -118,18 +137,22 @@ class _MobilePlaylist extends StatelessWidget {
   final PlaylistInfo playlist;
 
   static Widget loading(BuildContext context, PlaylistInfo? preview) => _MobilePlaylist(
-        playlist: (preview ?? const PlaylistInfo(id: '', sourceId: '', name: '')).withTracks(const []),
-      );
+    playlist: (preview ?? const PlaylistInfo(id: '', sourceId: '', name: '')).withTracks(const []),
+  );
 
   static List<Widget> topButtons(BuildContext context, {VoidCallback? onMore}) => [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', shadows: _btnShadow(context), onTap: () => context.read<AppNav>().pop()),
-        ),
-        if (onMore != null)
-          Positioned(right: 16, top: 20, child: GlassButton(YIcons.more, label: '更多', shadows: _btnShadow(context), onTap: onMore)),
-      ];
+    Positioned(
+      left: 16,
+      top: 20,
+      child: GlassButton(YIcons.back, label: '返回', shadows: _btnShadow(context), onTap: () => context.read<AppNav>().pop()),
+    ),
+    if (onMore != null)
+      Positioned(
+        right: 16,
+        top: 20,
+        child: GlassButton(YIcons.more, label: '更多', shadows: _btnShadow(context), onTap: onMore),
+      ),
+  ];
 
   static List<Shadow2> _btnShadow(BuildContext context) {
     final p = Palette.of(context);
@@ -154,33 +177,50 @@ class _MobilePlaylist extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 22),
-        Text(playlist.name,
-            textAlign: TextAlign.center,
-            style: ts(28, weight: w700, em: -0.02, height: 1.15, color: p.text),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis),
+        Text(
+          playlist.name,
+          textAlign: TextAlign.center,
+          style: ts(28, weight: w700, em: -0.02, height: 1.15, color: p.text),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         const SizedBox(height: 6),
-        Text(collectionMeta(playlist), textAlign: TextAlign.center, style: ts(14, color: p.text2)),
+        Text(
+          collectionMeta(playlist),
+          textAlign: TextAlign.center,
+          style: ts(14, color: p.text2),
+        ),
         const SizedBox(height: 18),
-        Row(children: [
-          Expanded(
-            child: PrimaryButton(
-              label: '播放',
-              icon: YIcons.play,
-              expand: true,
-              onTap: () => playAll(context, songs, title: playlist.name),
+        Row(
+          children: [
+            Expanded(
+              child: PrimaryButton(
+                label: '播放',
+                icon: YIcons.play,
+                expand: true,
+                onTap: () => playAll(context, songs, title: playlist.name),
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          SecondaryButton(icon: YIcons.shuffle, iconSize: 22, semanticLabel: '随机播放', onTap: () => playAll(context, songs, shuffle: true, title: playlist.name)),
-          const SizedBox(width: 10),
-          SecondaryButton(icon: YIcons.download, iconSize: 22, semanticLabel: '下载', onTap: () => downloadSongs(context, songs)),
-        ]),
+            const SizedBox(width: 10),
+            SecondaryButton(
+              icon: YIcons.shuffle,
+              iconSize: 22,
+              semanticLabel: '随机播放',
+              onTap: () => playAll(context, songs, shuffle: true, title: playlist.name),
+            ),
+            const SizedBox(width: 10),
+            SecondaryButton(icon: YIcons.download, iconSize: 22, semanticLabel: '下载', onTap: () => downloadSongs(context, songs)),
+          ],
+        ),
         const SizedBox(height: 18),
       ],
       slivers: [
         if (songs.isEmpty && playlist.id.isNotEmpty)
-          SliverToBoxAdapter(child: YCard(child: StateView.empty(title: '这里还没有歌曲', message: '去发现页找找喜欢的音乐吧。', icon: YIcons.library)))
+          SliverToBoxAdapter(
+            child: YCard(
+              child: StateView.empty(title: '这里还没有歌曲', message: '去发现页找找喜欢的音乐吧。', icon: YIcons.library),
+            ),
+          )
         else
           SliverCard(
             indent: 48,
@@ -219,8 +259,9 @@ class _DesktopPlaylist extends StatelessWidget {
 
   final PlaylistInfo playlist;
 
-  static Widget loading(PlaylistInfo? preview) =>
-      _DesktopPlaylist(playlist: (preview ?? const PlaylistInfo(id: '', sourceId: '', name: '')).withTracks(const []));
+  static Widget loading(PlaylistInfo? preview) => _DesktopPlaylist(
+    playlist: (preview ?? const PlaylistInfo(id: '', sourceId: '', name: '')).withTracks(const []),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -242,45 +283,63 @@ class _DesktopPlaylist extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(collectionLabel(playlist.kind), style: ts(12, weight: w600, em: 0.12, color: p.text2)),
-                  const SizedBox(height: 6),
-                  Text(playlist.name, style: ts(44, weight: w700, em: -0.02, height: 1.1, color: p.text), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  if ((playlist.description ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: Text(playlist.description!, style: ts(14, height: 1.5, color: p.text4), maxLines: 2, overflow: TextOverflow.ellipsis),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      collectionLabel(playlist.kind),
+                      style: ts(12, weight: w600, em: 0.12, color: p.text2),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      playlist.name,
+                      style: ts(44, weight: w700, em: -0.02, height: 1.1, color: p.text),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if ((playlist.description ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        child: Text(
+                          playlist.description!,
+                          style: ts(14, height: 1.5, color: p.text4),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(collectionMeta(playlist), style: ts(13, color: p.text2)),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        PrimaryButton(
+                          label: '播放',
+                          icon: YIcons.play,
+                          iconSize: 18,
+                          height: 44,
+                          fontSize: 15,
+                          padding: const EdgeInsets.fromLTRB(20, 0, 26, 0),
+                          onTap: () => playAll(context, songs, title: playlist.name),
+                        ),
+                        const SizedBox(width: 10),
+                        SecondaryButton(
+                          label: '随机播放',
+                          icon: YIcons.shuffle,
+                          height: 44,
+                          fontSize: 15,
+                          padding: const EdgeInsets.fromLTRB(16, 0, 20, 0),
+                          onTap: () => playAll(context, songs, shuffle: true, title: playlist.name),
+                        ),
+                        const SizedBox(width: 10),
+                        SecondaryButton(icon: YIcons.download, height: 44, semanticLabel: '下载', onTap: () => downloadSongs(context, songs)),
+                        const SizedBox(width: 10),
+                        SecondaryButton(icon: YIcons.more, height: 44, semanticLabel: '更多', onTap: () => _showPlaylistMenu(context, playlist)),
+                      ],
                     ),
                   ],
-                  const SizedBox(height: 8),
-                  Text(collectionMeta(playlist), style: ts(13, color: p.text2)),
-                  const SizedBox(height: 18),
-                  Row(children: [
-                    PrimaryButton(
-                      label: '播放',
-                      icon: YIcons.play,
-                      iconSize: 18,
-                      height: 44,
-                      fontSize: 15,
-                      padding: const EdgeInsets.fromLTRB(20, 0, 26, 0),
-                      onTap: () => playAll(context, songs, title: playlist.name),
-                    ),
-                    const SizedBox(width: 10),
-                    SecondaryButton(
-                      label: '随机播放',
-                      icon: YIcons.shuffle,
-                      height: 44,
-                      fontSize: 15,
-                      padding: const EdgeInsets.fromLTRB(16, 0, 20, 0),
-                      onTap: () => playAll(context, songs, shuffle: true, title: playlist.name),
-                    ),
-                    const SizedBox(width: 10),
-                    SecondaryButton(icon: YIcons.download, height: 44, semanticLabel: '下载', onTap: () => downloadSongs(context, songs)),
-                    const SizedBox(width: 10),
-                    SecondaryButton(icon: YIcons.more, height: 44, semanticLabel: '更多', onTap: () => _showPlaylistMenu(context, playlist)),
-                  ]),
-                ]),
+                ),
               ),
             ),
           ],

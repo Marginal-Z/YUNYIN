@@ -67,7 +67,10 @@ class _Recommend extends StatelessWidget {
           builder: (context, albums, _) {
             if (albums.isEmpty) return const SizedBox.shrink();
             final a = albums.first;
-            return NewAlbumBanner(album: a, onTap: () => go(context, AlbumRoute(a.id, preview: a)));
+            return NewAlbumBanner(
+              album: a,
+              onTap: () => go(context, AlbumRoute(a.id, preview: a)),
+            );
           },
         ),
         AsyncView<PlaylistInfo>(
@@ -99,10 +102,13 @@ class _Recommend extends StatelessWidget {
           AsyncView<List<PlaylistInfo>>(
             load: () => source.recommendPlaylists(limit: 12),
             loading: const SizedBox.shrink(),
-            builder: (context, list, _) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const SectionHeader('推荐歌单', top: 26),
-              PlaylistGrid(items: list),
-            ]),
+            builder: (context, list, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SectionHeader('推荐歌单', top: 26),
+                PlaylistGrid(items: list),
+              ],
+            ),
           ),
       ],
     );
@@ -119,40 +125,63 @@ class NewAlbumBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final art = album.cover?.startsWith('art:') ?? true;
+    final art = album.cover == null || album.cover!.isEmpty;
     return Pressable(
       onTap: onTap,
       scale: 0.99,
       child: YBox(
+        clip: true,
         height: 160,
         radius: BorderRadius.circular(28),
         gradient: CssGradient(150, colors: p.albumGradient),
         shadows: const [Shadow2(0, 16, 34, Color.fromRGBO(20, 145, 127, 0.20))],
         insets: [Shadow2(0, 1, 0, p.highlightInset)],
-        child: Stack(children: [
-          if (art)
-            Positioned(right: 0, top: 0, child: CustomPaint(size: const Size(190, 160), painter: _SeaArt()))
-          else
-            Positioned(
-              right: 22,
-              top: 22,
-              child: Cover(album.cover, size: 116, radius: 18, shadows: const [Shadow2(0, 10, 24, Color.fromRGBO(14, 107, 92, 0.3))]),
-            ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(22, 22, art ? 22 : 160, 22),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                decoration: BoxDecoration(color: p.dailyLabelBg, borderRadius: BorderRadius.circular(9)),
-                child: Text('NEW ALBUM', style: ts(11, weight: w700, em: 0.1, color: p.albumLabel)),
+        child: Stack(
+          children: [
+            if (art)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: CustomPaint(size: const Size(190, 160), painter: _SeaArt()),
+              )
+            else
+              Positioned(
+                right: 22,
+                top: 22,
+                child: Cover(album.cover, size: 116, radius: 18, shadows: const [Shadow2(0, 10, 24, Color.fromRGBO(14, 107, 92, 0.3))]),
               ),
-              const SizedBox(height: 8),
-              Text(album.name, style: ts(30, weight: w700, em: -0.02, height: 1.1, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 6),
-              Text('${album.artist?.name ?? ''} · 新专辑首发', style: ts(14, color: p.albumDesc), maxLines: 1, overflow: TextOverflow.ellipsis),
-            ]),
-          ),
-        ]),
+            Padding(
+              padding: EdgeInsets.fromLTRB(22, 22, art ? 22 : 160, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                    decoration: BoxDecoration(color: p.dailyLabelBg, borderRadius: BorderRadius.circular(9)),
+                    child: Text(
+                      'NEW ALBUM',
+                      style: ts(11, weight: w700, em: 0.1, color: p.albumLabel),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    album.name,
+                    style: ts(30, weight: w700, em: -0.02, height: 1.1, color: p.text),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${album.artist?.name ?? ''} · 新专辑首发',
+                    style: ts(14, color: p.albumDesc),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -193,23 +222,31 @@ class _Charts extends StatelessWidget {
                 hoverColor: p.separator.withValues(alpha: 0.06),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Row(children: [
-                    Cover(c.cover, size: 52, radius: 12),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(c.name, style: ts(15, weight: w600, color: p.text)),
-                        const SizedBox(height: 2),
-                        Text(
-                          c.preview.isNotEmpty ? c.preview.take(2).join('  ') : (c.update ?? ''),
-                          style: ts(13, color: p.text2),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                  child: Row(
+                    children: [
+                      Cover(c.cover, size: 52, radius: 12),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              c.name,
+                              style: ts(15, weight: w600, color: p.text),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              c.preview.isNotEmpty ? c.preview.take(2).join('  ') : (c.update ?? ''),
+                              style: ts(13, color: p.text2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                      ]),
-                    ),
-                    if (c.update != null) Text(c.update!, style: ts(12, color: p.text2)),
-                  ]),
+                      ),
+                      if (c.update != null) Text(c.update!, style: ts(12, color: p.text2)),
+                    ],
+                  ),
                 ),
               ),
           ],
@@ -242,20 +279,34 @@ class _Radios extends StatelessWidget {
                   height: 72,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(children: [
-                      Cover(r.cover, size: 52, radius: 12),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(r.name, style: ts(15, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          const SizedBox(height: 2),
-                          Text([r.host, if (r.programCount > 0) '${r.programCount} 期'].whereType<String>().join(' · '),
-                              style: ts(13, color: p.text2), maxLines: 1),
-                        ]),
-                      ),
-                      if (r.category != null) Tag(r.category!, kind: TagKind.plain),
-                      const SizedBox(width: 6),
-                    ]),
+                    child: Row(
+                      children: [
+                        Cover(r.cover, size: 52, radius: 12),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                r.name,
+                                style: ts(15, weight: w600, color: p.text),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                [r.host, if (r.programCount > 0) '${r.programCount} 期'].whereType<String>().join(' · '),
+                                style: ts(13, color: p.text2),
+                                maxLines: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (r.category != null) Tag(r.category!, kind: TagKind.plain),
+                        const SizedBox(width: 6),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -332,15 +383,17 @@ class CoverGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final desktop = LayoutScope.isDesktop(context);
-    return LayoutBuilder(builder: (context, c) {
-      final cols = desktop ? 6 : 2;
-      final gap = desktop ? 20.0 : 14.0;
-      final w = (c.maxWidth - gap * (cols - 1)) / cols;
-      return Wrap(
-        spacing: gap,
-        runSpacing: desktop ? 20 : 18,
-        children: [for (var i = 0; i < count; i++) SizedBox(width: w, child: builder(context, i))],
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, c) {
+        final cols = desktop ? 6 : 2;
+        final gap = desktop ? 20.0 : 14.0;
+        final w = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: desktop ? 20 : 18,
+          children: [for (var i = 0; i < count; i++) SizedBox(width: w, child: builder(context, i))],
+        );
+      },
+    );
   }
 }

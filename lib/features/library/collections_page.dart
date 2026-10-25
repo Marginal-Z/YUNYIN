@@ -34,7 +34,11 @@ class _CollectionsPageState extends State<CollectionsPage> {
     return AdaptivePage(
       mobileTop: 78,
       overlay: [
-        Positioned(left: 16, top: 20, child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop())),
+        Positioned(
+          left: 16,
+          top: 20,
+          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
+        ),
       ],
       children: [
         PageTitle('我的收藏', subtitle: '歌单 · 专辑 · 歌手', size: desktop ? 40 : 36),
@@ -46,19 +50,19 @@ class _CollectionsPageState extends State<CollectionsPage> {
               ? LoginPrompt(source: source)
               : switch (_tab) {
                   0 => Padding(
-                      padding: const EdgeInsets.only(top: 20),
-                      child: AsyncView<List<PlaylistInfo>>(
-                        load: source.userPlaylists,
-                        builder: (context, lists, _) {
-                          if (lists.isEmpty) {
-                            return YCard(child: StateView.empty(title: '还没有歌单', message: '收藏或创建的歌单会显示在这里。', icon: YIcons.library));
-                          }
-                          return desktop
-                              ? PlaylistGrid(items: lists)
-                              : CardList(indent: 78, children: [for (final pl in lists) PlaylistRow(playlist: pl)]);
-                        },
-                      ),
+                    padding: const EdgeInsets.only(top: 20),
+                    child: AsyncView<List<PlaylistInfo>>(
+                      load: source.userPlaylists,
+                      builder: (context, lists, _) {
+                        if (lists.isEmpty) {
+                          return YCard(
+                            child: StateView.empty(title: '还没有歌单', message: '收藏或创建的歌单会显示在这里。', icon: YIcons.library),
+                          );
+                        }
+                        return desktop ? PlaylistGrid(items: lists) : CardList(indent: 78, children: [for (final pl in lists) PlaylistRow(playlist: pl)]);
+                      },
                     ),
+                  ),
                   1 => const SubscribedAlbums(),
                   _ => const FollowedArtists(),
                 },

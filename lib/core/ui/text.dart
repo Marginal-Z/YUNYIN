@@ -13,14 +13,7 @@ const List<String> kFontFallback = [
 ];
 
 /// 按设计稿参数构造文字样式：字号 / 字重 / 字距(em) / 行高。
-TextStyle ts(
-  double size, {
-  FontWeight weight = FontWeight.w400,
-  Color? color,
-  double em = 0,
-  double? height,
-  bool tabular = false,
-}) {
+TextStyle ts(double size, {FontWeight weight = FontWeight.w400, Color? color, double em = 0, double? height, bool tabular = false}) {
   return TextStyle(
     fontFamily: kFontFamily,
     fontFamilyFallback: kFontFallback,

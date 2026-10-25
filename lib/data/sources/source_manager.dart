@@ -1,16 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'demo/demo_source.dart';
 import 'music_source.dart';
 import 'netease/netease_source.dart';
 
 /// 已注册的播放源。新增平台：实现 [MusicSource] 并加入 [SourceRegistry.create]。
 abstract final class SourceRegistry {
-  static List<MusicSource> create() => [
-        NeteaseSource(),
-        DemoSource(),
-      ];
+  static List<MusicSource> create() => [NeteaseSource()];
 }
 
 /// 管理当前播放源，并负责按 [Song.sourceId] 找回对应的源。
@@ -27,13 +23,13 @@ class SourceManager extends ChangeNotifier {
   /// 切换播放源时递增，页面据此重新加载。
   int generation = 0;
 
-  Future<void> init({String? fallbackId}) async {
+  Future<void> init() async {
     for (final s in sources) {
       await s.init();
       s.addListener(_onSourceChanged);
     }
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_prefsKey) ?? fallbackId;
+    final saved = prefs.getString(_prefsKey);
     _current = sources.firstWhere((s) => s.id == saved, orElse: () => sources.first);
   }
 
@@ -61,6 +57,3 @@ class SourceManager extends ChangeNotifier {
     super.dispose();
   }
 }
-
-/// 网易云的 Web 接口不允许浏览器跨域访问，Web 预览版默认使用演示源。
-String? defaultSourceFor({required bool isWeb}) => isWeb ? DemoSource.sourceId : NeteaseSource.sourceId;

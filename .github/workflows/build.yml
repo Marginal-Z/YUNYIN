@@ -148,10 +148,76 @@ jobs:
           name: YunYin-macos
           path: dist/*
 
+  audio-android:
+    name: 音频验证 · Android 模拟器
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: 启用 KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - run: flutter pub get
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim
+          disable-animations: true
+          script: flutter test integration_test/audio_pipeline_test.dart -d emulator-5554
+
+  audio-desktop:
+    name: 音频验证 · ${{ matrix.name }}
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            runner: windows-latest
+            device: windows
+          - name: macOS
+            runner: macos-latest
+            device: macos
+          - name: Linux
+            runner: ubuntu-22.04
+            device: linux
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: 安装 Linux 依赖
+        if: matrix.device == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev xvfb
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: 运行（CI 机器没有声卡，使用 mpv 的 null 音频输出验证解码与滤镜链）
+        shell: bash
+        run: |
+          if [ "${{ matrix.device }}" = linux ]; then RUN="xvfb-run -a"; else RUN=""; fi
+          $RUN flutter test integration_test/audio_pipeline_test.dart -d ${{ matrix.device }} --dart-define=AO=null
+
   release:
     name: 发布
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [android, linux, windows, macos]
+    needs: [android, linux, windows, macos, audio-android, audio-desktop]
     runs-on: ubuntu-latest
     permissions:
       contents: write

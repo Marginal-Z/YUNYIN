@@ -47,9 +47,7 @@ class _LyricsViewState extends State<LyricsView> {
 
   TextStyle _style(Palette p, int d) {
     if (widget.desktop) {
-      return d == 0
-          ? ts(44, weight: w700, em: -0.02, height: 1.3, color: p.lyricActive)
-          : ts(32, weight: w700, em: -0.01, height: 1.35, color: p.lyricDim);
+      return d == 0 ? ts(44, weight: w700, em: -0.02, height: 1.3, color: p.lyricActive) : ts(32, weight: w700, em: -0.01, height: 1.35, color: p.lyricDim);
     }
     return switch (d) {
       0 => ts(34, weight: w700, em: -0.01, height: 1.3, color: p.lyricActive),
@@ -109,15 +107,20 @@ class _LyricsViewState extends State<LyricsView> {
                         duration: const Duration(milliseconds: 280),
                         curve: Curves.easeOut,
                         style: _style(p, lyrics.synced ? i - active : 3),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(lyrics.lines[i].text),
-                          if (showTr && (lyrics.lines[i].translation ?? '').isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(lyrics.lines[i].translation!,
-                                  style: ts(widget.desktop ? 20 : 16, weight: w500, color: i == active ? p.playerText2 : p.lyricDim)),
-                            ),
-                        ]),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(lyrics.lines[i].text),
+                            if (showTr && (lyrics.lines[i].translation ?? '').isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  lyrics.lines[i].translation!,
+                                  style: ts(widget.desktop ? 20 : 16, weight: w500, color: i == active ? p.playerText2 : p.lyricDim),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

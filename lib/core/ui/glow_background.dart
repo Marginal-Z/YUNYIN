@@ -4,13 +4,7 @@ import '../theme/palette.dart';
 
 /// 页面光晕背景：三团椭圆 radial-gradient 叠在底色上。
 class GlowBackground extends StatelessWidget {
-  const GlowBackground({
-    super.key,
-    required this.color,
-    required this.glows,
-    this.scale = 1,
-    this.child,
-  });
+  const GlowBackground({super.key, required this.color, required this.glows, this.scale = 1, this.child});
 
   /// 页面通用背景（蓝 / 桃 / 薄荷）。
   factory GlowBackground.page(BuildContext context, {double scale = 1, Widget? child}) {
@@ -37,7 +31,13 @@ class GlowBackground extends StatelessWidget {
       child: CustomPaint(painter: _GlowPainter(color, glows, scale), child: const SizedBox.expand()),
     );
     if (child == null) return bg;
-    return Stack(fit: StackFit.passthrough, children: [Positioned.fill(child: bg), child!]);
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        Positioned.fill(child: bg),
+        child!,
+      ],
+    );
   }
 }
 
@@ -65,10 +65,7 @@ class _GlowPainter extends CustomPainter {
         colors: [g.color, g.color.withValues(alpha: 0)],
         stops: const [0, 0.72],
       ).createShader(Rect.fromCircle(center: Offset.zero, radius: g.rx));
-      canvas.drawRect(
-        Rect.fromCenter(center: Offset.zero, width: g.rx * 2, height: g.rx * 2),
-        Paint()..shader = shader,
-      );
+      canvas.drawRect(Rect.fromCenter(center: Offset.zero, width: g.rx * 2, height: g.rx * 2), Paint()..shader = shader);
       canvas.restore();
     }
     canvas.restore();

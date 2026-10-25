@@ -34,67 +34,83 @@ class PlayerPage extends StatelessWidget {
       },
       child: GlowBackground.player(
         context,
-        child: LayoutBuilder(builder: (context, c) {
-          final h = c.maxHeight - pad.top - pad.bottom;
-          final extra = h - 844;
-          final double coverSize = math.min(c.maxWidth - 80, math.max(200.0, 310 + math.min(0.0, extra)));
-          final double topGap = 28 + math.max(0.0, extra * 0.25);
-          return Padding(
-            padding: EdgeInsets.only(top: pad.top),
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(children: [
-                    GlassButton(YIcons.chevronDown, label: '收起播放页', shadows: glassShadow, onTap: () => Navigator.of(context).maybePop()),
-                    Expanded(
-                      child: Column(children: [
-                        Text('正在播放', style: ts(11, weight: w600, em: 0.14, color: p.playerText2)),
-                        const SizedBox(height: 3),
-                        Text(player.queueTitle ?? song.albumName, style: ts(14, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ]),
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final h = c.maxHeight - pad.top - pad.bottom;
+            final extra = h - 844;
+            final double coverSize = math.min(c.maxWidth - 80, math.max(200.0, 310 + math.min(0.0, extra)));
+            final double topGap = 28 + math.max(0.0, extra * 0.25);
+            return Padding(
+              padding: EdgeInsets.only(top: pad.top),
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        GlassButton(YIcons.chevronDown, label: '收起播放页', shadows: glassShadow, onTap: () => Navigator.of(context).maybePop()),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Text(
+                                '正在播放',
+                                style: ts(11, weight: w600, em: 0.14, color: p.playerText2),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                player.queueTitle ?? song.albumName,
+                                style: ts(14, weight: w600, color: p.text),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        GlassButton(YIcons.more, label: '更多', shadows: glassShadow, onTap: () => showSongMenu(context, song)),
+                      ],
                     ),
-                    GlassButton(YIcons.more, label: '更多', shadows: glassShadow, onTap: () => showSongMenu(context, song)),
-                  ]),
-                ),
-                SizedBox(height: topGap),
-                Hero(
-                  tag: 'cover',
-                  child: Cover(
-                    song.coverUrl,
-                    size: coverSize,
-                    radius: 30,
-                    imageSize: 800,
-                    shadows: [
-                      Shadow2(0, 28, 56, CoverArt.tint(song.coverUrl).withValues(alpha: 0.35)),
-                      const Shadow2(0, 4, 10, Color.fromRGBO(0, 0, 0, 0.08)),
-                    ],
                   ),
-                ),
-                const SizedBox(height: 26),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: Column(children: [
-                    _TitleRow(song: song),
-                    const SizedBox(height: 36),
-                    const _Progress(),
-                    const SizedBox(height: 28),
-                    const _Controls(),
-                    const SizedBox(height: 20),
-                    const _LyricPreview(),
-                  ]),
-                ),
-                const Spacer(),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, math.max(22, pad.bottom + 8) - pad.bottom),
-                  child: _PlayerTabs(song: song),
-                ),
-                SizedBox(height: pad.bottom),
-              ],
-            ),
-          );
-        }),
+                  SizedBox(height: topGap),
+                  Hero(
+                    tag: 'cover',
+                    child: Cover(
+                      song.coverUrl,
+                      size: coverSize,
+                      radius: 30,
+                      imageSize: 800,
+                      shadows: [
+                        Shadow2(0, 28, 56, CoverArt.tint(song.coverUrl).withValues(alpha: 0.35)),
+                        const Shadow2(0, 4, 10, Color.fromRGBO(0, 0, 0, 0.08)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: Column(
+                      children: [
+                        _TitleRow(song: song),
+                        const SizedBox(height: 36),
+                        const _Progress(),
+                        const SizedBox(height: 28),
+                        const _Controls(),
+                        const SizedBox(height: 20),
+                        const _LyricPreview(),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, math.max(22, pad.bottom + 8) - pad.bottom),
+                    child: _PlayerTabs(song: song),
+                  ),
+                  SizedBox(height: pad.bottom),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -110,38 +126,53 @@ class _TitleRow extends StatelessWidget {
     final p = Palette.of(context);
     final player = context.watch<PlayerController>();
     final liked = player.isLiked(song);
-    return Row(children: [
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(song.name, style: ts(26, weight: w700, em: -0.02, height: 1.15, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 4),
-          Pressable(
-            onTap: song.artists.isEmpty
-                ? null
-                : () {
-                    Navigator.of(context).maybePop();
-                    openArtist(context, song.artists.first);
-                  },
-            pressedOpacity: 0.6,
-            scale: 1,
-            child: Text(song.subtitle, style: ts(17, color: p.playerText2), maxLines: 1, overflow: TextOverflow.ellipsis),
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                song.name,
+                style: ts(26, weight: w700, em: -0.02, height: 1.15, color: p.text),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Pressable(
+                onTap: song.artists.isEmpty
+                    ? null
+                    : () {
+                        Navigator.of(context).maybePop();
+                        openArtist(context, song.artists.first);
+                      },
+                pressedOpacity: 0.6,
+                scale: 1,
+                child: Text(
+                  song.subtitle,
+                  style: ts(17, color: p.playerText2),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-        ]),
-      ),
-      const SizedBox(width: 16),
-      Pressable(
-        onTap: () => player.toggleLike(song),
-        scale: 0.9,
-        semanticLabel: liked ? '取消喜欢' : '喜欢',
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(color: p.translucentButton, shape: BoxShape.circle),
-          alignment: Alignment.center,
-          child: YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 22, color: p.accentText),
         ),
-      ),
-    ]);
+        const SizedBox(width: 16),
+        Pressable(
+          onTap: () => player.toggleLike(song),
+          scale: 0.9,
+          semanticLabel: liked ? '取消喜欢' : '喜欢',
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(color: p.translucentButton, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 22, color: p.accentText),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -158,15 +189,25 @@ class _Progress extends StatelessWidget {
       builder: (context, pos, _) {
         final f = total.inMilliseconds == 0 ? 0.0 : pos.inMilliseconds / total.inMilliseconds;
         final remain = total - pos;
-        return Column(children: [
-          SeekBar(value: f, onSeek: player.seekFraction),
-          const SizedBox(height: 8),
-          Row(children: [
-            Text(formatDuration(pos), style: ts(12, weight: w500, color: p.playerText2, tabular: true)),
-            const Spacer(),
-            Text('-${formatDuration(remain.isNegative ? Duration.zero : remain)}', style: ts(12, weight: w500, color: p.playerText2, tabular: true)),
-          ]),
-        ]);
+        return Column(
+          children: [
+            SeekBar(value: f, onSeek: player.seekFraction),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  formatDuration(pos),
+                  style: ts(12, weight: w500, color: p.playerText2, tabular: true),
+                ),
+                const Spacer(),
+                Text(
+                  '-${formatDuration(remain.isNegative ? Duration.zero : remain)}',
+                  style: ts(12, weight: w500, color: p.playerText2, tabular: true),
+                ),
+              ],
+            ),
+          ],
+        );
       },
     );
   }
@@ -184,13 +225,25 @@ class _Controls extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        YIconButton(YIcons.shuffle, size: 48, iconSize: 24, color: shuffle ? p.accentText : p.playerText2, label: '随机播放',
-            onTap: () => player.setMode(shuffle ? PlayMode.sequence : PlayMode.shuffle)),
+        YIconButton(
+          YIcons.shuffle,
+          size: 48,
+          iconSize: 24,
+          color: shuffle ? p.accentText : p.playerText2,
+          label: '随机播放',
+          onTap: () => player.setMode(shuffle ? PlayMode.sequence : PlayMode.shuffle),
+        ),
         YIconButton(YIcons.prev, size: 56, iconSize: 32, color: p.text, label: '上一首', onTap: player.previous),
         PlayButton(size: 72, iconSize: 30),
         YIconButton(YIcons.next, size: 56, iconSize: 32, color: p.text, label: '下一首', onTap: player.next),
-        YIconButton(one ? YIcons.repeatOne : YIcons.repeat, size: 48, iconSize: 24, color: one ? p.accentText : p.playerText2, label: '循环播放',
-            onTap: () => player.setMode(one ? PlayMode.sequence : PlayMode.repeatOne)),
+        YIconButton(
+          one ? YIcons.repeatOne : YIcons.repeat,
+          size: 48,
+          iconSize: 24,
+          color: one ? p.accentText : p.playerText2,
+          label: '循环播放',
+          onTap: () => player.setMode(one ? PlayMode.sequence : PlayMode.repeatOne),
+        ),
       ],
     );
   }
@@ -223,7 +276,11 @@ class PlayButton extends StatelessWidget {
         shadows: shadow ? const [Shadow2(0, 10, 22, Color.fromRGBO(29, 29, 31, 0.28))] : const [],
         alignment: Alignment.center,
         child: player.buffering && !player.playing
-            ? SizedBox(width: iconSize * 0.8, height: iconSize * 0.8, child: CircularProgressIndicator(strokeWidth: 2.4, color: p.primaryButtonText))
+            ? SizedBox(
+                width: iconSize * 0.8,
+                height: iconSize * 0.8,
+                child: CircularProgressIndicator(strokeWidth: 2.4, color: p.primaryButtonText),
+              )
             : YIcon(player.playing ? (largePause ? YIcons.pauseLarge : YIcons.pause) : YIcons.play, size: iconSize, color: p.primaryButtonText),
       ),
     );
@@ -250,11 +307,25 @@ class _LyricPreview extends StatelessWidget {
             final i = lyrics.indexAt(pos);
             final line = i >= 0 ? lyrics.lines[i].text : (lyrics.lines.isEmpty ? '暂无歌词' : lyrics.lines.first.text);
             final next = i + 1 < lyrics.lines.length ? lyrics.lines[i + 1].text : '';
-            return Column(children: [
-              Text(line, textAlign: TextAlign.center, style: ts(20, weight: w700, em: -0.01, height: 1.35, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              Text(next, textAlign: TextAlign.center, style: ts(16, weight: w600, height: 1.35, color: p.lyricDim), maxLines: 1, overflow: TextOverflow.ellipsis),
-            ]);
+            return Column(
+              children: [
+                Text(
+                  line,
+                  textAlign: TextAlign.center,
+                  style: ts(20, weight: w700, em: -0.01, height: 1.35, color: p.text),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  next,
+                  textAlign: TextAlign.center,
+                  style: ts(16, weight: w600, height: 1.35, color: p.lyricDim),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            );
           },
         ),
       ),
@@ -281,11 +352,17 @@ class _PlayerTabs extends StatelessWidget {
             decoration: BoxDecoration(color: active ? p.navActive : Colors.transparent, borderRadius: BorderRadius.circular(27)),
             child: CustomPaint(
               foregroundPainter: active ? InsetShadowPainter(BorderRadius.circular(27), [Shadow2(0, 0.5, 1, p.navActiveInset)]) : null,
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                YIcon(icon, size: 22, color: color),
-                const SizedBox(height: 3),
-                Text(label, style: ts(11, weight: active ? w600 : w500, color: color, height: 1.2)),
-              ]),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  YIcon(icon, size: 22, color: color),
+                  const SizedBox(height: 3),
+                  Text(
+                    label,
+                    style: ts(11, weight: active ? w600 : w500, color: color, height: 1.2),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -297,12 +374,14 @@ class _PlayerTabs extends StatelessWidget {
       height: 64,
       padding: const EdgeInsets.all(5),
       shadows: [const Shadow2(0, 10, 30, Color.fromRGBO(0, 0, 0, 0.12)), const Shadow2(0, 1, 3, Color.fromRGBO(0, 0, 0, 0.08))],
-      child: Row(children: [
-        item(YIcons.lyrics, '歌词', () => openLyrics(context), active: true),
-        item(YIcons.comment, '评论', () => openComments(context, song)),
-        item(YIcons.download, '下载', () => downloadSongs(context, [song])),
-        item(YIcons.queue, '队列', () => openQueue(context)),
-      ]),
+      child: Row(
+        children: [
+          item(YIcons.lyrics, '歌词', () => openLyrics(context), active: true),
+          item(YIcons.comment, '评论', () => openComments(context, song)),
+          item(YIcons.download, '下载', () => downloadSongs(context, [song])),
+          item(YIcons.queue, '队列', () => openQueue(context)),
+        ],
+      ),
     );
   }
 }

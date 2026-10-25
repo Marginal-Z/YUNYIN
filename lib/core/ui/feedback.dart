@@ -22,7 +22,9 @@ abstract final class Toast {
   static void showOn(OverlayState overlay, String message, {YIconData icon = YIcons.check}) {
     _timer?.cancel();
     _entry?.remove();
-    final entry = OverlayEntry(builder: (ctx) => _ToastView(message: message, icon: icon));
+    final entry = OverlayEntry(
+      builder: (ctx) => _ToastView(message: message, icon: icon),
+    );
     _entry = entry;
     overlay.insert(entry);
     _timer = Timer(const Duration(milliseconds: 2200), () {
@@ -67,7 +69,10 @@ class _ToastView extends StatelessWidget {
                 children: [
                   YIcon(icon, size: 18, color: p.text, strokeWidth: 2),
                   const SizedBox(width: 8),
-                  Text(message, style: ts(14, weight: w600, color: p.text)),
+                  Text(
+                    message,
+                    style: ts(14, weight: w600, color: p.text),
+                  ),
                 ],
               ),
             ),
@@ -111,32 +116,49 @@ Future<bool> showConfirm(
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
-                    child: Column(children: [
-                      Text(title, style: ts(17, weight: w700, color: p.text), textAlign: TextAlign.center),
-                      const SizedBox(height: 6),
-                      Text(message, style: ts(13, height: 1.45, color: p.text2), textAlign: TextAlign.center),
-                    ]),
+                    child: Column(
+                      children: [
+                        Text(
+                          title,
+                          style: ts(17, weight: w700, color: p.text),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          message,
+                          style: ts(13, height: 1.45, color: p.text2),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                   Container(height: 1, color: const Color.fromRGBO(60, 60, 67, 0.16)),
                   SizedBox(
                     height: 46,
-                    child: Row(children: [
-                      Expanded(
-                        child: Pressable(
-                          onTap: () => Navigator.of(ctx).pop(false),
-                          child: Center(child: Text(cancel, style: ts(16, color: p.text))),
-                        ),
-                      ),
-                      Container(width: 1, color: const Color.fromRGBO(60, 60, 67, 0.16)),
-                      Expanded(
-                        child: Pressable(
-                          onTap: () => Navigator.of(ctx).pop(true),
-                          child: Center(
-                            child: Text(confirm, style: ts(16, weight: w700, color: destructive ? p.danger : p.accentText)),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Pressable(
+                            onTap: () => Navigator.of(ctx).pop(false),
+                            child: Center(
+                              child: Text(cancel, style: ts(16, color: p.text)),
+                            ),
                           ),
                         ),
-                      ),
-                    ]),
+                        Container(width: 1, color: const Color.fromRGBO(60, 60, 67, 0.16)),
+                        Expanded(
+                          child: Pressable(
+                            onTap: () => Navigator.of(ctx).pop(true),
+                            child: Center(
+                              child: Text(
+                                confirm,
+                                style: ts(16, weight: w700, color: destructive ? p.danger : p.accentText),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -147,7 +169,10 @@ Future<bool> showConfirm(
     },
     transitionBuilder: (ctx, a, _, child) => FadeTransition(
       opacity: a,
-      child: ScaleTransition(scale: Tween(begin: 1.08, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOut)), child: child),
+      child: ScaleTransition(
+        scale: Tween(begin: 1.08, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOut)),
+        child: child,
+      ),
     ),
   );
   return r ?? false;
@@ -168,17 +193,23 @@ class StateView extends StatelessWidget {
   });
 
   factory StateView.network({VoidCallback? onRetry, String? message}) => StateView(
-        icon: YIcons.wifiOff,
-        tile: TileColor.orange,
-        title: '网络开小差了',
-        message: message ?? '请检查网络连接后重试，已下载的歌曲仍可播放。',
-        action: '重新加载',
-        actionIcon: YIcons.refresh,
-        onAction: onRetry,
-      );
+    icon: YIcons.wifiOff,
+    tile: TileColor.orange,
+    title: '网络开小差了',
+    message: message ?? '请检查网络连接后重试，已下载的歌曲仍可播放。',
+    action: '重新加载',
+    actionIcon: YIcons.refresh,
+    onAction: onRetry,
+  );
 
-  factory StateView.empty({required String title, required String message, String? action, VoidCallback? onAction, YIconData icon = YIcons.download, TileColor tile = TileColor.blue}) =>
-      StateView(icon: icon, tile: tile, title: title, message: message, action: action, onAction: onAction, primary: true);
+  factory StateView.empty({
+    required String title,
+    required String message,
+    String? action,
+    VoidCallback? onAction,
+    YIconData icon = YIcons.download,
+    TileColor tile = TileColor.blue,
+  }) => StateView(icon: icon, tile: tile, title: title, message: message, action: action, onAction: onAction, primary: true);
 
   final YIconData icon;
   final TileColor tile;
@@ -199,11 +230,19 @@ class StateView extends StatelessWidget {
         children: [
           IconTile(icon, tile, size: 56, iconSize: 28, strokeWidth: 1.75),
           const SizedBox(height: 14),
-          Text(title, style: ts(18, weight: w700, em: -0.01, color: p.text), textAlign: TextAlign.center),
+          Text(
+            title,
+            style: ts(18, weight: w700, em: -0.01, color: p.text),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 4),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 260),
-            child: Text(message, style: ts(13, height: 1.5, color: p.text2), textAlign: TextAlign.center),
+            child: Text(
+              message,
+              style: ts(13, height: 1.5, color: p.text2),
+              textAlign: TextAlign.center,
+            ),
           ),
           if (action != null) ...[
             const SizedBox(height: 14),
@@ -228,10 +267,13 @@ class SkeletonList extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     Widget bar(double f, double h) => FractionallySizedBox(
-          widthFactor: f,
-          alignment: Alignment.centerLeft,
-          child: Container(height: h, decoration: BoxDecoration(color: p.skeleton, borderRadius: BorderRadius.circular(h / 2))),
-        );
+      widthFactor: f,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        height: h,
+        decoration: BoxDecoration(color: p.skeleton, borderRadius: BorderRadius.circular(h / 2)),
+      ),
+    );
     return YCard(
       padding: padding,
       child: Column(
@@ -241,17 +283,23 @@ class SkeletonList extends StatelessWidget {
               padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
               child: SizedBox(
                 height: 44,
-                child: Row(children: [
-                  Container(width: 42, height: 42, decoration: BoxDecoration(color: p.skeleton, borderRadius: BorderRadius.circular(10))),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [bar(0.58, 12), const SizedBox(height: 8), bar(0.32, 10)],
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(color: p.skeleton, borderRadius: BorderRadius.circular(10)),
                     ),
-                  ),
-                ]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [bar(0.58, 12), const SizedBox(height: 8), bar(0.32, 10)],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -295,7 +343,9 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
           return widget.loading ?? const SkeletonList();
         }
         if (snap.hasError) {
-          return Center(child: StateView.network(onRetry: _reload, message: errorText(snap.error)));
+          return Center(
+            child: StateView.network(onRetry: _reload, message: errorText(snap.error)),
+          );
         }
         return widget.builder(context, snap.data as T, _reload);
       },

@@ -26,8 +26,7 @@ class AppSettings extends ChangeNotifier {
 
   final Map<(bool, AccentColor), Palette> _palettes = {};
 
-  Palette palette(bool dark) =>
-      _palettes.putIfAbsent((dark, accent), () => dark ? Palette.dark(accent) : Palette.light(accent));
+  Palette palette(bool dark) => _palettes.putIfAbsent((dark, accent), () => dark ? Palette.dark(accent) : Palette.light(accent));
 
   Future<void> init() async {
     _p = await SharedPreferences.getInstance();
@@ -45,7 +44,7 @@ class AppSettings extends ChangeNotifier {
     showTranslation = _p.getBool('showTranslation') ?? false;
     downloadDir = _p.getString('downloadDir');
     volume = _p.getDouble('volume') ?? 0.65;
-    searchHistory = _p.getStringList('searchHistory') ?? ['晚风', '雨天唱片行', '沈南乔', '民谣', '海岸线', '夜行列车'];
+    searchHistory = _p.getStringList('searchHistory') ?? [];
   }
 
   void setThemeMode(ThemeMode m) {

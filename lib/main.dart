@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
@@ -34,11 +35,19 @@ Future<void> main() async {
   } else if (!kIsWeb) {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    // 许多 Android 设备默认把应用限制在 60Hz，这里请求屏幕支持的最高刷新率（90/120/144Hz…）。
+    try {
+      await FlutterDisplayMode.setHighRefreshRate();
+    } catch (e) {
+      debugPrint('display mode: $e');
+    }
+  }
 
   final settings = AppSettings();
   await settings.init();
   final sources = SourceManager(SourceRegistry.create());
-  await sources.init(fallbackId: defaultSourceFor(isWeb: kIsWeb));
+  await sources.init();
   final player = PlayerController(sources, settings);
   await player.init();
   final downloads = DownloadManager(sources, settings);

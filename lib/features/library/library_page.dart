@@ -100,11 +100,13 @@ class LibraryOverview extends StatelessWidget {
     final downloads = context.watch<DownloadManager>();
     final history = context.select<PlayerController, int>((p) => p.history.length);
     if (!source.loggedIn && source.supports(SourceFeature.login)) {
-      return Column(children: [
-        const SizedBox(height: 20),
-        _QuickGrid(liked: null, recent: history, downloaded: downloads.items.length, subscribed: null),
-        LoginPrompt(source: source),
-      ]);
+      return Column(
+        children: [
+          const SizedBox(height: 20),
+          _QuickGrid(liked: null, recent: history, downloaded: downloads.items.length, subscribed: null),
+          LoginPrompt(source: source),
+        ],
+      );
     }
     return AsyncView<List<PlaylistInfo>>(
       load: source.userPlaylists,
@@ -117,21 +119,14 @@ class LibraryOverview extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 20),
-            _QuickGrid(
-              liked: liked?.trackCount,
-              recent: history,
-              downloaded: downloads.items.length,
-              subscribed: subscribed,
-              likedList: liked,
-            ),
+            _QuickGrid(liked: liked?.trackCount, recent: history, downloaded: downloads.items.length, subscribed: subscribed, likedList: liked),
             SectionHeader('我创建的歌单', action: '管理', onAction: () => go(context, MyCollectionsRoute())),
             if (created.isEmpty)
-              YCard(child: StateView.empty(title: '还没有创建歌单', message: '在${source.name}里创建的歌单会显示在这里。', icon: YIcons.library))
+              YCard(
+                child: StateView.empty(title: '还没有创建歌单', message: '在${source.name}里创建的歌单会显示在这里。', icon: YIcons.library),
+              )
             else
-              CardList(
-                indent: 78,
-                children: [for (final pl in created) PlaylistRow(playlist: pl)],
-              ),
+              CardList(indent: 78, children: [for (final pl in created) PlaylistRow(playlist: pl)]),
           ],
         );
       },
@@ -150,21 +145,34 @@ class _QuickGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget tile(YIconData icon, TileColor c, String title, String sub, VoidCallback onTap) => _QuickTile(icon: icon, color: c, title: title, subtitle: sub, onTap: onTap);
-    return LayoutBuilder(builder: (context, cons) {
-      final w = (cons.maxWidth - 12) / 2;
-      return Wrap(spacing: 12, runSpacing: 12, children: [
-        SizedBox(
-          width: w,
-          child: tile(YIcons.heart, TileColor.red, '我喜欢的音乐', liked == null ? '—' : '$liked 首', () {
-            likedList != null ? openPlaylist(context, likedList!) : go(context, CollectionRoute(PlaylistKind.liked));
-          }),
-        ),
-        SizedBox(width: w, child: tile(YIcons.clock, TileColor.blue, '最近播放', '$recent 首', () => go(context, CollectionRoute(PlaylistKind.recent)))),
-        SizedBox(width: w, child: tile(YIcons.download, TileColor.teal, '已下载', '$downloaded 首', () => go(context, CollectionRoute(PlaylistKind.downloaded)))),
-        SizedBox(width: w, child: tile(YIcons.bookmark, TileColor.graphite, '收藏的歌单', subscribed == null ? '—' : '$subscribed 个', () => go(context, MyCollectionsRoute()))),
-      ]);
-    });
+    Widget tile(YIconData icon, TileColor c, String title, String sub, VoidCallback onTap) =>
+        _QuickTile(icon: icon, color: c, title: title, subtitle: sub, onTap: onTap);
+    return LayoutBuilder(
+      builder: (context, cons) {
+        final w = (cons.maxWidth - 12) / 2;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            SizedBox(
+              width: w,
+              child: tile(YIcons.heart, TileColor.red, '我喜欢的音乐', liked == null ? '—' : '$liked 首', () {
+                likedList != null ? openPlaylist(context, likedList!) : go(context, CollectionRoute(PlaylistKind.liked));
+              }),
+            ),
+            SizedBox(width: w, child: tile(YIcons.clock, TileColor.blue, '最近播放', '$recent 首', () => go(context, CollectionRoute(PlaylistKind.recent)))),
+            SizedBox(
+              width: w,
+              child: tile(YIcons.download, TileColor.teal, '已下载', '$downloaded 首', () => go(context, CollectionRoute(PlaylistKind.downloaded))),
+            ),
+            SizedBox(
+              width: w,
+              child: tile(YIcons.bookmark, TileColor.graphite, '收藏的歌单', subscribed == null ? '—' : '$subscribed 个', () => go(context, MyCollectionsRoute())),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -187,17 +195,28 @@ class _QuickTile extends StatelessWidget {
           height: 72,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(children: [
-              IconTile(icon, color, size: 44, iconSize: 22, strokeWidth: 1.75),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(title, style: ts(14, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: ts(12, color: p.text2)),
-                ]),
-              ),
-            ]),
+            child: Row(
+              children: [
+                IconTile(icon, color, size: 44, iconSize: 22, strokeWidth: 1.75),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: ts(14, weight: w600, color: p.text),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: ts(12, color: p.text2)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -225,17 +244,33 @@ class PlaylistRow extends StatelessWidget {
         height: 72,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(children: [
-            Cover(pl.cover, size: 52, radius: 12),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(pl.name, style: ts(15, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                Text(sub, style: ts(13, color: p.text2), maxLines: 1, overflow: TextOverflow.ellipsis),
-              ]),
-            ),
-          ]),
+          child: Row(
+            children: [
+              Cover(pl.cover, size: 52, radius: 12),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pl.name,
+                      style: ts(15, weight: w600, color: p.text),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      sub,
+                      style: ts(13, color: p.text2),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -256,33 +291,49 @@ class SubscribedAlbums extends StatelessWidget {
         load: source.subscribedAlbums,
         builder: (context, albums, _) {
           if (albums.isEmpty) {
-            return YCard(child: StateView.empty(title: '还没有收藏专辑', message: '在专辑页点收藏，就会出现在这里。', icon: YIcons.library));
+            return YCard(
+              child: StateView.empty(title: '还没有收藏专辑', message: '在专辑页点收藏，就会出现在这里。', icon: YIcons.library),
+            );
           }
-          return CardList(indent: 78, children: [
-            for (final a in albums)
-              Pressable(
-                onTap: () => go(context, AlbumRoute(a.id, preview: a)),
-                scale: 1,
-                hoverColor: p.separator.withValues(alpha: 0.06),
-                child: SizedBox(
-                  height: 72,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(children: [
-                      Cover(a.cover, size: 52, radius: 12),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(a.name, style: ts(15, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-                          const SizedBox(height: 2),
-                          Text(a.artist?.name ?? '', style: ts(13, color: p.text2), maxLines: 1),
-                        ]),
+          return CardList(
+            indent: 78,
+            children: [
+              for (final a in albums)
+                Pressable(
+                  onTap: () => go(context, AlbumRoute(a.id, preview: a)),
+                  scale: 1,
+                  hoverColor: p.separator.withValues(alpha: 0.06),
+                  child: SizedBox(
+                    height: 72,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          Cover(a.cover, size: 52, radius: 12),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  a.name,
+                                  style: ts(15, weight: w600, color: p.text),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(a.artist?.name ?? '', style: ts(13, color: p.text2), maxLines: 1),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ]),
+                    ),
                   ),
                 ),
-              ),
-          ]);
+            ],
+          );
         },
       ),
     );
@@ -303,29 +354,41 @@ class FollowedArtists extends StatelessWidget {
         load: source.followedArtists,
         builder: (context, artists, _) {
           if (artists.isEmpty) {
-            return YCard(child: StateView.empty(title: '还没有关注歌手', message: '在歌手页点关注，就会出现在这里。', icon: YIcons.user));
+            return YCard(
+              child: StateView.empty(title: '还没有关注歌手', message: '在歌手页点关注，就会出现在这里。', icon: YIcons.user),
+            );
           }
-          return CardList(indent: 78, children: [
-            for (final a in artists)
-              Pressable(
-                onTap: () => go(context, ArtistRoute(a.id, name: a.name)),
-                scale: 1,
-                hoverColor: p.separator.withValues(alpha: 0.06),
-                child: SizedBox(
-                  height: 72,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(children: [
-                      Cover(a.avatar, size: 52, circle: true),
-                      const SizedBox(width: 14),
-                      Expanded(child: Text(a.name, style: ts(15, weight: w600, color: p.text))),
-                      const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
-                      const SizedBox(width: 6),
-                    ]),
+          return CardList(
+            indent: 78,
+            children: [
+              for (final a in artists)
+                Pressable(
+                  onTap: () => go(context, ArtistRoute(a.id, name: a.name)),
+                  scale: 1,
+                  hoverColor: p.separator.withValues(alpha: 0.06),
+                  child: SizedBox(
+                    height: 72,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          Cover(a.avatar, size: 52, circle: true),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              a.name,
+                              style: ts(15, weight: w600, color: p.text),
+                            ),
+                          ),
+                          const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
+                          const SizedBox(width: 6),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-          ]);
+            ],
+          );
         },
       ),
     );
@@ -343,17 +406,18 @@ class DownloadedList extends StatelessWidget {
       padding: const EdgeInsets.only(top: 20),
       child: items.isEmpty
           ? YCard(
-              child: StateView.empty(
-                title: '还没有下载的歌曲',
-                message: '在歌单里点下载，没有网络也能听。',
-                action: '去发现音乐',
-                onAction: () => context.read<AppNav>().switchTab(1),
-              ),
+              child: StateView.empty(title: '还没有下载的歌曲', message: '在歌单里点下载，没有网络也能听。', action: '去发现音乐', onAction: () => context.read<AppNav>().switchTab(1)),
             )
-          : CardList(indent: 70, children: [
-              for (var i = 0; i < items.length; i++)
-                SongRow(song: items[i], onTap: () => playAll(context, items, start: i, title: '已下载')),
-            ]),
+          : CardList(
+              indent: 70,
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  SongRow(
+                    song: items[i],
+                    onTap: () => playAll(context, items, start: i, title: '已下载'),
+                  ),
+              ],
+            ),
     );
   }
 }

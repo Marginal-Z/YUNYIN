@@ -58,11 +58,7 @@ class _PressableState extends State<Pressable> {
       scale: _down ? widget.scale : 1,
       duration: const Duration(milliseconds: 120),
       curve: Curves.easeOut,
-      child: AnimatedOpacity(
-        opacity: _down ? widget.pressedOpacity : 1,
-        duration: const Duration(milliseconds: 120),
-        child: child,
-      ),
+      child: AnimatedOpacity(opacity: _down ? widget.pressedOpacity : 1, duration: const Duration(milliseconds: 120), child: child),
     );
     return Semantics(
       button: enabled,
@@ -88,16 +84,7 @@ class _PressableState extends State<Pressable> {
 
 /// 透明背景的图标按钮（热区 ≥ 44）。
 class YIconButton extends StatelessWidget {
-  const YIconButton(
-    this.icon, {
-    super.key,
-    this.onTap,
-    this.size = 44,
-    this.iconSize = 22,
-    this.color,
-    this.label,
-    this.strokeWidth,
-  });
+  const YIconButton(this.icon, {super.key, this.onTap, this.size = 44, this.iconSize = 22, this.color, this.label, this.strokeWidth});
 
   final YIconData icon;
   final VoidCallback? onTap;
@@ -235,10 +222,7 @@ class ChipBar extends StatelessWidget {
     final row = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (var i = 0; i < labels.length; i++) ...[
-          if (i > 0) const SizedBox(width: 8),
-          YChip(labels[i], selected: i == index, onTap: () => onChanged(i)),
-        ],
+        for (var i = 0; i < labels.length; i++) ...[if (i > 0) const SizedBox(width: 8), YChip(labels[i], selected: i == index, onTap: () => onChanged(i))],
       ],
     );
     if (!scroll) return Align(alignment: Alignment.centerLeft, child: row);
@@ -265,7 +249,12 @@ class SectionHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
         children: [
-          Expanded(child: Text(title, style: ts(22, weight: w700, em: -0.015, color: p.text))),
+          Expanded(
+            child: Text(
+              title,
+              style: ts(22, weight: w700, em: -0.015, color: p.text),
+            ),
+          ),
           if (action != null)
             Pressable(
               onTap: onAction,
@@ -292,6 +281,7 @@ class YCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     return YBox(
+      clip: true,
       radius: BorderRadius.circular(radius),
       color: gradient == null ? (color ?? p.card) : null,
       gradient: gradient,
@@ -324,7 +314,12 @@ class CardList extends StatelessWidget {
               children: [
                 children[i],
                 if (i > 0)
-                  Positioned(left: indent, right: 0, top: 0, child: Container(height: 1, color: p.separator)),
+                  Positioned(
+                    left: indent,
+                    right: 0,
+                    top: 0,
+                    child: Container(height: 1, color: p.separator),
+                  ),
               ],
             ),
         ],
@@ -394,45 +389,50 @@ class Segmented extends StatelessWidget {
       height: height,
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(color: p.segmentTrack, borderRadius: BorderRadius.circular(10)),
-      child: LayoutBuilder(builder: (context, c) {
-        final w = c.maxWidth / labels.length;
-        return Stack(
-          children: [
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              left: w * index,
-              top: 0,
-              bottom: 0,
-              width: w,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: p.segmentSelected,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: const [
-                    BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.15), offset: Offset(0, 1), blurRadius: 1.7),
-                    BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.04), spreadRadius: 0.5),
-                  ],
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final w = c.maxWidth / labels.length;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                left: w * index,
+                top: 0,
+                bottom: 0,
+                width: w,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: p.segmentSelected,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: const [
+                      BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.15), offset: Offset(0, 1), blurRadius: 1.7),
+                      BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.04), spreadRadius: 0.5),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            Row(
-              children: [
-                for (var i = 0; i < labels.length; i++)
-                  Expanded(
-                    child: Pressable(
-                      onTap: () => onChanged(i),
-                      scale: 1,
-                      child: Center(
-                        child: Text(labels[i], style: ts(13, weight: i == index ? w600 : w500, color: p.text)),
+              Row(
+                children: [
+                  for (var i = 0; i < labels.length; i++)
+                    Expanded(
+                      child: Pressable(
+                        onTap: () => onChanged(i),
+                        scale: 1,
+                        child: Center(
+                          child: Text(
+                            labels[i],
+                            style: ts(13, weight: i == index ? w600 : w500, color: p.text),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          ],
-        );
-      }),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -450,7 +450,9 @@ class IconTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = size >= 56 ? 18.0 : (size >= 44 ? 13.0 : 9.0);
-    final glow = size >= 56 ? const Shadow2(0, 12, 24, Colors.transparent) : (size >= 44 ? const Shadow2(0, 8, 16, Colors.transparent) : const Shadow2(0, 4, 10, Colors.transparent));
+    final glow = size >= 56
+        ? const Shadow2(0, 12, 24, Colors.transparent)
+        : (size >= 44 ? const Shadow2(0, 8, 16, Colors.transparent) : const Shadow2(0, 4, 10, Colors.transparent));
     return YBox(
       width: size,
       height: size,
@@ -496,12 +498,11 @@ class PrimaryButton extends StatelessWidget {
       mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        if (icon != null) ...[
-          YIcon(icon!, size: iconSize, color: enabled ? Colors.white : const Color.fromRGBO(60, 60, 67, 0.42)),
-          const SizedBox(width: 8),
-        ],
-        Text(label,
-            style: ts(fontSize, weight: w600, color: enabled ? Colors.white : const Color.fromRGBO(60, 60, 67, 0.42))),
+        if (icon != null) ...[YIcon(icon!, size: iconSize, color: enabled ? Colors.white : const Color.fromRGBO(60, 60, 67, 0.42)), const SizedBox(width: 8)],
+        Text(
+          label,
+          style: ts(fontSize, weight: w600, color: enabled ? Colors.white : const Color.fromRGBO(60, 60, 67, 0.42)),
+        ),
       ],
     );
     return Pressable(
@@ -567,7 +568,11 @@ class SecondaryButton extends StatelessWidget {
           children: [
             if (icon != null) YIcon(icon!, size: iconSize, color: p.text),
             if (icon != null && label != null) const SizedBox(width: 8),
-            if (label != null) Text(label!, style: ts(fontSize, weight: w600, color: p.text)),
+            if (label != null)
+              Text(
+                label!,
+                style: ts(fontSize, weight: w600, color: p.text),
+              ),
           ],
         ),
       ),
@@ -595,7 +600,10 @@ class Tag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(text, style: ts(11, weight: w700, color: fg)),
+      child: Text(
+        text,
+        style: ts(11, weight: w700, color: fg),
+      ),
     );
   }
 }
@@ -677,15 +685,7 @@ class _NowPlayingBarsState extends State<NowPlayingBars> {
 
 /// 进度条：4px 轨道 + 可选 12px 圆点，支持拖动。
 class SeekBar extends StatefulWidget {
-  const SeekBar({
-    super.key,
-    required this.value,
-    this.onSeek,
-    this.thumb = true,
-    this.track,
-    this.fill,
-    this.height = 12,
-  });
+  const SeekBar({super.key, required this.value, this.onSeek, this.thumb = true, this.track, this.fill, this.height = 12});
 
   final double value;
   final ValueChanged<double>? onSeek;
@@ -710,60 +710,68 @@ class _SeekBarState extends State<SeekBar> {
     final p = Palette.of(context);
     final v = (_drag ?? widget.value).clamp(0.0, 1.0);
     final fill = widget.fill ?? p.trackFill;
-    return LayoutBuilder(builder: (context, c) {
-      final w = c.maxWidth;
-      return MouseRegion(
-        cursor: widget.onSeek != null ? SystemMouseCursors.click : MouseCursor.defer,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
-          onTapUp: widget.onSeek == null
-              ? null
-              : (_) {
-                  widget.onSeek!(_drag ?? v);
-                  setState(() => _drag = null);
-                },
-          onHorizontalDragStart: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
-          onHorizontalDragUpdate: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
-          onHorizontalDragEnd: widget.onSeek == null
-              ? null
-              : (_) {
-                  widget.onSeek!(_drag ?? v);
-                  setState(() => _drag = null);
-                },
-          child: SizedBox(
-            height: widget.height,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: (widget.height - 4) / 2,
-                  height: 4,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(color: widget.track ?? p.track, borderRadius: BorderRadius.circular(2)),
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  width: w * v,
-                  top: (widget.height - 4) / 2,
-                  height: 4,
-                  child: DecoratedBox(decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(2))),
-                ),
-                if (widget.thumb)
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return MouseRegion(
+          cursor: widget.onSeek != null ? SystemMouseCursors.click : MouseCursor.defer,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
+            onTapUp: widget.onSeek == null
+                ? null
+                : (_) {
+                    widget.onSeek!(_drag ?? v);
+                    setState(() => _drag = null);
+                  },
+            onHorizontalDragStart: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
+            onHorizontalDragUpdate: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
+            onHorizontalDragEnd: widget.onSeek == null
+                ? null
+                : (_) {
+                    widget.onSeek!(_drag ?? v);
+                    setState(() => _drag = null);
+                  },
+            child: SizedBox(
+              height: widget.height,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
                   Positioned(
-                    left: w * v - 6,
-                    top: (widget.height - 12) / 2,
-                    child: Container(width: 12, height: 12, decoration: BoxDecoration(color: fill, shape: BoxShape.circle)),
+                    left: 0,
+                    right: 0,
+                    top: (widget.height - 4) / 2,
+                    height: 4,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(color: widget.track ?? p.track, borderRadius: BorderRadius.circular(2)),
+                    ),
                   ),
-              ],
+                  Positioned(
+                    left: 0,
+                    width: w * v,
+                    top: (widget.height - 4) / 2,
+                    height: 4,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  if (widget.thumb)
+                    Positioned(
+                      left: w * v - 6,
+                      top: (widget.height - 12) / 2,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 }
 
@@ -804,20 +812,27 @@ class SettingsRow extends StatelessWidget {
           children: [
             if (icon != null) ...[IconTile(icon!, tile ?? TileColor.blue), const SizedBox(width: 12)],
             Expanded(
-              child: Text(title, style: ts(16, color: titleColor ?? p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
+              child: Text(
+                title,
+                style: ts(16, color: titleColor ?? p.text),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             if (value != null) ...[
               const SizedBox(width: 12),
               Flexible(
                 flex: 0,
-                child: Text(value!, style: ts(15, color: p.text2), maxLines: 1, overflow: TextOverflow.ellipsis),
+                child: Text(
+                  value!,
+                  style: ts(15, color: p.text2),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
             if (trailing != null) ...[const SizedBox(width: 12), trailing!],
-            if (showChevron) ...[
-              const SizedBox(width: 12),
-              const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
-            ],
+            if (showChevron) ...[const SizedBox(width: 12), const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93))],
           ],
         ),
       ),
@@ -858,9 +873,16 @@ class PageTitle extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (subtitle != null) Text(subtitle!, style: ts(13, weight: w600, color: p.text2)),
+        if (subtitle != null)
+          Text(
+            subtitle!,
+            style: ts(13, weight: w600, color: p.text2),
+          ),
         if (subtitle != null) const SizedBox(height: 2),
-        Text(title, style: ts(size, weight: w700, em: -0.02, height: 1.1, color: p.text)),
+        Text(
+          title,
+          style: ts(size, weight: w700, em: -0.02, height: 1.1, color: p.text),
+        ),
       ],
     );
   }

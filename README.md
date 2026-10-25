@@ -42,8 +42,7 @@ lib/
 │   └── sources/
 │       ├── music_source.dart     播放源接口
 │       ├── source_manager.dart   注册与切换
-│       ├── netease/              网易云音乐（weapi / eapi 加密，直连官方接口）
-│       └── demo/                 演示源（设计稿示例数据，离线可用）
+│       └── netease/              网易云音乐（weapi / eapi 加密，直连官方接口）
 ├── player/          播放队列、播放模式、淡入淡出、睡眠定时、历史
 └── features/        各页面（移动端与桌面端）
 ```
@@ -91,7 +90,7 @@ flutter test --run-skipped --tags live         # 联网测试网易云接口与�
 
 ## 平台说明
 
-- **Web**：网易云接口不允许浏览器跨域请求，Web 版默认使用演示源，仅用于界面预览。
+- **Web**：网易云接口不允许浏览器跨域请求，Web 版无法使用，不作为发行目标。
 - **字体**：界面英文数字使用内置 Inter；中文使用系统字体（Android / Linux 为 Noto Sans CJK，Windows 为微软雅黑，macOS / iOS 为苹方）。
 - **未登录**：网易云对未登录用户只提供部分歌曲的完整播放，会员歌曲为试听片段。
 

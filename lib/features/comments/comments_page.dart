@@ -151,131 +151,168 @@ class _CommentsPageState extends State<CommentsPage> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640),
-            child: Stack(children: [
-              Positioned.fill(
-                child: ListView(
-                  controller: _scroll,
-                  padding: EdgeInsets.fromLTRB(20, pad.top + 84, 20, pad.bottom + 22 + 60 + 24 + bottomInset),
-                  children: [
-                    Pressable(
-                      onTap: () => Navigator.of(context).maybePop(),
-                      child: YCard(
-                        radius: 22,
-                        child: SizedBox(
-                          height: 64,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            child: Row(children: [
-                              Cover(song.coverUrl, size: 44, radius: 11),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(song.name, style: ts(15, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  const SizedBox(height: 2),
-                                  Text(song.subtitle, style: ts(13, color: p.text2), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                ]),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ListView(
+                    controller: _scroll,
+                    padding: EdgeInsets.fromLTRB(20, pad.top + 84, 20, pad.bottom + 22 + 60 + 24 + bottomInset),
+                    children: [
+                      Pressable(
+                        onTap: () => Navigator.of(context).maybePop(),
+                        child: YCard(
+                          radius: 22,
+                          child: SizedBox(
+                            height: 64,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              child: Row(
+                                children: [
+                                  Cover(song.coverUrl, size: 44, radius: 11),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          song.name,
+                                          style: ts(15, weight: w600, color: p.text),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          song.subtitle,
+                                          style: ts(13, color: p.text2),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
+                                ],
                               ),
-                              const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
-                            ]),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Segmented(
-                      labels: const ['推荐', '最热', '最新'],
-                      index: _sort.index,
-                      onChanged: (i) {
-                        setState(() => _sort = CommentSort.values[i]);
-                        _load(reset: true);
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                    if (_error != null && _items.isEmpty)
-                      YCard(child: StateView.network(onRetry: () => _load(reset: true), message: errorText(_error)))
-                    else if (_items.isEmpty && _loading)
-                      const SkeletonList()
-                    else if (_items.isEmpty)
-                      YCard(child: StateView.empty(title: '还没有评论', message: '来抢沙发吧。', icon: YIcons.comment, tile: TileColor.red))
-                    else
-                      CardList(
-                        indent: 66,
-                        children: [for (final c in _items) _CommentRow(comment: c, liked: _likedIds.contains(c.id), onLike: () => _like(c))],
+                      const SizedBox(height: 16),
+                      Segmented(
+                        labels: const ['推荐', '最热', '最新'],
+                        index: _sort.index,
+                        onChanged: (i) {
+                          setState(() => _sort = CommentSort.values[i]);
+                          _load(reset: true);
+                        },
                       ),
-                    if (_loading && _items.isNotEmpty)
-                      const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 16,
-                top: pad.top + 20,
-                child: GlassButton(YIcons.back, label: '返回', onTap: () => Navigator.of(context).maybePop()),
-              ),
-              Positioned(
-                left: 76,
-                right: 76,
-                top: pad.top + 20,
-                height: 44,
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('评论', style: ts(17, weight: w700, color: p.text)),
-                  const SizedBox(height: 1),
-                  Text('${groupDigits(_total)} 条', style: ts(12, color: p.text2, tabular: true)),
-                ]),
-              ),
-              Positioned(
-                right: 16,
-                top: pad.top + 20,
-                child: GlassButton(YIcons.share, label: '分享', onTap: () {
-                  final url = song.sourceId == 'netease' ? 'https://music.163.com/song?id=${song.id}' : '${song.name} - ${song.artistText}';
-                  Clipboard.setData(ClipboardData(text: url));
-                  Toast.show(context, '链接已复制');
-                }),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: pad.bottom + 22 + bottomInset,
-                child: Glass(
-                  radius: 30,
-                  height: 60,
-                  padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
-                  child: Row(children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _input,
-                        onSubmitted: (_) => _send(),
-                        textInputAction: TextInputAction.send,
-                        style: ts(16, color: p.text),
-                        cursorColor: p.accentText,
-                        decoration: InputDecoration(
-                          isCollapsed: true,
-                          border: InputBorder.none,
-                          hintText: '说点什么吧…',
-                          hintStyle: ts(16, color: p.text2),
+                      const SizedBox(height: 14),
+                      if (_error != null && _items.isEmpty)
+                        YCard(
+                          child: StateView.network(onRetry: () => _load(reset: true), message: errorText(_error)),
+                        )
+                      else if (_items.isEmpty && _loading)
+                        const SkeletonList()
+                      else if (_items.isEmpty)
+                        YCard(
+                          child: StateView.empty(title: '还没有评论', message: '来抢沙发吧。', icon: YIcons.comment, tile: TileColor.red),
+                        )
+                      else
+                        CardList(
+                          indent: 66,
+                          children: [for (final c in _items) _CommentRow(comment: c, liked: _likedIds.contains(c.id), onLike: () => _like(c))],
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Pressable(
-                      onTap: _send,
-                      scale: 0.92,
-                      semanticLabel: '发送',
-                      child: YBox(
-                        width: 44,
-                        height: 44,
-                        radius: BorderRadius.circular(22),
-                        gradient: CssGradient.vertical(p.buttonGradient),
-                        shadows: p.buttonShadow,
-                        insets: [Shadow2(0, 1, 0, p.buttonInsetHighlight)],
-                        alignment: Alignment.center,
-                        child: const YIcon(YIcons.send, size: 20, color: Colors.white),
-                      ),
-                    ),
-                  ]),
+                      if (_loading && _items.isNotEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ]),
+                Positioned(
+                  left: 16,
+                  top: pad.top + 20,
+                  child: GlassButton(YIcons.back, label: '返回', onTap: () => Navigator.of(context).maybePop()),
+                ),
+                Positioned(
+                  left: 76,
+                  right: 76,
+                  top: pad.top + 20,
+                  height: 44,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '评论',
+                        style: ts(17, weight: w700, color: p.text),
+                      ),
+                      const SizedBox(height: 1),
+                      Text('${groupDigits(_total)} 条', style: ts(12, color: p.text2, tabular: true)),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  right: 16,
+                  top: pad.top + 20,
+                  child: GlassButton(
+                    YIcons.share,
+                    label: '分享',
+                    onTap: () {
+                      final url = song.sourceId == 'netease' ? 'https://music.163.com/song?id=${song.id}' : '${song.name} - ${song.artistText}';
+                      Clipboard.setData(ClipboardData(text: url));
+                      Toast.show(context, '链接已复制');
+                    },
+                  ),
+                ),
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: pad.bottom + 22 + bottomInset,
+                  child: Glass(
+                    radius: 30,
+                    height: 60,
+                    padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _input,
+                            onSubmitted: (_) => _send(),
+                            textInputAction: TextInputAction.send,
+                            style: ts(16, color: p.text),
+                            cursorColor: p.accentText,
+                            decoration: InputDecoration(
+                              isCollapsed: true,
+                              border: InputBorder.none,
+                              hintText: '说点什么吧…',
+                              hintStyle: ts(16, color: p.text2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Pressable(
+                          onTap: _send,
+                          scale: 0.92,
+                          semanticLabel: '发送',
+                          child: YBox(
+                            width: 44,
+                            height: 44,
+                            radius: BorderRadius.circular(22),
+                            gradient: CssGradient.vertical(p.buttonGradient),
+                            shadows: p.buttonShadow,
+                            insets: [Shadow2(0, 1, 0, p.buttonInsetHighlight)],
+                            alignment: Alignment.center,
+                            child: const YIcon(YIcons.send, size: 20, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -297,42 +334,62 @@ class _CommentRow extends StatelessWidget {
     final count = c.likedCount + (liked && !c.liked ? 1 : 0) - (!liked && c.liked ? 1 : 0);
     return Padding(
       padding: const EdgeInsets.all(14),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Cover(c.avatar, size: 40, circle: true),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(c.userName, style: ts(14, weight: w600, color: p.text)),
-                  const SizedBox(height: 1),
-                  Text([relativeTime(c.time), if (c.location != null) c.location!].join(' · '), style: ts(12, color: p.text2)),
-                ]),
-              ),
-              Pressable(
-                onTap: onLike,
-                scale: 0.92,
-                semanticLabel: '点赞',
-                child: SizedBox(
-                  height: 28,
-                  child: Row(children: [
-                    YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 17, color: liked ? p.accentText : p.text2),
-                    const SizedBox(width: 4),
-                    Text(formatCount(count), style: ts(13, color: liked ? p.accentText : p.text2, tabular: true)),
-                  ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Cover(c.avatar, size: 40, circle: true),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            c.userName,
+                            style: ts(14, weight: w600, color: p.text),
+                          ),
+                          const SizedBox(height: 1),
+                          Text([relativeTime(c.time), if (c.location != null) c.location!].join(' · '), style: ts(12, color: p.text2)),
+                        ],
+                      ),
+                    ),
+                    Pressable(
+                      onTap: onLike,
+                      scale: 0.92,
+                      semanticLabel: '点赞',
+                      child: SizedBox(
+                        height: 28,
+                        child: Row(
+                          children: [
+                            YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 17, color: liked ? p.accentText : p.text2),
+                            const SizedBox(width: 4),
+                            Text(formatCount(count), style: ts(13, color: liked ? p.accentText : p.text2, tabular: true)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            Text(c.content, style: ts(15, height: 1.5, color: p.text)),
-            if (c.replyCount > 0) ...[
-              const SizedBox(height: 8),
-              Text('${c.replyCount} 条回复', style: ts(13, weight: w600, color: p.accentText)),
-            ],
-          ]),
-        ),
-      ]),
+                const SizedBox(height: 8),
+                Text(c.content, style: ts(15, height: 1.5, color: p.text)),
+                if (c.replyCount > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${c.replyCount} 条回复',
+                    style: ts(13, weight: w600, color: p.accentText),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

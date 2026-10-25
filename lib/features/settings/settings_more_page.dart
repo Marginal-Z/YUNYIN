@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/settings.dart';
@@ -12,7 +14,6 @@ import '../../data/sources/source_manager.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
 
-const kAppVersion = '1.0.1';
 const kRepoUrl = 'https://github.com/Marginal-Z/YUNYIN';
 
 /// 账号与关于。
@@ -31,52 +32,57 @@ class SettingsMorePage extends StatelessWidget {
       chrome: Chrome.navOnly,
       mobileTop: 78,
       overlay: [
-        Positioned(left: 16, top: 20, child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop())),
+        Positioned(
+          left: 16,
+          top: 20,
+          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
+        ),
       ],
       children: [
         PageTitle('账号与关于', size: desktop ? 40 : 36),
         const GroupLabel('通知与隐私', top: 18),
-        CardList(indent: 56, children: [
-          SettingsRow(
-            icon: YIcons.bell,
-            tile: TileColor.red,
-            title: '推送通知',
-            trailing: YSwitch(value: s.pushNotify, label: '推送通知', onChanged: (v) => s.setFlag('pushNotify', v)),
-          ),
-          SettingsRow(
-            icon: YIcons.sparkle,
-            tile: TileColor.blue,
-            title: '个性化推荐',
-            trailing: YSwitch(value: s.personalized, label: '个性化推荐', onChanged: (v) => s.setFlag('personalized', v)),
-          ),
-          SettingsRow(icon: YIcons.shield, tile: TileColor.graphite, title: '隐私政策', onTap: () => open('$kRepoUrl#隐私')),
-          SettingsRow(
-            icon: YIcons.lock,
-            tile: TileColor.teal,
-            title: '权限管理',
-            value: '已开启 3 项',
-            onTap: () => Toast.show(context, '云音仅使用网络、存储与通知权限', icon: YIcons.lock),
-          ),
-        ]),
+        CardList(
+          indent: 56,
+          children: [
+            SettingsRow(
+              icon: YIcons.bell,
+              tile: TileColor.red,
+              title: '推送通知',
+              trailing: YSwitch(value: s.pushNotify, label: '推送通知', onChanged: (v) => s.setFlag('pushNotify', v)),
+            ),
+            SettingsRow(
+              icon: YIcons.sparkle,
+              tile: TileColor.blue,
+              title: '个性化推荐',
+              trailing: YSwitch(value: s.personalized, label: '个性化推荐', onChanged: (v) => s.setFlag('personalized', v)),
+            ),
+            SettingsRow(icon: YIcons.shield, tile: TileColor.graphite, title: '隐私政策', onTap: () => open('$kRepoUrl#隐私')),
+            SettingsRow(
+              icon: YIcons.lock,
+              tile: TileColor.teal,
+              title: '权限管理',
+              onTap: () => Toast.show(context, '云音仅使用网络、存储与通知权限', icon: YIcons.lock),
+            ),
+          ],
+        ),
         const GroupLabel('关于云音'),
-        CardList(indent: 56, children: [
-          SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '当前版本', value: kAppVersion),
-          SettingsRow(
-            icon: YIcons.refresh,
-            tile: TileColor.teal,
-            title: '检查更新',
-            value: '已是最新',
-            onTap: () => open('$kRepoUrl/releases'),
-          ),
-          SettingsRow(icon: YIcons.document, tile: TileColor.orange, title: '用户协议', onTap: () => open('$kRepoUrl#免责声明')),
-          SettingsRow(
-            icon: YIcons.code,
-            tile: TileColor.graphite,
-            title: '开源许可',
-            onTap: () => showLicensePage(context: context, applicationName: '云音', applicationVersion: kAppVersion),
-          ),
-          SettingsRow(icon: YIcons.feedback, tile: TileColor.red, title: '意见反馈', onTap: () => open('$kRepoUrl/issues')),
-        ]),
+        CardList(
+          indent: 56,
+          children: [
+            const _VersionRows(),
+            SettingsRow(icon: YIcons.document, tile: TileColor.orange, title: '用户协议', onTap: () => open('$kRepoUrl#免责声明')),
+            SettingsRow(
+              icon: YIcons.code,
+              tile: TileColor.graphite,
+              title: '开源许可',
+              onTap: () async {
+                final info = await PackageInfo.fromPlatform();
+                if (context.mounted) showLicensePage(context: context, applicationName: '云音', applicationVersion: info.version);
+              },
+            ),
+            SettingsRow(icon: YIcons.feedback, tile: TileColor.red, title: '意见反馈', onTap: () => open('$kRepoUrl/issues')),
+          ],
+        ),
         const SizedBox(height: 22),
         if (source.loggedIn)
           Pressable(
@@ -93,7 +99,12 @@ class SettingsMorePage extends StatelessWidget {
             child: YCard(
               child: SizedBox(
                 height: 52,
-                child: Center(child: Text('退出登录', style: ts(16, weight: w600, color: p.danger))),
+                child: Center(
+                  child: Text(
+                    '退出登录',
+                    style: ts(16, weight: w600, color: p.danger),
+                  ),
+                ),
               ),
             ),
           )
@@ -103,10 +114,87 @@ class SettingsMorePage extends StatelessWidget {
             child: YCard(
               child: SizedBox(
                 height: 52,
-                child: Center(child: Text('登录${source.name}', style: ts(16, weight: w600, color: p.accentText))),
+                child: Center(
+                  child: Text(
+                    '登录${source.name}',
+                    style: ts(16, weight: w600, color: p.accentText),
+                  ),
+                ),
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// 当前版本（读取安装包信息）与检查更新（查询 GitHub Releases 最新版本）。
+class _VersionRows extends StatefulWidget {
+  const _VersionRows();
+
+  @override
+  State<_VersionRows> createState() => _VersionRowsState();
+}
+
+class _VersionRowsState extends State<_VersionRows> {
+  String? _version;
+  String? _latest;
+  String? _status;
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((i) {
+      if (mounted) setState(() => _version = i.version);
+    });
+  }
+
+  static List<int> _parts(String v) => [for (final x in v.replaceFirst('v', '').split('.')) int.tryParse(x) ?? 0];
+
+  static bool _newer(String a, String b) {
+    final x = _parts(a), y = _parts(b);
+    for (var i = 0; i < 3; i++) {
+      final d = (i < x.length ? x[i] : 0) - (i < y.length ? y[i] : 0);
+      if (d != 0) return d > 0;
+    }
+    return false;
+  }
+
+  Future<void> _check() async {
+    setState(() => _status = '检查中…');
+    try {
+      final res = await Dio().get<Map<String, dynamic>>('https://api.github.com/repos/Marginal-Z/YUNYIN/releases/latest');
+      final tag = '${res.data?['tag_name'] ?? ''}';
+      if (!mounted) return;
+      final hasNew = _version != null && tag.isNotEmpty && _newer(tag, _version!);
+      setState(() {
+        _latest = hasNew ? tag : null;
+        _status = hasNew ? '发现新版本 $tag' : '已是最新';
+      });
+      if (hasNew) await launchUrl(Uri.parse('$kRepoUrl/releases/latest'), mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) setState(() => _status = '检查失败，请稍后重试');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '当前版本', value: _version ?? ''),
+        Stack(
+          children: [
+            SettingsRow(
+              icon: YIcons.refresh,
+              tile: TileColor.teal,
+              title: '检查更新',
+              value: _status ?? (_latest == null ? null : '发现新版本 $_latest'),
+              onTap: _check,
+            ),
+            Positioned(left: 56, right: 0, top: 0, child: Container(height: 1, color: Palette.of(context).separator)),
+          ],
+        ),
       ],
     );
   }

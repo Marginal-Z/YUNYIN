@@ -61,10 +61,8 @@ abstract class MusicSource extends ChangeNotifier {
   Future<QrTicket> createQrLogin() => throw const SourceUnsupported('扫码登录');
   Future<QrState> checkQrLogin(QrTicket ticket) => throw const SourceUnsupported('扫码登录');
   Future<void> sendSmsCode(String phone, {String countryCode = '86'}) => throw const SourceUnsupported('验证码登录');
-  Future<void> loginWithSms(String phone, String code, {String countryCode = '86'}) =>
-      throw const SourceUnsupported('验证码登录');
-  Future<void> loginWithPassword(String account, String password, {String countryCode = '86'}) =>
-      throw const SourceUnsupported('密码登录');
+  Future<void> loginWithSms(String phone, String code, {String countryCode = '86'}) => throw const SourceUnsupported('验证码登录');
+  Future<void> loginWithPassword(String account, String password, {String countryCode = '86'}) => throw const SourceUnsupported('密码登录');
   Future<void> logout() async {}
 
   // ── 发现 ──────────────────────────────────────────
@@ -85,8 +83,7 @@ abstract class MusicSource extends ChangeNotifier {
   Future<void> followArtist(String id, bool follow) => throw const SourceUnsupported('关注歌手');
 
   // ── 搜索 ──────────────────────────────────────────
-  Future<SearchResult> search(String keyword, {SearchType type = SearchType.all, int offset = 0, int limit = 30}) =>
-      throw const SourceUnsupported('搜索');
+  Future<SearchResult> search(String keyword, {SearchType type = SearchType.all, int offset = 0, int limit = 30}) => throw const SourceUnsupported('搜索');
   Future<List<HotSearch>> hotSearches() => throw const SourceUnsupported('热搜');
 
   // ── 播放 ──────────────────────────────────────────
@@ -94,8 +91,7 @@ abstract class MusicSource extends ChangeNotifier {
   Future<Lyrics> lyrics(Song song) async => Lyrics.empty;
 
   // ── 评论 ──────────────────────────────────────────
-  Future<CommentPage> comments(Song song, {CommentSort sort = CommentSort.recommend, int offset = 0}) =>
-      throw const SourceUnsupported('评论');
+  Future<CommentPage> comments(Song song, {CommentSort sort = CommentSort.recommend, int offset = 0}) => throw const SourceUnsupported('评论');
   Future<void> postComment(Song song, String content) => throw const SourceUnsupported('发表评论');
   Future<void> likeComment(Song song, Comment comment, bool like) => throw const SourceUnsupported('点赞评论');
 

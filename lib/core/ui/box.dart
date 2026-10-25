@@ -27,36 +27,46 @@ class CssGradient extends LinearGradient {
   static CssGradient vertical(List<Color> colors) => CssGradient(180, colors: colors);
 }
 
-/// 只绘制在盒子外侧的阴影（CSS 外阴影不会透过半透明背景显示）。
+/// CSS 外阴影。
+///
+/// 半透明的玻璃需要把阴影裁到盒子外侧（CSS 外阴影不会透过半透明背景显示）；
+/// 其余（不透明卡片、封面等）直接绘制模糊圆角矩形，Impeller 对此有解析式快速通道，几乎没有开销。
 class _OuterShadowPainter extends CustomPainter {
-  _OuterShadowPainter(this.radius, this.shadows);
+  _OuterShadowPainter(this.radius, this.shadows, {required this.clipInside});
 
   final BorderRadius radius;
   final List<Shadow2> shadows;
+  final bool clipInside;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (shadows.isEmpty) return;
     final rrect = radius.toRRect(Offset.zero & size);
-    final big = (Offset.zero & size).inflate(200);
-    canvas.save();
-    canvas.clipPath(Path()
-      ..fillType = PathFillType.evenOdd
-      ..addRect(big)
-      ..addRRect(rrect));
+    if (clipInside) {
+      canvas.save();
+      canvas.clipPath(
+        Path()
+          ..fillType = PathFillType.evenOdd
+          ..addRect((Offset.zero & size).inflate(200))
+          ..addRRect(rrect),
+      );
+    }
     for (final s in shadows) {
       final p = Paint()..color = s.color;
       if (s.blur > 0) p.maskFilter = MaskFilter.blur(BlurStyle.normal, cssSigma(s.blur));
       canvas.drawRRect(rrect.shift(s.offset).inflate(s.spread), p);
     }
-    canvas.restore();
+    if (clipInside) canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_OuterShadowPainter old) => old.radius != radius || old.shadows != shadows;
+  bool shouldRepaint(_OuterShadowPainter old) => old.radius != radius || !identical(old.shadows, shadows) || old.clipInside != clipInside;
 }
 
-/// CSS `inset` 阴影。
+/// CSS `inset` 阴影的低开销近似：只用渐变描边，不做任何模糊（模糊的路径在 Impeller 上每帧都要离屏渲染）。
+/// - `inset 0 1px 1px` 顶部高光 / `inset 0 -1px 1px` 底部阴影：沿边缘的渐隐描边；
+/// - `inset 0 0 0 1px` 内描边：实线描边；
+/// - `inset 0 0 14px` 内发光：较宽的半透明描边。
 class InsetShadowPainter extends CustomPainter {
   InsetShadowPainter(this.radius, this.shadows, {this.border});
 
@@ -66,24 +76,37 @@ class InsetShadowPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rrect = radius.toRRect(Offset.zero & size);
-    if (shadows.isNotEmpty) {
-      canvas.save();
-      canvas.clipRRect(rrect);
-      final big = (Offset.zero & size).inflate(200);
-      for (final s in shadows) {
-        final p = Paint()..color = s.color;
-        if (s.blur > 0) p.maskFilter = MaskFilter.blur(BlurStyle.normal, cssSigma(s.blur));
-        final hole = rrect.shift(s.offset).deflate(s.spread);
-        canvas.drawPath(
-          Path()
-            ..fillType = PathFillType.evenOdd
-            ..addRect(big)
-            ..addRRect(hole),
-          p,
+    final rect = Offset.zero & size;
+    final rrect = radius.toRRect(rect);
+    for (final s in shadows) {
+      final paint = Paint()..style = PaintingStyle.stroke;
+      if (s.blur == 0 && s.dx == 0 && s.dy == 0) {
+        final w = math.max(s.spread, 0.5);
+        canvas.drawRRect(
+          rrect.deflate(w / 2),
+          paint
+            ..strokeWidth = w
+            ..color = s.color,
+        );
+      } else if (s.dy != 0) {
+        final reach = math.min(size.height / 2, (s.dy.abs() + s.blur) * 3 + 2);
+        final top = s.dy > 0;
+        paint
+          ..strokeWidth = 1.2 + s.blur * 0.4
+          ..shader = ui.Gradient.linear(Offset(0, top ? 0 : size.height), Offset(0, top ? reach : size.height - reach), [
+            s.color,
+            s.color.withValues(alpha: 0),
+          ]);
+        canvas.drawRRect(rrect.deflate(paint.strokeWidth / 2), paint);
+      } else {
+        final w = s.blur * 0.5;
+        canvas.drawRRect(
+          rrect.deflate(w / 2),
+          paint
+            ..strokeWidth = w
+            ..color = s.color.withValues(alpha: s.color.a * 0.45),
         );
       }
-      canvas.restore();
     }
     if (border != null) {
       canvas.drawRRect(
@@ -97,17 +120,32 @@ class InsetShadowPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(InsetShadowPainter old) =>
-      old.radius != radius || old.shadows != shadows || old.border != border;
+  bool shouldRepaint(InsetShadowPainter old) => old.radius != radius || !identical(old.shadows, shadows) || old.border != border;
 }
 
 /// CSS `saturate(200%)` 对应的颜色矩阵。
 List<double> saturateMatrix(double s) => [
-      0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s, 0, 0,
-      0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s, 0, 0,
-      0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s, 0, 0,
-      0, 0, 0, 1, 0,
-    ];
+  0.213 + 0.787 * s,
+  0.715 - 0.715 * s,
+  0.072 - 0.072 * s,
+  0,
+  0,
+  0.213 - 0.213 * s,
+  0.715 + 0.285 * s,
+  0.072 - 0.072 * s,
+  0,
+  0,
+  0.213 - 0.213 * s,
+  0.715 - 0.715 * s,
+  0.072 + 0.928 * s,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
+];
 
 /// 玻璃滤镜：模糊 + 饱和度 200%。模糊半径取 24（视觉上与设计稿的 30px 基本一致，开销明显更低）。
 final ui.ImageFilter _glassFilter = ui.ImageFilter.compose(
@@ -121,8 +159,7 @@ class GlassScope extends InheritedWidget {
 
   final bool enabled;
 
-  static bool of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<GlassScope>()?.enabled ?? true;
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<GlassScope>()?.enabled ?? true;
 
   @override
   bool updateShouldNotify(GlassScope old) => old.enabled != enabled;
@@ -143,7 +180,7 @@ class YBox extends StatelessWidget {
     this.blur = false,
     this.padding,
     this.alignment,
-    this.clip = true,
+    this.clip = false,
     this.child,
   });
 
@@ -166,12 +203,7 @@ class YBox extends StatelessWidget {
     // 未指定宽 / 高时，对齐不应撑满父级（与 CSS 中 inline-flex 的行为一致）。
     final aligned = alignment == null || child == null
         ? child
-        : Align(
-            alignment: alignment!,
-            widthFactor: width == null ? 1 : null,
-            heightFactor: height == null ? 1 : null,
-            child: child,
-          );
+        : Align(alignment: alignment!, widthFactor: width == null ? 1 : null, heightFactor: height == null ? 1 : null, child: child);
     Widget content = Container(
       padding: padding,
       decoration: BoxDecoration(color: color, gradient: gradient, borderRadius: radius),
@@ -195,7 +227,10 @@ class YBox extends StatelessWidget {
       content = ClipRRect(borderRadius: radius, child: content);
     }
     if (shadows.isNotEmpty) {
-      content = CustomPaint(painter: _OuterShadowPainter(radius, shadows), child: content);
+      content = CustomPaint(
+        painter: _OuterShadowPainter(radius, shadows, clipInside: blur),
+        child: content,
+      );
     }
     if (width != null || height != null) {
       content = SizedBox(width: width, height: height, child: content);
@@ -206,18 +241,7 @@ class YBox extends StatelessWidget {
 
 /// Liquid Glass 材质。
 class Glass extends StatelessWidget {
-  const Glass({
-    super.key,
-    required this.radius,
-    this.width,
-    this.height,
-    this.padding,
-    this.color,
-    this.shadows,
-    this.insets,
-    this.alignment,
-    this.child,
-  });
+  const Glass({super.key, required this.radius, this.width, this.height, this.padding, this.color, this.shadows, this.insets, this.alignment, this.child});
 
   final double radius;
   final double? width;

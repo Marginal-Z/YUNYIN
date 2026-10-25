@@ -12,8 +12,7 @@ class LayoutScope extends InheritedWidget {
 
   final bool desktop;
 
-  static bool isDesktop(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<LayoutScope>()?.desktop ?? false;
+  static bool isDesktop(BuildContext context) => context.dependOnInheritedWidgetOfExactType<LayoutScope>()?.desktop ?? false;
 
   @override
   bool updateShouldNotify(LayoutScope old) => old.desktop != desktop;
@@ -89,7 +88,11 @@ class MobilePage extends StatelessWidget {
                       padding: EdgeInsets.fromLTRB(horizontal, safeTop + top, horizontal, 0),
                       sliver: SliverList.list(children: children),
                     ),
-                    for (final s in slivers!) SliverPadding(padding: EdgeInsets.symmetric(horizontal: horizontal), sliver: s),
+                    for (final s in slivers!)
+                      SliverPadding(
+                        padding: EdgeInsets.symmetric(horizontal: horizontal),
+                        sliver: s,
+                      ),
                     SliverToBoxAdapter(child: SizedBox(height: chromeClearance(context, chrome))),
                   ],
                 ),
@@ -99,7 +102,10 @@ class MobilePage extends StatelessWidget {
             left: 0,
             right: 0,
             top: safeTop,
-            child: SizedBox(height: 80, child: Stack(clipBehavior: Clip.none, children: overlay)),
+            child: SizedBox(
+              height: 80,
+              child: Stack(clipBehavior: Clip.none, children: overlay),
+            ),
           ),
       ],
     );
@@ -122,16 +128,15 @@ class DesktopPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (slivers == null) {
-      return ListView(
-        controller: controller,
-        padding: EdgeInsets.fromLTRB(left, top, right, bottom),
-        children: children,
-      );
+      return ListView(controller: controller, padding: EdgeInsets.fromLTRB(left, top, right, bottom), children: children);
     }
     return CustomScrollView(
       controller: controller,
       slivers: [
-        SliverPadding(padding: EdgeInsets.fromLTRB(left, top, right, 0), sliver: SliverList.list(children: children)),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(left, top, right, 0),
+          sliver: SliverList.list(children: children),
+        ),
         for (final s in slivers!) SliverPadding(padding: const EdgeInsets.fromLTRB(left, 0, right, 0), sliver: s),
         const SliverToBoxAdapter(child: SizedBox(height: bottom)),
       ],
@@ -193,10 +198,17 @@ class SliverCard extends StatelessWidget {
           final idx = hasHeader ? i - 1 : i;
           final row = itemBuilder(context, idx);
           if (idx == 0 && !hasHeader) return row;
-          return Stack(children: [
-            row,
-            Positioned(left: indent, right: 0, top: 0, child: Container(height: 1, color: p.separator)),
-          ]);
+          return Stack(
+            children: [
+              row,
+              Positioned(
+                left: indent,
+                right: 0,
+                top: 0,
+                child: Container(height: 1, color: p.separator),
+              ),
+            ],
+          );
         },
       ),
     );

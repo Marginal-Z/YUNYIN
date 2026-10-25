@@ -26,10 +26,19 @@ Widget highlightText(String text, String? keyword, TextStyle style, Color accent
       break;
     }
     if (i > start) spans.add(TextSpan(text: text.substring(start, i)));
-    spans.add(TextSpan(text: k, style: TextStyle(color: accent)));
+    spans.add(
+      TextSpan(
+        text: k,
+        style: TextStyle(color: accent),
+      ),
+    );
     start = i + k.length;
   }
-  return Text.rich(TextSpan(style: style, children: spans), maxLines: 1, overflow: TextOverflow.ellipsis);
+  return Text.rich(
+    TextSpan(style: style, children: spans),
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+  );
 }
 
 enum SongLead { cover, number, rank, none }
@@ -72,17 +81,17 @@ class SongRow extends StatelessWidget {
         leading = SizedBox(
           width: 28,
           child: Center(
-            child: isCurrent
-                ? NowPlayingBars(color: p.accentText, playing: playing)
-                : Text('${number ?? ''}', style: ts(14, color: p.text2, tabular: true)),
+            child: isCurrent ? NowPlayingBars(color: p.accentText, playing: playing) : Text('${number ?? ''}', style: ts(14, color: p.text2, tabular: true)),
           ),
         );
       case SongLead.rank:
         leading = SizedBox(
           width: 28,
-          child: Text('${number ?? ''}',
-              textAlign: TextAlign.center,
-              style: ts(20, weight: w700, color: (number ?? 99) <= 3 ? p.accentText : p.muted)),
+          child: Text(
+            '${number ?? ''}',
+            textAlign: TextAlign.center,
+            style: ts(20, weight: w700, color: (number ?? 99) <= 3 ? p.accentText : p.muted),
+          ),
         );
       case SongLead.none:
         leading = null;
@@ -101,26 +110,33 @@ class SongRow extends StatelessWidget {
           height: height,
           child: Padding(
             padding: EdgeInsets.only(left: lead == SongLead.rank ? 8 : 12, right: 4),
-            child: Row(children: [
-              if (leading != null) ...[leading, SizedBox(width: gap)],
-              if (lead == SongLead.rank) ...[Cover(song.coverUrl, size: 46, radius: 10), const SizedBox(width: 10)],
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    highlightText(song.name, keyword, ts(15, weight: w600, color: titleColor), p.accentText),
-                    const SizedBox(height: 2),
-                    Text(subtitle ?? song.artistText, style: ts(13, color: p.text2), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ],
+            child: Row(
+              children: [
+                if (leading != null) ...[leading, SizedBox(width: gap)],
+                if (lead == SongLead.rank) ...[Cover(song.coverUrl, size: 46, radius: 10), const SizedBox(width: 10)],
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      highlightText(song.name, keyword, ts(15, weight: w600, color: titleColor), p.accentText),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle ?? song.artistText,
+                        style: ts(13, color: p.text2),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              switch (trailing) {
-                SongTrailing.more => YIconButton(YIcons.more, color: p.muted, label: '更多', onTap: () => showSongMenu(context, song)),
-                SongTrailing.play => YIconButton(YIcons.playOutline, color: p.text, label: '播放', onTap: onTap),
-                SongTrailing.none => const SizedBox(width: 8),
-              },
-            ]),
+                switch (trailing) {
+                  SongTrailing.more => YIconButton(YIcons.more, color: p.muted, label: '更多', onTap: () => showSongMenu(context, song)),
+                  SongTrailing.play => YIconButton(YIcons.playOutline, color: p.text, label: '播放', onTap: onTap),
+                  SongTrailing.none => const SizedBox(width: 8),
+                },
+              ],
+            ),
           ),
         ),
       ),
@@ -134,15 +150,7 @@ void _unavailable(BuildContext context) => Toast.show(context, '暂无播放版�
 
 /// 桌面端表格行（高 56）：序号或封面 / 标题+歌手 / 专辑 / 时长 / 更多。
 class DesktopSongRow extends StatelessWidget {
-  const DesktopSongRow({
-    super.key,
-    required this.song,
-    required this.onTap,
-    this.number,
-    this.cover = false,
-    this.keyword,
-    this.highlightCurrent = true,
-  });
+  const DesktopSongRow({super.key, required this.song, required this.onTap, this.number, this.cover = false, this.keyword, this.highlightCurrent = true});
 
   final Song song;
   final VoidCallback onTap;
@@ -168,40 +176,60 @@ class DesktopSongRow extends StatelessWidget {
           height: 56,
           child: Padding(
             padding: EdgeInsets.fromLTRB(cover ? 12 : 16, 0, 12, 0),
-            child: Row(children: [
-              if (cover)
-                Cover(song.coverUrl, size: 40, radius: 8)
-              else
-                SizedBox(
-                  width: 28,
-                  child: Center(
-                    child: isCurrent
-                        ? NowPlayingBars(color: p.accentText, playing: playing)
-                        : Text('${number ?? ''}', style: ts(14, color: p.text2, tabular: true)),
+            child: Row(
+              children: [
+                if (cover)
+                  Cover(song.coverUrl, size: 40, radius: 8)
+                else
+                  SizedBox(
+                    width: 28,
+                    child: Center(
+                      child: isCurrent
+                          ? NowPlayingBars(color: p.accentText, playing: playing)
+                          : Text('${number ?? ''}', style: ts(14, color: p.text2, tabular: true)),
+                    ),
+                  ),
+                const SizedBox(width: 14),
+                Expanded(
+                  flex: 16,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      highlightText(song.name, keyword, ts(15, weight: w600, color: isCurrent ? p.accentText : p.text), p.accentText),
+                      const SizedBox(height: 2),
+                      Text(
+                        song.artistText,
+                        style: ts(13, color: p.text2),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
-              const SizedBox(width: 14),
-              Expanded(
-                flex: 16,
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  highlightText(song.name, keyword, ts(15, weight: w600, color: isCurrent ? p.accentText : p.text), p.accentText),
-                  const SizedBox(height: 2),
-                  Text(song.artistText, style: ts(13, color: p.text2), maxLines: 1, overflow: TextOverflow.ellipsis),
-                ]),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                flex: 10,
-                child: Text(song.albumName, style: ts(14, color: p.text2), maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-              const SizedBox(width: 14),
-              SizedBox(
-                width: 56,
-                child: Text(formatDuration(song.duration), textAlign: TextAlign.right, style: ts(14, color: p.text2, tabular: true)),
-              ),
-              const SizedBox(width: 14),
-              YIconButton(YIcons.more, size: 36, iconSize: 20, color: p.muted, label: '更多', onTap: () => showSongMenu(context, song)),
-            ]),
+                const SizedBox(width: 14),
+                Expanded(
+                  flex: 10,
+                  child: Text(
+                    song.albumName,
+                    style: ts(14, color: p.text2),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                SizedBox(
+                  width: 56,
+                  child: Text(
+                    formatDuration(song.duration),
+                    textAlign: TextAlign.right,
+                    style: ts(14, color: p.text2, tabular: true),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                YIconButton(YIcons.more, size: 36, iconSize: 20, color: p.muted, label: '更多', onTap: () => showSongMenu(context, song)),
+              ],
+            ),
           ),
         ),
       ),
@@ -221,17 +249,25 @@ class DesktopTableHeader extends StatelessWidget {
       height: 40,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 12, 0),
-        child: Row(children: [
-          SizedBox(width: 28, child: Text('#', textAlign: TextAlign.center, style: s)),
-          const SizedBox(width: 14),
-          Expanded(flex: 16, child: Text('标题', style: s)),
-          const SizedBox(width: 14),
-          Expanded(flex: 10, child: Text('专辑', style: s)),
-          const SizedBox(width: 14),
-          SizedBox(width: 56, child: Text('时长', textAlign: TextAlign.right, style: s)),
-          const SizedBox(width: 14),
-          const SizedBox(width: 36),
-        ]),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 28,
+              child: Text('#', textAlign: TextAlign.center, style: s),
+            ),
+            const SizedBox(width: 14),
+            Expanded(flex: 16, child: Text('标题', style: s)),
+            const SizedBox(width: 14),
+            Expanded(flex: 10, child: Text('专辑', style: s)),
+            const SizedBox(width: 14),
+            SizedBox(
+              width: 56,
+              child: Text('时长', textAlign: TextAlign.right, style: s),
+            ),
+            const SizedBox(width: 14),
+            const SizedBox(width: 36),
+          ],
+        ),
       ),
     );
   }
@@ -265,9 +301,19 @@ class PlaylistTile extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 9),
-            Text(title, style: ts(14, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              title,
+              style: ts(14, weight: w600, color: p.text),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 2),
-            Text(subtitle, style: ts(12, color: p.text2), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              subtitle,
+              style: ts(12, color: p.text2),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),

@@ -25,15 +25,16 @@ class NeteaseSource extends MusicSource {
   static const sourceId = 'netease';
   static const _prefsCookie = 'netease.cookie';
   static const _prefsProfile = 'netease.profile';
-  static const _ua =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+  static const _ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-  final Dio _dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 12),
-    receiveTimeout: const Duration(seconds: 20),
-    responseType: ResponseType.plain,
-    validateStatus: (s) => s != null && s < 500,
-  ));
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 12),
+      receiveTimeout: const Duration(seconds: 20),
+      responseType: ResponseType.plain,
+      validateStatus: (s) => s != null && s < 500,
+    ),
+  );
 
   final Map<String, String> _cookies = {};
   UserProfile? _user;
@@ -140,19 +141,13 @@ class NeteaseSource extends MusicSource {
       data: NeteaseCrypto.weapi(body),
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
-        headers: {
-          'User-Agent': _ua,
-          'Referer': 'https://music.163.com',
-          'Origin': 'https://music.163.com',
-          'Cookie': _cookieHeader,
-        },
+        headers: {'User-Agent': _ua, 'Referer': 'https://music.163.com', 'Origin': 'https://music.163.com', 'Cookie': _cookieHeader},
       ),
     );
     return _parse(res);
   }
 
-  Future<Map<String, dynamic>> _eapi(String path, Map<String, dynamic> data) =>
-      _withIdentity(() => _postEapi(path, data));
+  Future<Map<String, dynamic>> _eapi(String path, Map<String, dynamic> data) => _withIdentity(() => _postEapi(path, data));
 
   Future<Map<String, dynamic>> _postEapi(String path, Map<String, dynamic> data) async {
     final header = {
@@ -189,7 +184,14 @@ class NeteaseSource extends MusicSource {
     if (!force && (_cookies.containsKey('MUSIC_U') || _cookies.containsKey('MUSIC_A'))) return;
     final deviceId = NeteaseCrypto.randomHex(52).toUpperCase();
     final username = base64.encode(utf8.encode('$deviceId ${NeteaseCrypto.anonymousIdDigest(deviceId)}'));
-    final j = await _postWeapi('/register/anonimous', {'username': username});
+    Map<String, dynamic> j;
+    try {
+      j = await _postWeapi('/register/anonimous', {'username': username});
+    } on NeteaseApiException {
+      // 偶发 400，稍后重试一次。
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      j = await _postWeapi('/register/anonimous', {'username': username});
+    }
     _absorbCookieString(j['cookie']);
     final token = j['token'] ?? j['userId'];
     if (!_cookies.containsKey('MUSIC_A') && j['token'] is String) _cookies['MUSIC_A'] = j['token'] as String;
@@ -281,15 +283,15 @@ class NeteaseSource extends MusicSource {
   }
 
   ArtistInfo _artist(Map<String, dynamic> a, {List<Song> hot = const [], int? fans, bool followed = false}) => ArtistInfo(
-        id: '${a['id']}',
-        sourceId: id,
-        name: '${a['name'] ?? ''}',
-        avatar: _img(a['picUrl'] ?? a['img1v1Url'] ?? a['avatar']),
-        fans: fans ?? (a['fansCount'] as num?)?.toInt(),
-        description: a['briefDesc'] as String?,
-        hotSongs: hot,
-        followed: followed || a['followed'] == true,
-      );
+    id: '${a['id']}',
+    sourceId: id,
+    name: '${a['name'] ?? ''}',
+    avatar: _img(a['picUrl'] ?? a['img1v1Url'] ?? a['avatar']),
+    fans: fans ?? (a['fansCount'] as num?)?.toInt(),
+    description: a['briefDesc'] as String?,
+    hotSongs: hot,
+    followed: followed || a['followed'] == true,
+  );
 
   // ── 账号 ──────────────────────────────────────────
 
@@ -361,12 +363,7 @@ class NeteaseSource extends MusicSource {
 
   @override
   Future<void> loginWithSms(String phone, String code, {String countryCode = '86'}) async {
-    final j = await _weapi('/login/cellphone', {
-      'phone': phone,
-      'countrycode': countryCode,
-      'captcha': code,
-      'rememberLogin': 'true',
-    });
+    final j = await _weapi('/login/cellphone', {'phone': phone, 'countrycode': countryCode, 'captcha': code, 'rememberLogin': 'true'});
     _absorbCookieString(j['cookie']);
     await _refreshAccount();
   }
@@ -378,12 +375,7 @@ class NeteaseSource extends MusicSource {
     if (account.contains('@')) {
       j = await _weapi('/login', {'username': account, 'password': pwd, 'rememberLogin': 'true'});
     } else {
-      j = await _weapi('/login/cellphone', {
-        'phone': account,
-        'countrycode': countryCode,
-        'password': pwd,
-        'rememberLogin': 'true',
-      });
+      j = await _weapi('/login/cellphone', {'phone': account, 'countrycode': countryCode, 'password': pwd, 'rememberLogin': 'true'});
     }
     _absorbCookieString(j['cookie']);
     await _refreshAccount();
@@ -442,9 +434,7 @@ class NeteaseSource extends MusicSource {
           name: '${t['name']}',
           cover: _img(t['coverImgUrl']),
           update: t['updateFrequency'] as String?,
-          preview: [
-            for (final x in (t['tracks'] as List? ?? const [])) '${x['first']} - ${x['second']}',
-          ],
+          preview: [for (final x in (t['tracks'] as List? ?? const [])) '${x['first']} - ${x['second']}'],
         ),
     ];
   }
@@ -514,7 +504,9 @@ class NeteaseSource extends MusicSource {
     for (var i = 0; i < ids.length; i += 500) {
       final chunk = ids.sublist(i, (i + 500).clamp(0, ids.length));
       final j = await _weapi('/v3/song/detail', {
-        'c': jsonEncode([for (final id in chunk) {'id': id}]),
+        'c': jsonEncode([
+          for (final id in chunk) {'id': id},
+        ]),
       });
       final privs = <String, Map<String, dynamic>>{
         for (final pr in (j['privileges'] as List? ?? const [])) '${pr['id']}': Map<String, dynamic>.from(pr as Map),
@@ -589,14 +581,12 @@ class NeteaseSource extends MusicSource {
 
   @override
   Future<SearchResult> search(String keyword, {SearchType type = SearchType.all, int offset = 0, int limit = 30}) async {
-    List<Song> songs(Map<String, dynamic> r) =>
-        [for (final s in (r['songs'] as List? ?? const [])) _song(Map<String, dynamic>.from(s as Map))];
-    List<ArtistInfo> artists(Map<String, dynamic> r) =>
-        [for (final a in (r['artists'] as List? ?? const [])) _artist(Map<String, dynamic>.from(a as Map))];
-    List<AlbumInfo> albums(Map<String, dynamic> r) =>
-        [for (final a in (r['albums'] as List? ?? const [])) _album(Map<String, dynamic>.from(a as Map))];
-    List<PlaylistInfo> playlists(Map<String, dynamic> r) =>
-        [for (final p in (r['playlists'] as List? ?? const [])) _playlist(Map<String, dynamic>.from(p as Map))];
+    List<Song> songs(Map<String, dynamic> r) => [for (final s in (r['songs'] as List? ?? const [])) _song(Map<String, dynamic>.from(s as Map))];
+    List<ArtistInfo> artists(Map<String, dynamic> r) => [for (final a in (r['artists'] as List? ?? const [])) _artist(Map<String, dynamic>.from(a as Map))];
+    List<AlbumInfo> albums(Map<String, dynamic> r) => [for (final a in (r['albums'] as List? ?? const [])) _album(Map<String, dynamic>.from(a as Map))];
+    List<PlaylistInfo> playlists(Map<String, dynamic> r) => [
+      for (final p in (r['playlists'] as List? ?? const [])) _playlist(Map<String, dynamic>.from(p as Map)),
+    ];
 
     switch (type) {
       case SearchType.song:
@@ -637,7 +627,12 @@ class NeteaseSource extends MusicSource {
         HotSearch(
           '${h['searchWord']}',
           score: (h['score'] as num?)?.toInt() ?? 0,
-          tag: switch ((h['iconType'] as num?)?.toInt()) { 1 => 'hot', 5 => 'up', 2 || 4 => 'new', _ => null },
+          tag: switch ((h['iconType'] as num?)?.toInt()) {
+            1 => 'hot',
+            5 => 'up',
+            2 || 4 => 'new',
+            _ => null,
+          },
         ),
     ];
   }
@@ -664,7 +659,13 @@ class NeteaseSource extends MusicSource {
     final url = item?['url'] as String?;
     if (url == null || url.isEmpty) return const StreamInfo();
     final trial = item?['freeTrialInfo'] != null;
-    return StreamInfo(url: url, trial: trial, quality: quality, headers: const {'User-Agent': _ua, 'Referer': 'https://music.163.com/'});
+    return StreamInfo(
+      url: url,
+      trial: trial,
+      quality: quality,
+      gainDb: (item?['gain'] as num?)?.toDouble(),
+      headers: const {'User-Agent': _ua, 'Referer': 'https://music.163.com/'},
+    );
   }
 
   @override
@@ -781,9 +782,14 @@ Lyrics parseLrc(String lrc, {String translation = ''}) {
       final content = raw.substring(matches.last.end).trim();
       for (final m in matches) {
         final frac = m.group(3) ?? '0';
-        final ms = int.parse(m.group(1)!) * 60000 +
+        final ms =
+            int.parse(m.group(1)!) * 60000 +
             int.parse(m.group(2)!) * 1000 +
-            (frac.length == 3 ? int.parse(frac) : frac.length == 2 ? int.parse(frac) * 10 : int.parse(frac) * 100);
+            (frac.length == 3
+                ? int.parse(frac)
+                : frac.length == 2
+                ? int.parse(frac) * 10
+                : int.parse(frac) * 100);
         out[ms] = content;
       }
     }

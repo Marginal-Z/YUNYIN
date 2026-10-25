@@ -5,9 +5,7 @@ import 'package:window_manager/window_manager.dart';
 /// 是否运行在桌面系统上（Windows / Linux / macOS）。
 bool get isDesktopPlatform =>
     !kIsWeb &&
-    (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux ||
-        defaultTargetPlatform == TargetPlatform.macOS);
+    (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.macOS);
 
 /// 设计稿中的红黄绿三色窗口按钮：关闭 / 最小化 / 最大化。
 class WindowControls extends StatefulWidget {
@@ -32,22 +30,22 @@ class _WindowControlsState extends State<WindowControls> {
   Widget build(BuildContext context) {
     final enabled = isDesktopPlatform;
     Widget dot(Color c, IconData icon, String label, VoidCallback onTap) => Semantics(
-          button: true,
-          label: label,
-          child: MouseRegion(
-            cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-            child: GestureDetector(
-              onTap: enabled ? onTap : null,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: _hover && enabled ? Icon(icon, size: 9, color: const Color.fromRGBO(0, 0, 0, 0.55)) : null,
-              ),
-            ),
+      button: true,
+      label: label,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+        child: GestureDetector(
+          onTap: enabled ? onTap : null,
+          child: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: _hover && enabled ? Icon(icon, size: 9, color: const Color.fromRGBO(0, 0, 0, 0.55)) : null,
           ),
-        );
+        ),
+      ),
+    );
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),

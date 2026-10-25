@@ -48,10 +48,7 @@ class _MobileShellState extends State<MobileShell> {
                 for (var i = 0; i < 3; i++)
                   Navigator(
                     key: _keys[i],
-                    pages: [
-                      for (final r in nav.stacks[i])
-                        CupertinoPage<void>(key: ValueKey(r.uid), child: buildMobileRoute(r)),
-                    ],
+                    pages: [for (final r in nav.stacks[i]) CupertinoPage<void>(key: ValueKey(r.uid), child: buildMobileRoute(r))],
                     onDidRemovePage: (page) {
                       final key = page.key;
                       if (key is ValueKey<int>) {
@@ -71,11 +68,7 @@ class _MobileShellState extends State<MobileShell> {
             bottom: chrome == Chrome.miniOnly ? bottom + 2 : bottom + 74,
             child: IgnorePointer(
               ignoring: !showMini,
-              child: AnimatedOpacity(
-                opacity: showMini ? 1 : 0,
-                duration: const Duration(milliseconds: 200),
-                child: const MiniPlayer(),
-              ),
+              child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const MiniPlayer()),
             ),
           ),
           AnimatedPositioned(
@@ -156,20 +149,18 @@ class _NavItem extends StatelessWidget {
         semanticLabel: label,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
-          decoration: BoxDecoration(
-            color: active ? p.navActive : Colors.transparent,
-            borderRadius: BorderRadius.circular(27),
-          ),
+          decoration: BoxDecoration(color: active ? p.navActive : Colors.transparent, borderRadius: BorderRadius.circular(27)),
           child: CustomPaint(
-            foregroundPainter: active
-                ? InsetShadowPainter(BorderRadius.circular(27), [Shadow2(0, 0.5, 1, p.navActiveInset)])
-                : null,
+            foregroundPainter: active ? InsetShadowPainter(BorderRadius.circular(27), [Shadow2(0, 0.5, 1, p.navActiveInset)]) : null,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 YIcon(icon, size: 22, color: color),
                 const SizedBox(height: 3),
-                Text(label, style: ts(11, weight: active ? w600 : w500, color: color, height: 1.2)),
+                Text(
+                  label,
+                  style: ts(11, weight: active ? w600 : w500, color: color, height: 1.2),
+                ),
               ],
             ),
           ),
@@ -207,9 +198,19 @@ class MiniPlayer extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(song?.name ?? '', style: ts(14, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(
+                          song?.name ?? '',
+                          style: ts(14, weight: w600, color: p.text),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         const SizedBox(height: 2),
-                        Text(song?.artistText ?? '', style: ts(12, color: p.text4), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(
+                          song?.artistText ?? '',
+                          style: ts(12, color: p.text4),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   ),
@@ -217,11 +218,7 @@ class MiniPlayer extends StatelessWidget {
               ),
             ),
           ),
-          YIconButton(
-            player.playing ? YIcons.pause : YIcons.play,
-            label: player.playing ? '暂停' : '播放',
-            onTap: player.toggle,
-          ),
+          YIconButton(player.playing ? YIcons.pause : YIcons.play, label: player.playing ? '暂停' : '播放', onTap: player.toggle),
           YIconButton(YIcons.next, label: '下一首', onTap: player.next),
         ],
       ),
