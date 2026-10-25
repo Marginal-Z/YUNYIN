@@ -104,7 +104,7 @@ class YunyinApp extends StatelessWidget {
           enabled: s.glass,
           material: s.glassMaterial,
           child: LayoutScope(
-            desktop: width >= kDesktopBreakpoint,
+            desktop: AdaptiveScale.desktopOf(context) ?? width >= kDesktopBreakpoint,
             child: DefaultTextStyle(
               style: ts(15, color: p.text),
               child: IconTheme(
@@ -112,7 +112,7 @@ class YunyinApp extends StatelessWidget {
                 child: Material(
                   type: MaterialType.transparency,
                   child: PlaybackShortcuts(
-                    enabled: width >= kDesktopBreakpoint,
+                    enabled: AdaptiveScale.desktopOf(context) ?? width >= kDesktopBreakpoint,
                     child: BackdropGroup(child: _NoticeListener(child: child)),
                   ),
                 ),

@@ -29,6 +29,32 @@ class PlayerPage extends StatelessWidget {
       return GlowBackground.player(context);
     }
     final glassShadow = [const Shadow2(0, 6, 18, Color.fromRGBO(0, 0, 0, 0.1)), p.glassButtonShadow.last];
+    final header = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          GlassButton(YIcons.chevronDown, label: '收起播放页', shadows: glassShadow, onTap: () => Navigator.of(context).maybePop()),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  '正在播放',
+                  style: ts(11, weight: w600, em: 0.14, color: p.playerText2),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  player.queueTitle ?? song.albumName,
+                  style: ts(14, weight: w600, color: p.text),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          GlassButton(YIcons.more, label: '更多', shadows: glassShadow, onTap: () => showSongMenu(context, song)),
+        ],
+      ),
+    );
     return GestureDetector(
       onVerticalDragEnd: (d) {
         if ((d.primaryVelocity ?? 0) > 600) Navigator.of(context).maybePop();
@@ -37,6 +63,7 @@ class PlayerPage extends StatelessWidget {
         context,
         child: LayoutBuilder(
           builder: (context, c) {
+            if (c.maxWidth > c.maxHeight * 1.3) return _landscape(context, c, header);
             final h = c.maxHeight - pad.top - pad.bottom;
             final extra = h - 844;
             final double topGap = 28 + math.max(0.0, extra * 0.25);
@@ -49,32 +76,7 @@ class PlayerPage extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        GlassButton(YIcons.chevronDown, label: '收起播放页', shadows: glassShadow, onTap: () => Navigator.of(context).maybePop()),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Text(
-                                '正在播放',
-                                style: ts(11, weight: w600, em: 0.14, color: p.playerText2),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                player.queueTitle ?? song.albumName,
-                                style: ts(14, weight: w600, color: p.text),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        GlassButton(YIcons.more, label: '更多', shadows: glassShadow, onTap: () => showSongMenu(context, song)),
-                      ],
-                    ),
-                  ),
+                  header,
                   SizedBox(height: topGap),
                   Hero(
                     tag: 'cover',
@@ -120,6 +122,62 @@ class PlayerPage extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+
+  /// 横屏：左侧封面，右侧歌名、进度、播放控件与功能卡片。
+  Widget _landscape(BuildContext context, BoxConstraints c, Widget header) {
+    final pad = MediaQuery.paddingOf(context);
+    final song = context.read<PlayerController>().current!;
+    final h = c.maxHeight - pad.top - pad.bottom;
+    final double cover = (h - 100).clamp(120.0, c.maxWidth * 0.4);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(pad.left, pad.top + 12, pad.right, pad.bottom + 12),
+      child: Column(
+        children: [
+          header,
+          Expanded(
+            child: Row(
+              children: [
+                const SizedBox(width: 28),
+                Hero(
+                  tag: 'cover',
+                  child: Cover(
+                    song.coverUrl,
+                    size: cover,
+                    radius: 24,
+                    imageSize: 800,
+                    shadows: [Shadow2(0, 20, 44, CoverThemed.shadowOf(context).withValues(alpha: 0.35))],
+                  ),
+                ),
+                const SizedBox(width: 28),
+                Expanded(
+                  // 内容高度超出时整体缩小，保证完整显示。
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: SizedBox(
+                      width: 420,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _TitleRow(song: song),
+                          const SizedBox(height: 12),
+                          const _Progress(),
+                          const SizedBox(height: 8),
+                          const _Controls(),
+                          const SizedBox(height: 12),
+                          _PlayerTabs(song: song),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

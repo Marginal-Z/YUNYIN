@@ -72,6 +72,10 @@ class _LyricsPageState extends State<LyricsPage> {
     final pad = MediaQuery.paddingOf(context);
     if (song == null) return GlowBackground.player(context);
     final liked = player.isLiked(song);
+    // 横屏：歌词在左，歌曲卡片与控制卡片在右侧一栏。
+    final size = MediaQuery.sizeOf(context);
+    final land = size.width > size.height * 1.3;
+    final side = land ? (size.width * 0.42).clamp(300.0, 380.0) : 0.0;
     Widget fade(Widget child, {required bool top}) => IgnorePointer(
       ignoring: !_controls,
       child: AnimatedOpacity(
@@ -102,8 +106,8 @@ class _LyricsPageState extends State<LyricsPage> {
               duration: const Duration(milliseconds: 420),
               curve: Curves.easeOutCubic,
               left: 28,
-              right: 28,
-              top: pad.top + (_controls ? 168 : 12),
+              right: land && _controls ? side + 40 : 28,
+              top: pad.top + (land ? 76 : (_controls ? 168 : 12)),
               bottom: pad.bottom,
               child: const LyricsView(desktop: false, anchor: 0.3),
             ),
@@ -154,7 +158,7 @@ class _LyricsPageState extends State<LyricsPage> {
                         ),
                       ),
                       Positioned(
-                        left: 20,
+                        left: land ? size.width - side - 20 : 20,
                         right: 20,
                         top: pad.top + 84,
                         child: YBox(
@@ -210,7 +214,7 @@ class _LyricsPageState extends State<LyricsPage> {
               ),
             ),
             Positioned(
-              left: 20,
+              left: land ? size.width - side - 20 : 20,
               right: 20,
               bottom: 22 + pad.bottom,
               child: fade(

@@ -18,13 +18,17 @@ class AdaptiveScale extends StatelessWidget {
   /// 当前缩放倍数（界面逻辑像素 × 倍数 = 屏幕逻辑像素）。
   static double of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ScaleScope>()?.scale ?? 1;
 
+  /// 是否使用桌面布局（按缩放前的宽度判断）。
+  static bool? desktopOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ScaleScope>()?.desktop;
+
   static double scaleFor(Size size, double desktopBreakpoint) {
     if (size.isEmpty) return 1;
     if (size.width >= desktopBreakpoint) {
       final s = math.min(size.width / _desktopDesignSize.width, size.height / _desktopDesignSize.height);
       return s.clamp(0.8, 1.0);
     }
-    return (size.width / _mobileDesignWidth).clamp(0.82, 1.18);
+    // 按短边缩放：竖屏即宽度；横屏时不会因为宽度大而把高度压得过矮。
+    return (size.shortestSide / _mobileDesignWidth).clamp(0.82, 1.18);
   }
 
   @override
@@ -32,9 +36,11 @@ class AdaptiveScale extends StatelessWidget {
     final mq = MediaQuery.of(context);
     final textScaler = mq.textScaler.clamp(minScaleFactor: 0.9, maxScaleFactor: 1.15);
     final s = scaleFor(mq.size, desktopBreakpoint);
+    final desktop = mq.size.width >= desktopBreakpoint;
     if ((s - 1).abs() < 0.01) {
       return _ScaleScope(
         scale: 1,
+        desktop: desktop,
         child: MediaQuery(data: mq.copyWith(textScaler: textScaler), child: child),
       );
     }
@@ -50,6 +56,7 @@ class AdaptiveScale extends StatelessWidget {
     );
     return _ScaleScope(
       scale: s,
+      desktop: desktop,
       child: FittedBox(
         fit: BoxFit.fill,
         alignment: Alignment.topLeft,
@@ -64,10 +71,11 @@ class AdaptiveScale extends StatelessWidget {
 }
 
 class _ScaleScope extends InheritedWidget {
-  const _ScaleScope({required this.scale, required super.child});
+  const _ScaleScope({required this.scale, required this.desktop, required super.child});
 
   final double scale;
+  final bool desktop;
 
   @override
-  bool updateShouldNotify(_ScaleScope old) => old.scale != scale;
+  bool updateShouldNotify(_ScaleScope old) => old.scale != scale || old.desktop != desktop;
 }

@@ -204,6 +204,7 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
     await wait(500);
     if (spec.size.width < 860) {
       nav.switchTab(1);
+      nav.switchTab(1);
     } else {
       nav.push(DiscoverRoute());
     }

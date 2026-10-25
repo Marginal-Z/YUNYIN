@@ -104,8 +104,8 @@ class SongRow extends StatelessWidget {
       onSecondaryTap: () => showSongMenu(context, song),
       scale: 1,
       hoverColor: p.separator.withValues(alpha: 0.06),
-      child: Opacity(
-        opacity: song.playable ? 1 : 0.45,
+      child: _Dim(
+        dim: !song.playable,
         child: SizedBox(
           height: height,
           child: Padding(
@@ -170,8 +170,8 @@ class DesktopSongRow extends StatelessWidget {
       onLongPress: () => showSongMenu(context, song),
       scale: 1,
       hoverColor: p.separator.withValues(alpha: 0.35),
-      child: Opacity(
-        opacity: song.playable ? 1 : 0.45,
+      child: _Dim(
+        dim: !song.playable,
         child: SizedBox(
           height: 56,
           child: Padding(
@@ -325,4 +325,15 @@ String playlistSubtitle(PlaylistInfo p) {
   final count = p.trackCount > 0 ? '${p.trackCount} 首' : '';
   final tag = p.genre.isNotEmpty ? p.genre : (p.creator ?? '');
   return [count, tag].where((s) => s.isNotEmpty).join(' · ');
+}
+
+/// 无法播放的歌曲行：文字变淡（通过调色板实现，不产生离屏图层）。
+class _Dim extends StatelessWidget {
+  const _Dim({required this.dim, required this.child});
+
+  final bool dim;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => dim ? PaletteScope(palette: Palette.of(context).dimmed(0.45), child: child) : child;
 }
