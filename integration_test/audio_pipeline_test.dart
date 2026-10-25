@@ -71,6 +71,7 @@ Future<String> _writeTone() async {
   } catch (_) {
     dir = Directory.systemTemp; // 在主机上以普通测试方式运行时没有 path_provider 插件。
   }
+  await dir.create(recursive: true);
   final f = File('${dir.path}/yunyin_tone.wav');
   await f.writeAsBytes(data.buffer.asUint8List());
   return f.path;

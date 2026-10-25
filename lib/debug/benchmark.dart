@@ -37,7 +37,7 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
   void report() {
     final rate = PlatformDispatcher.instance.displays.map((d) => d.refreshRate).fold<double>(0, math.max);
     final out = StringBuffer('\n===== 云音性能测试 =====\n显示器刷新率: ${rate.toStringAsFixed(0)} Hz\n');
-    out.writeln('阶段 | 帧数 | 帧率 | 构建 平均/P90/最大 ms | 光栅 平均/P90/最大 ms');
+    out.writeln('阶段 | 帧数 | 帧率 | 构建 平均/P90/最大 ms | 光栅 平均/P90/最大 ms | 等待垂直同步 平均 ms | 帧间隔 中位 ms');
     for (final p in phases) {
       final secs = math.max(p.watch.elapsedMilliseconds, 1) / 1000;
       String stats(Iterable<Duration> ds) {
@@ -47,8 +47,13 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
         return '${avg.toStringAsFixed(1)}/${v[(v.length * 0.9).floor().clamp(0, v.length - 1)].toStringAsFixed(1)}/${v.last.toStringAsFixed(1)}';
       }
 
+      final vsync = p.frames.isEmpty ? 0 : p.frames.map((f) => f.vsyncOverhead.inMicroseconds).reduce((a, b) => a + b) / p.frames.length / 1000;
+      final starts = [for (final f in p.frames) f.timestampInMicroseconds(FramePhase.vsyncStart)];
+      final gaps = [for (var i = 1; i < starts.length; i++) (starts[i] - starts[i - 1]) / 1000]..sort();
+      final gap = gaps.isEmpty ? 0 : gaps[gaps.length ~/ 2];
       out.writeln('${p.name} | ${p.frames.length} | ${(p.frames.length / secs).toStringAsFixed(0)} | '
-          '${stats(p.frames.map((f) => f.buildDuration))} | ${stats(p.frames.map((f) => f.rasterDuration))}');
+          '${stats(p.frames.map((f) => f.buildDuration))} | ${stats(p.frames.map((f) => f.rasterDuration))} | '
+          '${vsync.toStringAsFixed(1)} | ${gap.toStringAsFixed(1)}');
     }
     stderr.writeln(out);
   }
@@ -61,7 +66,11 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
   });
 
   Future<void> phase(String name, Future<void> Function() body) async {
-    stderr.writeln('bench: $name');
+    var state = '';
+    try {
+      state = '焦点=${await windowManager.isFocused()} 可见=${await windowManager.isVisible()} 最小化=${await windowManager.isMinimized()}';
+    } catch (_) {}
+    stderr.writeln('bench: $name $state');
     final p = _Phase(name);
     phases.add(p);
     current = p;
@@ -90,7 +99,14 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
   }
 
   stderr.writeln('bench: 等待首页数据');
-  await wait(9000);
+  await wait(4000);
+  // 把窗口置于前台，避免合成器对被遮挡的窗口降低刷新频率。
+  try {
+    await windowManager.show();
+    await windowManager.focus();
+    await windowManager.setAlwaysOnTop(true);
+  } catch (_) {}
+  await wait(5000);
   final ctx = navKey.currentContext!;
   final nav = ctx.read<AppNav>();
   final player = ctx.read<PlayerController>();
