@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <!-- 移除 MainActivity 自身的启动入口，桌面图标由 activity-alias 提供（跟随主题色）。 -->
+        <activity android:name=".MainActivity">
+            <intent-filter tools:node="removeAll"/>
+        </activity>
+    </application>
+</manifest>

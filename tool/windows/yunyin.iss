@@ -45,7 +45,8 @@ CloseApplications=force
 RestartApplications=no
 
 [Languages]
-Name: "zh"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; ChineseSimplified.isl 由 CI 按编译器版本准备（Inno Setup 6 只把它作为非官方翻译单独发布）。
+Name: "zh"; MessagesFile: "ChineseSimplified.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]

@@ -136,6 +136,21 @@ jobs:
         run: |
           choco upgrade innosetup -y --no-progress | Out-Null
           $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe", "$env:ProgramFiles\Inno Setup *\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -Last 1
+          # 简体中文语言文件：编译器自带则直接使用，否则从对应版本的 Inno Setup 源码下载，保证消息条目与编译器一致。
+          $lang = Join-Path $iscc.DirectoryName 'Languages\ChineseSimplified.isl'
+          if (Test-Path $lang) {
+            Copy-Item $lang tool/windows/ChineseSimplified.isl
+          } else {
+            $v = (Get-Item $iscc.FullName).VersionInfo.ProductVersion.Trim() -replace '[^0-9.].*$', ''
+            $v = (($v -split '\.') | Select-Object -First 3) -join '.'
+            $tag = 'is-' + ($v -replace '\.', '_')
+            Write-Host "Inno Setup $v，从 $tag 下载中文语言文件"
+            $ok = $false
+            foreach ($p in 'Files/Languages/Unofficial/ChineseSimplified.isl', 'Files/Languages/ChineseSimplified.isl') {
+              try { Invoke-WebRequest "https://raw.githubusercontent.com/jrsoftware/issrc/$tag/$p" -OutFile tool/windows/ChineseSimplified.isl; $ok = $true; break } catch {}
+            }
+            if (-not $ok) { throw "找不到 $tag 的中文语言文件" }
+          }
           & $iscc.FullName /Qp tool/windows/yunyin.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v5

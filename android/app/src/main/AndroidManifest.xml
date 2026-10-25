@@ -27,6 +27,12 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- flutter run 与集成测试只在 <activity> 上查找启动入口，因此保留这一项；
+                 发布版由 src/release/AndroidManifest.xml 移除，桌面上只显示下面跟随主题色的图标。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
         </activity>
         <!-- 桌面图标跟随主题色：每种主题色一个入口，同一时间只启用一个（见 MainActivity.setIcon）。 -->
         <activity-alias

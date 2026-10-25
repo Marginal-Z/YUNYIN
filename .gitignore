@@ -49,3 +49,4 @@ app.*.map.json
 
 # 本地工具配置
 .claude/
+tool/windows/ChineseSimplified.isl
