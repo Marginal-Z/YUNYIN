@@ -40,6 +40,8 @@ static void my_application_activate(GApplication* application) {
   }
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
+  // Dart UI 默认与 GTK 共用主线程，GTK 每次绘制窗口都会阻塞下一帧的构建；放到独立线程上。
+  fl_dart_project_set_ui_thread_policy(project, FL_UI_THREAD_POLICY_RUN_ON_SEPARATE_THREAD);
   fl_dart_project_set_dart_entrypoint_arguments(
       project, self->dart_entrypoint_arguments);
 
