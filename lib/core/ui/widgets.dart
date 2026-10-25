@@ -440,7 +440,7 @@ class Segmented extends StatelessWidget {
   }
 }
 
-/// 带光泽的渐变图标块。
+/// 扁平的彩色图标块：纯色底、白色图标，没有渐变、辉光与高光。
 class IconTile extends StatelessWidget {
   const IconTile(this.icon, this.color, {super.key, this.size = 30, this.iconSize = 18, this.strokeWidth = 1.9});
 
@@ -453,17 +453,11 @@ class IconTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = size >= 56 ? 18.0 : (size >= 44 ? 13.0 : 9.0);
-    final glow = size >= 56
-        ? const Shadow2(0, 12, 24, Colors.transparent)
-        : (size >= 44 ? const Shadow2(0, 8, 16, Colors.transparent) : const Shadow2(0, 4, 10, Colors.transparent));
-    return YBox(
+    return Container(
       width: size,
       height: size,
-      radius: BorderRadius.circular(r),
-      gradient: CssGradient(160, colors: [color.top, color.bottom]),
-      shadows: [Shadow2(glow.dx, glow.dy, glow.blur, color.glow)],
-      insets: const [Shadow2(0, 1, 1, Color.fromRGBO(255, 255, 255, 0.45))],
       alignment: Alignment.center,
+      decoration: BoxDecoration(color: color.flat, borderRadius: BorderRadius.circular(r)),
       child: YIcon(icon, size: iconSize, color: Colors.white, strokeWidth: strokeWidth),
     );
   }

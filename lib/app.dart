@@ -18,6 +18,7 @@ import 'data/sources/source_manager.dart';
 import 'features/common/layout.dart';
 import 'features/shell/desktop_shell.dart';
 import 'features/shell/mobile_shell.dart';
+import 'debug/screenshots.dart';
 import 'features/settings/update_dialog.dart';
 import 'features/shell/nav.dart';
 import 'player/player_controller.dart';
@@ -66,43 +67,47 @@ class YunyinApp extends StatelessWidget {
             themeMode: s.themeMode,
             theme: _theme(light),
             darkTheme: _theme(dark),
-            builder: (context, child) {
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              final p = isDark ? dark : light;
-              final width = MediaQuery.sizeOf(context).width;
-              return AnnotatedRegion<SystemUiOverlayStyle>(
-                value: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
-                  statusBarColor: Colors.transparent,
-                  systemNavigationBarColor: Colors.transparent,
-                  systemNavigationBarContrastEnforced: false,
-                ),
-                child: PaletteScope(
-                  palette: p,
-                  child: GlassScope(
-                    enabled: s.glass,
-                    child: LayoutScope(
-                      desktop: width >= kDesktopBreakpoint,
-                      child: DefaultTextStyle(
-                        style: ts(15, color: p.text),
-                        child: IconTheme(
-                          data: IconThemeData(color: p.text),
-                          child: Material(
-                            type: MaterialType.transparency,
-                            child: PlaybackShortcuts(
-                              enabled: width >= kDesktopBreakpoint,
-                              child: BackdropGroup(child: _NoticeListener(child: child!)),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
+            builder: (context, child) =>
+                screenshotsRequested ? ShotFrame(builder: (context) => _shell(context, child!, s, light, dark)) : _shell(context, child!, s, light, dark),
             home: const _Root(),
           );
         },
+      ),
+    );
+  }
+
+  /// 应用外壳：主题色板、毛玻璃开关、桌面 / 移动布局与全局快捷键。
+  Widget _shell(BuildContext context, Widget child, AppSettings s, Palette light, Palette dark) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final p = isDark ? dark : light;
+    final width = MediaQuery.sizeOf(context).width;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarContrastEnforced: false,
+      ),
+      child: PaletteScope(
+        palette: p,
+        child: GlassScope(
+          enabled: s.glass,
+          child: LayoutScope(
+            desktop: width >= kDesktopBreakpoint,
+            child: DefaultTextStyle(
+              style: ts(15, color: p.text),
+              child: IconTheme(
+                data: IconThemeData(color: p.text),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: PlaybackShortcuts(
+                    enabled: width >= kDesktopBreakpoint,
+                    child: BackdropGroup(child: _NoticeListener(child: child)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -177,7 +182,7 @@ class _NoticeListenerState extends State<_NoticeListener> {
   Future<void> _autoUpdate() async {
     final settings = context.read<AppSettings>();
     final updater = context.read<UpdateManager>();
-    if (!settings.autoUpdate || updater.kind == InstallKind.unsupported) return;
+    if (!settings.autoUpdate || updater.kind == InstallKind.unsupported || screenshotsRequested) return;
     await Future<void>.delayed(const Duration(seconds: 5));
     if (!await updater.check() || settings.skippedUpdate == updater.latest!.version) return;
     final ctx = rootNavigatorKey.currentContext;

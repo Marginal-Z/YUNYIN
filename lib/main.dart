@@ -11,6 +11,7 @@ import 'core/app_icon.dart';
 import 'core/update/updater.dart';
 import 'core/settings.dart';
 import 'debug/benchmark.dart';
+import 'debug/screenshots.dart';
 import 'data/downloads.dart';
 import 'data/local_library.dart';
 import 'data/sources/source_manager.dart';
@@ -65,4 +66,5 @@ Future<void> main() async {
 
   runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, updater: updater));
   if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
+  if (screenshotsRequested) unawaited(runScreenshots(rootNavigatorKey));
 }

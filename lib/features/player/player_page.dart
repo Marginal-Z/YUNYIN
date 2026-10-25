@@ -86,22 +86,23 @@ class PlayerPage extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 26),
+                  const SizedBox(height: 22),
+                  // 封面下方两行歌词；歌名、进度与播放控件放在下方，靠近功能卡片。
+                  const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
+                  const Spacer(),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 28),
                     child: Column(
                       children: [
                         _TitleRow(song: song),
-                        const SizedBox(height: 36),
-                        const _Progress(),
-                        const SizedBox(height: 28),
-                        const _Controls(),
                         const SizedBox(height: 20),
-                        const _LyricPreview(),
+                        const _Progress(),
+                        const SizedBox(height: 18),
+                        const _Controls(),
                       ],
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 22),
                   Padding(
                     padding: EdgeInsets.fromLTRB(16, 0, 16, math.max(22, pad.bottom + 8) - pad.bottom),
                     child: _PlayerTabs(song: song),
@@ -308,24 +309,39 @@ class _LyricPreview extends StatelessWidget {
             final i = lyrics.indexAt(pos);
             final line = i >= 0 ? lyrics.lines[i].text : (lyrics.lines.isEmpty ? '暂无歌词' : lyrics.lines.first.text);
             final next = i + 1 < lyrics.lines.length ? lyrics.lines[i + 1].text : '';
-            return Column(
-              children: [
-                Text(
-                  line,
-                  textAlign: TextAlign.center,
-                  style: ts(20, weight: w700, em: -0.01, height: 1.35, color: p.text),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            // 换行时新歌词自下而上滑入。
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 380),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, a) => FadeTransition(
+                opacity: a,
+                child: SlideTransition(
+                  position: Tween(begin: const Offset(0, 0.25), end: Offset.zero).animate(a),
+                  child: child,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  next,
-                  textAlign: TextAlign.center,
-                  style: ts(16, weight: w600, height: 1.35, color: p.lyricDim),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+              ),
+              layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, children: [...previous, ?current]),
+              child: Column(
+                key: ValueKey(i),
+                children: [
+                  Text(
+                    line,
+                    textAlign: TextAlign.center,
+                    style: ts(20, weight: w700, em: -0.01, height: 1.35, color: p.text),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    next,
+                    textAlign: TextAlign.center,
+                    style: ts(16, weight: w600, height: 1.35, color: p.lyricDim),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             );
           },
         ),
@@ -370,11 +386,10 @@ class _PlayerTabs extends StatelessWidget {
       );
     }
 
-    return Glass(
+    return LiquidGlass(
       radius: 32,
       height: 64,
       padding: const EdgeInsets.all(5),
-      shadows: [const Shadow2(0, 10, 30, Color.fromRGBO(0, 0, 0, 0.12)), const Shadow2(0, 1, 3, Color.fromRGBO(0, 0, 0, 0.08))],
       child: Row(
         children: [
           item(YIcons.lyrics, '歌词', () => openLyrics(context), active: true),

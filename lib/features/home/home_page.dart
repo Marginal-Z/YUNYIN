@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -53,39 +55,39 @@ class HomePage extends StatelessWidget {
     final source = sources.current;
     final user = source.user;
     return MobilePage(
-      top: 26,
+      top: 22,
       children: [
+        // 日期与问候语和头像同一行，头像与文字块垂直居中。
         Row(
           children: [
-            const AppLogo(size: 30),
-            const SizedBox(width: 9),
-            Text(
-              '云音',
-              style: ts(19, weight: w700, em: -0.01, color: p.text),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    todayText(),
+                    style: ts(13, weight: w600, color: p.text2),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    greeting(),
+                    style: ts(36, weight: w700, em: -0.02, height: 1.1, color: p.text),
+                  ),
+                ],
+              ),
             ),
-            const Spacer(),
             if (user?.avatar != null)
-              Pressable(onTap: () => context.read<AppNav>().switchTab(2), semanticLabel: '个人主页', child: Cover(user!.avatar, size: 36, circle: true))
+              Pressable(onTap: () => context.read<AppNav>().switchTab(2), semanticLabel: '个人主页', child: Cover(user!.avatar, size: 44, circle: true))
             else
               CircleButton(
                 YIcons.user,
-                size: 36,
-                iconSize: 19,
+                size: 44,
+                iconSize: 22,
                 color: p.text3,
                 label: '个人主页',
                 onTap: () => user == null && source.supports(SourceFeature.login) ? go(context, LoginRoute()) : context.read<AppNav>().switchTab(2),
               ),
           ],
-        ),
-        const SizedBox(height: 20),
-        Text(
-          todayText(),
-          style: ts(13, weight: w600, color: p.text2),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          greeting(),
-          style: ts(36, weight: w700, em: -0.02, height: 1.1, color: p.text),
         ),
         AsyncView<HomeFeed>(
           keyValue: sources.generation,
@@ -115,6 +117,7 @@ class _HomeBody extends StatelessWidget {
         const SizedBox(height: 20),
         DailyCard(
           height: 196,
+          songs: feed.daily,
           onOpen: () => openPlaylist(context, daily),
           onPlay: () => playAll(context, feed.daily, title: '每日推荐'),
         ),
@@ -178,17 +181,48 @@ class _Bleed extends StatelessWidget {
   }
 }
 
-/// 每日推荐大卡片（桃色渐变 + 几何插画 + 播放全部）。
-class DailyCard extends StatelessWidget {
-  const DailyCard({super.key, required this.height, this.onOpen, this.onPlay, this.desktop = false});
+/// 每日推荐大卡片（桃色渐变 + 随机推荐歌曲的封面 + 播放全部）。
+class DailyCard extends StatefulWidget {
+  const DailyCard({super.key, required this.height, this.songs = const [], this.onOpen, this.onPlay, this.desktop = false});
 
   final double height;
+  final List<Song> songs;
   final VoidCallback? onOpen;
   final VoidCallback? onPlay;
   final bool desktop;
 
   @override
+  State<DailyCard> createState() => _DailyCardState();
+}
+
+class _DailyCardState extends State<DailyCard> {
+  static final _random = math.Random();
+  List<String> _covers = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _pick();
+  }
+
+  @override
+  void didUpdateWidget(DailyCard old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.songs, widget.songs)) _pick();
+  }
+
+  /// 每次进入首页随机取三首推荐歌曲的封面。
+  void _pick() {
+    final urls = {for (final s in widget.songs) ?s.coverUrl}.toList()..shuffle(_random);
+    _covers = urls.take(3).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final desktop = widget.desktop;
+    final height = widget.height;
+    final onOpen = widget.onOpen;
+    final onPlay = widget.onPlay;
     final p = Palette.of(context);
     return Pressable(
       onTap: onOpen,
@@ -202,14 +236,23 @@ class DailyCard extends StatelessWidget {
         insets: [Shadow2(0, 1, 0, p.highlightInset)],
         child: Stack(
           children: [
-            Positioned(
-              right: 0,
-              top: 0,
-              child: CustomPaint(
-                size: desktop ? const Size(340, 208) : const Size(170, 196),
-                painter: _DailyArt(desktop, p.isDark ? const Color(0xFFFFE3DA) : const Color(0xFF1D1D1F)),
+            if (_covers.isEmpty)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: CustomPaint(
+                  size: desktop ? const Size(340, 208) : const Size(170, 196),
+                  painter: _DailyArt(desktop, p.isDark ? const Color(0xFFFFE3DA) : const Color(0xFF1D1D1F)),
+                ),
+              )
+            else
+              Positioned(
+                right: desktop ? 36 : 14,
+                top: 0,
+                bottom: 0,
+                width: desktop ? 300 : 150,
+                child: _CoverStack(covers: _covers, size: desktop ? 136 : 98),
               ),
-            ),
             Padding(
               padding: EdgeInsets.all(desktop ? 28 : 22),
               child: Column(
@@ -287,6 +330,40 @@ class _DailyArt extends CustomPainter {
 
   @override
   bool shouldRepaint(_DailyArt old) => old.desktop != desktop || old.ring != ring;
+}
+
+/// 三张错落叠放的封面，前景一张最大。
+class _CoverStack extends StatelessWidget {
+  const _CoverStack({required this.covers, required this.size});
+
+  final List<String> covers;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final shadow = [const Shadow2(0, 14, 28, Color.fromRGBO(120, 40, 20, 0.28))];
+    Widget card(String url, double s, double angle) => Transform.rotate(
+      angle: angle,
+      child: YBox(
+        width: s,
+        height: s,
+        radius: BorderRadius.circular(s * 0.16),
+        shadows: shadow,
+        clip: true,
+        child: Cover(url, size: s, radius: s * 0.16),
+      ),
+    );
+    final back = size * 0.78;
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        if (covers.length > 2) Positioned(right: 0, top: 16, child: Opacity(opacity: 0.9, child: card(covers[2], back, 0.16))),
+        if (covers.length > 1) Positioned(left: 0, bottom: 16, child: Opacity(opacity: 0.95, child: card(covers[1], back, -0.14))),
+        card(covers[0], size, 0.04),
+      ],
+    );
+  }
 }
 
 /// 私人雷达卡片（桌面端首页右侧）。

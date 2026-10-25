@@ -274,3 +274,106 @@ class Glass extends StatelessWidget {
     );
   }
 }
+
+/// 更通透的液态玻璃：背景几乎透明，靠模糊、提饱和与高光描边勾勒轮廓（播放页功能卡片、歌词页控制卡片）。
+class LiquidGlass extends StatelessWidget {
+  const LiquidGlass({super.key, required this.radius, this.width, this.height, this.padding, this.child});
+
+  final double radius;
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry? padding;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final r = BorderRadius.circular(radius);
+    final dark = p.isDark;
+    // 关闭毛玻璃时退回半透明实色，保证内容可读。
+    final blur = GlassScope.of(context);
+    final fill = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: blur
+          ? (dark
+                ? const [Color.fromRGBO(255, 255, 255, 0.16), Color.fromRGBO(255, 255, 255, 0.05)]
+                : const [Color.fromRGBO(255, 255, 255, 0.42), Color.fromRGBO(255, 255, 255, 0.14)])
+          : (dark ? const [Color(0xE62A2B30), Color(0xE6222327)] : const [Color(0xEBFFFFFF), Color(0xE6F4F5F8)]),
+    );
+    Widget content = Container(
+      padding: padding,
+      decoration: BoxDecoration(gradient: fill, borderRadius: r),
+      child: child,
+    );
+    content = CustomPaint(foregroundPainter: _SpecularRim(r, dark), child: content);
+    if (blur) {
+      content = ClipRRect(
+        borderRadius: r,
+        child: BackdropGroup.of(context) != null
+            ? BackdropFilter.grouped(filter: _liquidFilter, child: content)
+            : BackdropFilter(filter: _liquidFilter, child: content),
+      );
+    }
+    content = CustomPaint(
+      painter: _OuterShadowPainter(r, [
+        Shadow2(0, 12, 32, Color.fromRGBO(0, 0, 0, dark ? 0.32 : 0.10)),
+        Shadow2(0, 1, 2, Color.fromRGBO(0, 0, 0, dark ? 0.2 : 0.05)),
+      ], clipInside: true),
+      child: content,
+    );
+    return width != null || height != null ? SizedBox(width: width, height: height, child: content) : content;
+  }
+}
+
+final ui.ImageFilter _liquidFilter = ui.ImageFilter.compose(
+  outer: ui.ColorFilter.matrix(saturateMatrix(1.8)),
+  inner: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18, tileMode: TileMode.clamp),
+);
+
+/// 玻璃边缘的高光：左上亮、右下次亮、中段淡，模拟光线在弧面边缘的折射；内侧再加一道顶部柔光。
+class _SpecularRim extends CustomPainter {
+  _SpecularRim(this.radius, this.dark);
+
+  final BorderRadius radius;
+  final bool dark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rrect = radius.toRRect(rect).deflate(0.6);
+    final a = dark ? 0.55 : 0.95;
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.fromRGBO(255, 255, 255, a),
+            Color.fromRGBO(255, 255, 255, a * 0.18),
+            Color.fromRGBO(255, 255, 255, a * 0.12),
+            Color.fromRGBO(255, 255, 255, a * 0.6),
+          ],
+          stops: const [0, 0.35, 0.65, 1],
+        ).createShader(rect),
+    );
+    canvas.save();
+    canvas.clipRRect(radius.toRRect(rect));
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height * 0.5),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color.fromRGBO(255, 255, 255, dark ? 0.08 : 0.22), const Color.fromRGBO(255, 255, 255, 0)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height * 0.5)),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_SpecularRim old) => old.dark != dark || old.radius != radius;
+}

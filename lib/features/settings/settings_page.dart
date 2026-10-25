@@ -17,7 +17,6 @@ import '../../player/player_controller.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
-import 'update_dialog.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -47,8 +46,6 @@ class SettingsPage extends StatelessWidget {
         SourceGroup(),
         GroupLabel('下载与缓存'),
         StorageGroup(),
-        GroupLabel('关于与更新'),
-        UpdateGroup(),
       ],
     );
   }
@@ -495,7 +492,7 @@ class _DesktopSettings extends StatelessWidget {
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [GroupLabel('快捷键', top: 14), _ShortcutsGroup(), GroupLabel('下载与缓存'), StorageGroup(desktop: true), GroupLabel('关于与更新'), UpdateGroup()],
+                children: [GroupLabel('快捷键', top: 14), _ShortcutsGroup(), GroupLabel('下载与缓存'), StorageGroup(desktop: true)],
               ),
             ),
           ],

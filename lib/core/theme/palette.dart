@@ -477,6 +477,9 @@ enum TileColor {
   final Color top;
   final Color bottom;
   final Color glow;
+
+  /// 扁平图标块使用的纯色（渐变两端之间偏深的一点）。
+  Color get flat => Color.lerp(top, bottom, 0.6)!;
 }
 
 /// 向下提供当前的 [Palette]。

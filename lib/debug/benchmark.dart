@@ -51,9 +51,11 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
       final starts = [for (final f in p.frames) f.timestampInMicroseconds(FramePhase.vsyncStart)];
       final gaps = [for (var i = 1; i < starts.length; i++) (starts[i] - starts[i - 1]) / 1000]..sort();
       final gap = gaps.isEmpty ? 0 : gaps[gaps.length ~/ 2];
-      out.writeln('${p.name} | ${p.frames.length} | ${(p.frames.length / secs).toStringAsFixed(0)} | '
-          '${stats(p.frames.map((f) => f.buildDuration))} | ${stats(p.frames.map((f) => f.rasterDuration))} | '
-          '${vsync.toStringAsFixed(1)} | ${gap.toStringAsFixed(1)}');
+      out.writeln(
+        '${p.name} | ${p.frames.length} | ${(p.frames.length / secs).toStringAsFixed(0)} | '
+        '${stats(p.frames.map((f) => f.buildDuration))} | ${stats(p.frames.map((f) => f.rasterDuration))} | '
+        '${vsync.toStringAsFixed(1)} | ${gap.toStringAsFixed(1)}',
+      );
     }
     stderr.writeln(out);
   }

@@ -37,6 +37,7 @@ class _LyricsViewState extends State<LyricsView> {
 
   /// 用户拖动歌词后暂停自动跟随，松手 2.5 秒后恢复。
   bool _manual = false;
+  double? _height;
   Timer? _resume;
 
   @override
@@ -127,6 +128,12 @@ class _LyricsViewState extends State<LyricsView> {
     return LayoutBuilder(
       builder: (context, c) {
         final synced = lyrics.synced;
+        // 可视区域大小变化（例如歌词页控件显示 / 隐藏）时，让当前行保持在锚点位置。
+        if (c.maxHeight != _height) {
+          final first = _height == null;
+          _height = c.maxHeight;
+          if (!first) _follow(jump: true);
+        }
         return NotificationListener<ScrollNotification>(
           onNotification: _onScroll,
           child: ShaderMask(

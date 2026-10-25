@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -10,9 +9,11 @@ import '../../core/ui/feedback.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
+import '../../core/update/updater.dart';
 import '../../data/sources/source_manager.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
+import 'update_dialog.dart';
 
 const kRepoUrl = 'https://github.com/Marginal-Z/YUNYIN';
 
@@ -26,6 +27,7 @@ class SettingsMorePage extends StatelessWidget {
     final s = context.watch<AppSettings>();
     final sm = context.watch<SourceManager>();
     final source = sm.current;
+    final updater = context.watch<UpdateManager>();
     final desktop = LayoutScope.isDesktop(context);
     Future<void> open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     return AdaptivePage(
@@ -69,7 +71,31 @@ class SettingsMorePage extends StatelessWidget {
         CardList(
           indent: 56,
           children: [
-            const _VersionRows(),
+            SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '当前版本', value: updater.current.isEmpty ? '' : 'v${updater.current}'),
+            SettingsRow(
+              icon: YIcons.refresh,
+              tile: TileColor.teal,
+              title: '检查更新',
+              value: switch (updater.stage) {
+                UpdateStage.checking => '正在检查…',
+                UpdateStage.downloading => '正在下载 ${(updater.progress * 100).toStringAsFixed(0)}%',
+                _ => updater.hasUpdate ? '新版本 v${updater.latest!.version}' : null,
+              },
+              trailing: updater.hasUpdate
+                  ? Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(color: p.danger, shape: BoxShape.circle),
+                    )
+                  : null,
+              onTap: updater.stage == UpdateStage.checking ? null : () => updater.hasUpdate ? showUpdateDialog(context) : checkForUpdate(context),
+            ),
+            SettingsRow(
+              icon: YIcons.bell,
+              tile: TileColor.orange,
+              title: '启动时检查更新',
+              trailing: YSwitch(value: s.autoUpdate, label: '启动时检查更新', onChanged: (v) => s.setFlag('autoUpdate', v)),
+            ),
             SettingsRow(icon: YIcons.document, tile: TileColor.orange, title: '用户协议', onTap: () => open('$kRepoUrl#免责声明')),
             SettingsRow(
               icon: YIcons.code,
@@ -81,6 +107,7 @@ class SettingsMorePage extends StatelessWidget {
               },
             ),
             SettingsRow(icon: YIcons.feedback, tile: TileColor.red, title: '意见反馈', onTap: () => open('$kRepoUrl/issues')),
+            SettingsRow(icon: YIcons.code, tile: TileColor.graphite, title: '项目主页', value: 'GitHub', onTap: () => open(kRepoUrl)),
           ],
         ),
         const SizedBox(height: 22),
@@ -123,78 +150,6 @@ class SettingsMorePage extends StatelessWidget {
               ),
             ),
           ),
-      ],
-    );
-  }
-}
-
-/// 当前版本（读取安装包信息）与检查更新（查询 GitHub Releases 最新版本）。
-class _VersionRows extends StatefulWidget {
-  const _VersionRows();
-
-  @override
-  State<_VersionRows> createState() => _VersionRowsState();
-}
-
-class _VersionRowsState extends State<_VersionRows> {
-  String? _version;
-  String? _latest;
-  String? _status;
-
-  @override
-  void initState() {
-    super.initState();
-    PackageInfo.fromPlatform().then((i) {
-      if (mounted) setState(() => _version = i.version);
-    });
-  }
-
-  static List<int> _parts(String v) => [for (final x in v.replaceFirst('v', '').split('.')) int.tryParse(x) ?? 0];
-
-  static bool _newer(String a, String b) {
-    final x = _parts(a), y = _parts(b);
-    for (var i = 0; i < 3; i++) {
-      final d = (i < x.length ? x[i] : 0) - (i < y.length ? y[i] : 0);
-      if (d != 0) return d > 0;
-    }
-    return false;
-  }
-
-  Future<void> _check() async {
-    setState(() => _status = '检查中…');
-    try {
-      final res = await Dio().get<Map<String, dynamic>>('https://api.github.com/repos/Marginal-Z/YUNYIN/releases/latest');
-      final tag = '${res.data?['tag_name'] ?? ''}';
-      if (!mounted) return;
-      final hasNew = _version != null && tag.isNotEmpty && _newer(tag, _version!);
-      setState(() {
-        _latest = hasNew ? tag : null;
-        _status = hasNew ? '发现新版本 $tag' : '已是最新';
-      });
-      if (hasNew) await launchUrl(Uri.parse('$kRepoUrl/releases/latest'), mode: LaunchMode.externalApplication);
-    } catch (_) {
-      if (mounted) setState(() => _status = '检查失败，请稍后重试');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '当前版本', value: _version ?? ''),
-        Stack(
-          children: [
-            SettingsRow(
-              icon: YIcons.refresh,
-              tile: TileColor.teal,
-              title: '检查更新',
-              value: _status ?? (_latest == null ? null : '发现新版本 $_latest'),
-              onTap: _check,
-            ),
-            Positioned(left: 56, right: 0, top: 0, child: Container(height: 1, color: Palette.of(context).separator)),
-          ],
-        ),
       ],
     );
   }

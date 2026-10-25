@@ -56,6 +56,7 @@ class DesktopHomePage extends StatelessWidget {
                       child: DailyCard(
                         height: 208,
                         desktop: true,
+                        songs: feed.daily,
                         onOpen: () => openPlaylist(context, daily),
                         onPlay: () => playAll(context, feed.daily, title: '每日推荐'),
                       ),

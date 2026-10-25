@@ -97,7 +97,16 @@ class _LyricsPageState extends State<LyricsPage> {
             Positioned.fill(
               child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _toggle),
             ),
-            Positioned(left: 28, right: 28, top: pad.top + 12, bottom: pad.bottom, child: const LyricsView(desktop: false, anchor: 0.34)),
+            // 控件显示时歌词从顶部卡片下方开始，避免与卡片重叠；控件隐藏后歌词铺满全屏。
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 420),
+              curve: Curves.easeOutCubic,
+              left: 28,
+              right: 28,
+              top: pad.top + (_controls ? 168 : 12),
+              bottom: pad.bottom,
+              child: const LyricsView(desktop: false, anchor: 0.3),
+            ),
             Positioned(
               left: 0,
               right: 0,
@@ -206,7 +215,7 @@ class _LyricsPageState extends State<LyricsPage> {
               bottom: 22 + pad.bottom,
               child: fade(
                 top: false,
-                Glass(
+                LiquidGlass(
                   radius: 34,
                   height: 150,
                   padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
