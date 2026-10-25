@@ -105,8 +105,9 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(7); // 色散
     f(0.9); // 边缘高光 90%
     f(regular ? 0.11 : 0); // 色调
-    // 原版模糊：半径 r 物理像素的高斯核，sigma = r / 3。
-    final sigma = (regular ? 16 : 1) / 3 / _dpr;
+    // 原版模糊：半径 r 的高斯核，sigma = r / 3。原版以 1 倍屏的像素设计，这里按逻辑像素换算，
+    // 使高分屏手机上的模糊程度与原版观感一致。
+    final sigma = (regular ? 16 : 1) / 3;
 
     _clip.layer = context.pushClipRect(needsCompositing, offset, (Offset.zero & size).inflate(_pad), (context, offset) {
       final blur = _blur.layer ??= BackdropFilterLayer();

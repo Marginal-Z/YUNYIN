@@ -50,6 +50,10 @@ Future<void> main() async {
   }
 
   await LiquidGlassShader.init();
+  // 液态玻璃着色器的第三方许可证，显示在“开源许可”中。
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(['liquid-glass-studio', 'GLSL-Color-Functions'], await rootBundle.loadString('shaders/THIRD_PARTY_NOTICES.txt'));
+  });
   final settings = AppSettings();
   await settings.init();
   final local = LocalLibrary();
