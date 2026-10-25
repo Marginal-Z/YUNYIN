@@ -197,12 +197,6 @@ class NeteaseSource extends MusicSource {
     debugPrint('netease anonymous: code=${j['code']} hasToken=${token != null} MUSIC_A=${_cookies.containsKey('MUSIC_A')}');
   }
 
-  @visibleForTesting
-  Future<Map<String, dynamic>> debugWeapi(String path, [Map<String, dynamic> data = const {}]) => _weapi(path, data);
-
-  @visibleForTesting
-  Future<Map<String, dynamic>> debugEapi(String path, [Map<String, dynamic> data = const {}]) => _eapi(path, data);
-
   Map<String, dynamic> _parse(Response<String> res) {
     _absorbCookies(res.headers);
     final text = res.data ?? '';
