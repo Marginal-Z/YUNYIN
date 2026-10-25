@@ -14,8 +14,15 @@ jobs:
   check:
     name: 静态检查与测试
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
+      - name: 版本号
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF#refs/tags/v}"; else v="$(grep '^version:' pubspec.yaml | sed -E 's/version: *([^+]*).*/\1/')-dev"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -26,9 +33,11 @@ jobs:
       - run: flutter test
 
   android:
-    name: Android
+    name: Android（arm64-v8a / armeabi-v7a / x86_64 / 通用）
     needs: check
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -46,46 +55,55 @@ jobs:
       - name: 整理产物
         run: |
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk dist/YunYin-android-universal.apk
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/YunYin-$VERSION-android-universal.apk"
           for f in build/app/outputs/flutter-apk/app-*-release.apk; do
             abi=$(basename "$f" | sed -E 's/app-(.*)-release.apk/\1/')
-            cp "$f" "dist/YunYin-android-$abi.apk"
+            cp "$f" "dist/YunYin-$VERSION-android-$abi.apk"
           done
       - uses: actions/upload-artifact@v5
         with:
           name: YunYin-android
-          path: dist/*.apk
+          path: dist/*
 
   linux:
-    name: Linux
+    name: Linux ${{ matrix.arch }}（tar.gz / AppImage / deb）
     needs: check
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
     steps:
       - uses: actions/checkout@v5
       - name: 安装依赖
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev mpv
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev file
+      - name: 安装 Flutter
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter --version
       - run: flutter pub get
       - run: flutter build linux --release
-      - name: 打包
-        run: |
-          mkdir -p dist
-          tar -C build/linux/x64/release/bundle -czf dist/YunYin-linux-x64.tar.gz .
+      - run: tool/linux/package.sh "$VERSION"
       - uses: actions/upload-artifact@v5
         with:
-          name: YunYin-linux
-          path: dist/*.tar.gz
+          name: YunYin-linux-${{ matrix.arch }}
+          path: dist/*
 
   windows:
-    name: Windows
+    name: Windows x64
     needs: check
     runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
     steps:
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
@@ -99,16 +117,41 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dist/YunYin-windows-x64.zip
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "dist/YunYin-$env:VERSION-windows-x64.zip"
       - uses: actions/upload-artifact@v5
         with:
           name: YunYin-windows
-          path: dist/*.zip
+          path: dist/*
+
+  macos:
+    name: macOS（Intel + Apple 芯片通用）
+    needs: check
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: 打包
+        run: |
+          mkdir -p dist
+          app=$(ls -d build/macos/Build/Products/Release/*.app | head -n1)
+          ditto -c -k --keepParent "$app" "dist/YunYin-$VERSION-macos-universal.zip"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: YunYin-macos
+          path: dist/*
 
   release:
     name: 发布
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [android, linux, windows]
+    needs: [android, linux, windows, macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write

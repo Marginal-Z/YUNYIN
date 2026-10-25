@@ -62,6 +62,13 @@ abstract final class NeteaseCrypto {
     return {'params': enc.map((b) => b.toRadixString(16).padLeft(2, '0')).join().toUpperCase()};
   }
 
+  /// 匿名游客注册所需的设备号摘要：与固定密钥异或后取 MD5，再 Base64。
+  static String anonymousIdDigest(String deviceId) {
+    const key = '3go8&\$8*3*3h0k(2)2';
+    final xored = [for (var i = 0; i < deviceId.length; i++) deviceId.codeUnitAt(i) ^ key.codeUnitAt(i % key.length)];
+    return base64.encode(hash.md5.convert(utf8.encode(String.fromCharCodes(xored))).bytes);
+  }
+
   static String md5(String s) => hash.md5.convert(utf8.encode(s)).toString();
 
   static String randomHex(int length) =>

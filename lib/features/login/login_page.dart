@@ -477,6 +477,7 @@ class _QrSheetState extends State<_QrSheet> {
   QrState _state = QrState.waiting;
   Object? _error;
   Timer? _poll;
+  int _failures = 0;
 
   @override
   void initState() {
@@ -513,7 +514,15 @@ class _QrSheetState extends State<_QrSheet> {
           } else if (s == QrState.expired) {
             _poll?.cancel();
           }
-        } catch (_) {}
+          _failures = 0;
+        } catch (e) {
+          // 连续失败（例如触发风控）时把原因展示出来，而不是一直停在“等待扫码”。
+          if (!mounted) return;
+          if (++_failures >= 3) {
+            _poll?.cancel();
+            setState(() => _error = e);
+          }
+        }
       });
     } catch (e) {
       if (mounted) setState(() => _error = e);

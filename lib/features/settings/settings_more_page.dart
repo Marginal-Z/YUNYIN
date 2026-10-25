@@ -12,7 +12,7 @@ import '../../data/sources/source_manager.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
 
-const kAppVersion = '1.0.0';
+const kAppVersion = '1.0.1';
 const kRepoUrl = 'https://github.com/Marginal-Z/YUNYIN';
 
 /// 账号与关于。

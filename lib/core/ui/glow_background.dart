@@ -33,17 +33,20 @@ class GlowBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _GlowPainter(color, glows.map((g) => g.scaled(scale)).toList()),
-      child: child,
+    final bg = RepaintBoundary(
+      child: CustomPaint(painter: _GlowPainter(color, glows, scale), child: const SizedBox.expand()),
     );
+    if (child == null) return bg;
+    return Stack(fit: StackFit.passthrough, children: [Positioned.fill(child: bg), child!]);
   }
 }
 
 class _GlowPainter extends CustomPainter {
-  _GlowPainter(this.color, this.glows);
+  _GlowPainter(this.color, this.source, this.scale) : glows = [for (final g in source) g.scaled(scale)];
 
   final Color color;
+  final List<Glow> source;
+  final double scale;
   final List<Glow> glows;
 
   @override
@@ -72,5 +75,5 @@ class _GlowPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_GlowPainter old) => old.color != color || old.glows != glows;
+  bool shouldRepaint(_GlowPainter old) => old.color != color || !identical(old.source, source) || old.scale != scale;
 }

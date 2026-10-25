@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -600,7 +600,7 @@ class Tag extends StatelessWidget {
   }
 }
 
-/// 正在播放的三根跳动竖条。
+/// 正在播放的三根跳动竖条。以较低帧率跳动，避免持续触发整屏重绘。
 class NowPlayingBars extends StatefulWidget {
   const NowPlayingBars({super.key, required this.color, this.playing = true});
 
@@ -611,54 +611,66 @@ class NowPlayingBars extends StatefulWidget {
   State<NowPlayingBars> createState() => _NowPlayingBarsState();
 }
 
-class _NowPlayingBarsState extends State<NowPlayingBars> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+class _NowPlayingBarsState extends State<NowPlayingBars> {
+  static const _frames = [
+    [9.0, 16.0, 12.0],
+    [14.0, 10.0, 6.0],
+    [6.0, 13.0, 16.0],
+    [12.0, 7.0, 10.0],
+  ];
+  Timer? _timer;
+  int _i = 0;
 
   @override
   void initState() {
     super.initState();
-    if (widget.playing) _c.repeat();
+    _sync();
   }
 
   @override
   void didUpdateWidget(NowPlayingBars old) {
     super.didUpdateWidget(old);
-    if (widget.playing && !_c.isAnimating) _c.repeat();
-    if (!widget.playing && _c.isAnimating) _c.stop();
+    _sync();
+  }
+
+  void _sync() {
+    if (widget.playing && _timer == null) {
+      _timer = Timer.periodic(const Duration(milliseconds: 220), (_) => setState(() => _i = (_i + 1) % _frames.length));
+    } else if (!widget.playing && _timer != null) {
+      _timer!.cancel();
+      _timer = null;
+      _i = 0;
+    }
   }
 
   @override
   void dispose() {
-    _c.dispose();
+    _timer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    const base = [9.0, 16.0, 12.0];
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, _) {
-        return SizedBox(
-          height: 16,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (var i = 0; i < 3; i++) ...[
-                if (i > 0) const SizedBox(width: 3),
-                Container(
-                  width: 3,
-                  height: widget.playing
-                      ? 4 + 12 * (0.5 + 0.5 * math.sin(_c.value * 2 * math.pi + i * 1.9)).clamp(0.0, 1.0)
-                      : base[i],
-                  decoration: BoxDecoration(color: widget.color, borderRadius: BorderRadius.circular(1.5)),
-                ),
-              ],
+    final h = _frames[_i];
+    return RepaintBoundary(
+      child: SizedBox(
+        height: 16,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (var i = 0; i < 3; i++) ...[
+              if (i > 0) const SizedBox(width: 3),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 3,
+                height: h[i],
+                decoration: BoxDecoration(color: widget.color, borderRadius: BorderRadius.circular(1.5)),
+              ),
             ],
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }

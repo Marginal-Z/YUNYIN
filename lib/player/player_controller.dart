@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -77,8 +78,35 @@ class PlayerController extends ChangeNotifier {
 
   bool isLiked(Song s) => _liked.contains(s.key);
 
+  /// 播放引擎初始化失败的原因（例如 Linux 上缺少 libmpv）。为 null 表示正常。
+  String? engineError;
+
   Future<void> init() async {
-    if (!kIsWeb) MediaKit.ensureInitialized();
+    try {
+      await _initEngine();
+    } catch (e) {
+      engineError = e.toString();
+      debugPrint('player engine unavailable: $e');
+    }
+    settings.addListener(_applyNormalize);
+    sources.addListener(_refreshLikes);
+    await _restore();
+    _refreshLikes();
+  }
+
+  /// Linux 发行包会把 libmpv 及其依赖放在可执行文件旁的 lib 目录中，优先使用它。
+  static String? bundledLibmpv() {
+    if (kIsWeb || !Platform.isLinux) return null;
+    final dir = File(Platform.resolvedExecutable).parent.path;
+    for (final name in ['libmpv.so.2', 'libmpv.so.1', 'libmpv.so']) {
+      final f = File('$dir/lib/$name');
+      if (f.existsSync()) return f.path;
+    }
+    return null;
+  }
+
+  Future<void> _initEngine() async {
+    if (!kIsWeb) MediaKit.ensureInitialized(libmpv: bundledLibmpv());
     final p = Player(configuration: const PlayerConfiguration(title: '云音', logLevel: MPVLogLevel.error));
     _player = p;
     _subs.addAll([
@@ -88,7 +116,9 @@ class PlayerController extends ChangeNotifier {
         notifyListeners();
       }),
       p.stream.position.listen((v) {
-        if (!_simulated) position.value = v;
+        // 界面上的进度每 250ms 刷新一次即可，避免每帧重绘（玻璃模糊开销很大）。
+        if (_simulated) return;
+        if ((v - position.value).abs() >= const Duration(milliseconds: 250) || v < position.value) position.value = v;
       }),
       p.stream.duration.listen((v) {
         if (_simulated || v == Duration.zero) return;
@@ -108,11 +138,15 @@ class PlayerController extends ChangeNotifier {
     ]);
     await p.setVolume(settings.volume * 100);
     _applyNormalize();
-    settings.addListener(_applyNormalize);
-    sources.addListener(_refreshLikes);
-    await _restore();
-    _refreshLikes();
   }
+
+  PlayerNotice get _engineNotice => PlayerNotice(
+        '缺少播放组件',
+        message: !kIsWeb && Platform.isLinux
+            ? '没有找到 libmpv。请在终端运行 sudo apt install libmpv2 后重新打开云音。'
+            : '播放引擎初始化失败：$engineError',
+        blocking: true,
+      );
 
   bool? _normalizeApplied;
   void _applyNormalize() {
@@ -437,6 +471,12 @@ class PlayerController extends ChangeNotifier {
       return;
     }
     _simulated = false;
+    if (_player == null) {
+      buffering = false;
+      notifyListeners();
+      _notices.add(_engineNotice);
+      return;
+    }
     if (info.url == null) {
       buffering = false;
       notifyListeners();

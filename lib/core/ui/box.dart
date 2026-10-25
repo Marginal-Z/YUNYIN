@@ -109,9 +109,10 @@ List<double> saturateMatrix(double s) => [
       0, 0, 0, 1, 0,
     ];
 
+/// 玻璃滤镜：模糊 + 饱和度 200%。模糊半径取 24（视觉上与设计稿的 30px 基本一致，开销明显更低）。
 final ui.ImageFilter _glassFilter = ui.ImageFilter.compose(
   outer: ui.ColorFilter.matrix(saturateMatrix(2)),
-  inner: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30, tileMode: TileMode.mirror),
+  inner: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24, tileMode: TileMode.clamp),
 );
 
 /// 是否启用毛玻璃（设置项“窗口毛玻璃效果”）。
@@ -185,7 +186,10 @@ class YBox extends StatelessWidget {
     if (blur && GlassScope.of(context)) {
       content = ClipRRect(
         borderRadius: radius,
-        child: BackdropFilter(filter: _glassFilter, child: content),
+        // 同一页面的多块玻璃共享一次背景采样（需要祖先 BackdropGroup）。
+        child: BackdropGroup.of(context) != null
+            ? BackdropFilter.grouped(filter: _glassFilter, child: content)
+            : BackdropFilter(filter: _glassFilter, child: content),
       );
     } else if (clip) {
       content = ClipRRect(borderRadius: radius, child: content);

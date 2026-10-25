@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=云音
+Name[en]=YunYin
+Comment=第三方网易云音乐客户端
+Exec=yunyin %U
+Icon=yunyin
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+StartupWMClass=yunyin

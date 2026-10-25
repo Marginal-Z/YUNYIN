@@ -60,8 +60,8 @@ class SongRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final player = context.watch<PlayerController>();
-    final isCurrent = player.current == song;
+    final isCurrent = context.select<PlayerController, bool>((c) => c.current == song);
+    final playing = isCurrent && context.select<PlayerController, bool>((c) => c.playing);
     final titleColor = isCurrent && lead == SongLead.number ? p.accentText : p.text;
 
     Widget? leading;
@@ -73,7 +73,7 @@ class SongRow extends StatelessWidget {
           width: 28,
           child: Center(
             child: isCurrent
-                ? NowPlayingBars(color: p.accentText, playing: player.playing)
+                ? NowPlayingBars(color: p.accentText, playing: playing)
                 : Text('${number ?? ''}', style: ts(14, color: p.text2, tabular: true)),
           ),
         );
@@ -154,8 +154,8 @@ class DesktopSongRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final player = context.watch<PlayerController>();
-    final isCurrent = highlightCurrent && player.current == song;
+    final isCurrent = highlightCurrent && context.select<PlayerController, bool>((c) => c.current == song);
+    final playing = isCurrent && context.select<PlayerController, bool>((c) => c.playing);
     return Pressable(
       onTap: onTap,
       onSecondaryTap: () => showSongMenu(context, song),
@@ -176,7 +176,7 @@ class DesktopSongRow extends StatelessWidget {
                   width: 28,
                   child: Center(
                     child: isCurrent
-                        ? NowPlayingBars(color: p.accentText, playing: player.playing)
+                        ? NowPlayingBars(color: p.accentText, playing: playing)
                         : Text('${number ?? ''}', style: ts(14, color: p.text2, tabular: true)),
                   ),
                 ),

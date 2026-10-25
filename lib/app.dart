@@ -81,7 +81,7 @@ class YunyinApp extends StatelessWidget {
                             type: MaterialType.transparency,
                             child: PlaybackShortcuts(
                               enabled: width >= kDesktopBreakpoint,
-                              child: _NoticeListener(child: child!),
+                              child: BackdropGroup(child: _NoticeListener(child: child!)),
                             ),
                           ),
                         ),

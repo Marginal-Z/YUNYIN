@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models.dart';
@@ -106,7 +107,33 @@ class NeteaseSource extends MusicSource {
     if (changed) _saveCookies();
   }
 
-  Future<Map<String, dynamic>> _weapi(String path, [Map<String, dynamic> data = const {}]) async {
+  Future<void>? _anonymous;
+
+  /// 保证请求带有身份（登录用户或匿名游客），并在遇到风控（-462）时重新注册游客重试一次。
+  Future<Map<String, dynamic>> _withIdentity(Future<Map<String, dynamic>> Function() send) async {
+    if (!_cookies.containsKey('MUSIC_U') && !_cookies.containsKey('MUSIC_A')) {
+      try {
+        await (_anonymous ??= ensureAnonymous().whenComplete(() => _anonymous = null));
+      } catch (e) {
+        // 游客注册失败时仍然尝试直接请求。
+        debugPrint('netease anonymous failed: $e');
+      }
+    }
+    try {
+      return await send();
+    } on NeteaseApiException catch (e) {
+      if (e.code != -462 || _cookies.containsKey('MUSIC_U')) rethrow;
+      await ensureAnonymous(force: true);
+      return send();
+    }
+  }
+
+  Future<Map<String, dynamic>> _weapi(String path, [Map<String, dynamic> data = const {}]) {
+    if (path == '/register/anonimous') return _postWeapi(path, data);
+    return _withIdentity(() => _postWeapi(path, data));
+  }
+
+  Future<Map<String, dynamic>> _postWeapi(String path, Map<String, dynamic> data) async {
     final body = {...data, 'csrf_token': _cookies['__csrf'] ?? ''};
     final res = await _dio.post<String>(
       'https://music.163.com/weapi$path',
@@ -124,7 +151,10 @@ class NeteaseSource extends MusicSource {
     return _parse(res);
   }
 
-  Future<Map<String, dynamic>> _eapi(String path, Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> _eapi(String path, Map<String, dynamic> data) =>
+      _withIdentity(() => _postEapi(path, data));
+
+  Future<Map<String, dynamic>> _postEapi(String path, Map<String, dynamic> data) async {
     final header = {
       'osver': '14',
       'deviceId': _cookies['_ntes_nuid'] ?? '',
@@ -138,6 +168,7 @@ class NeteaseSource extends MusicSource {
       'channel': '',
       'requestId': '${DateTime.now().millisecondsSinceEpoch}_0${DateTime.now().microsecond % 1000}',
       if (_cookies['MUSIC_U'] != null) 'MUSIC_U': _cookies['MUSIC_U']!,
+      if (_cookies['MUSIC_U'] == null && _cookies['MUSIC_A'] != null) 'MUSIC_A': _cookies['MUSIC_A']!,
     };
     final res = await _dio.post<String>(
       'https://interface.music.163.com/eapi$path',
@@ -152,6 +183,25 @@ class NeteaseSource extends MusicSource {
     );
     return _parse(res);
   }
+
+  /// 未登录时注册匿名游客，获取 MUSIC_A 令牌；网易云对没有身份的请求会触发风控。
+  Future<void> ensureAnonymous({bool force = false}) async {
+    if (!force && (_cookies.containsKey('MUSIC_U') || _cookies.containsKey('MUSIC_A'))) return;
+    final deviceId = NeteaseCrypto.randomHex(52).toUpperCase();
+    final username = base64.encode(utf8.encode('$deviceId ${NeteaseCrypto.anonymousIdDigest(deviceId)}'));
+    final j = await _postWeapi('/register/anonimous', {'username': username});
+    _absorbCookieString(j['cookie']);
+    final token = j['token'] ?? j['userId'];
+    if (!_cookies.containsKey('MUSIC_A') && j['token'] is String) _cookies['MUSIC_A'] = j['token'] as String;
+    await _saveCookies();
+    debugPrint('netease anonymous: code=${j['code']} hasToken=${token != null} MUSIC_A=${_cookies.containsKey('MUSIC_A')}');
+  }
+
+  @visibleForTesting
+  Future<Map<String, dynamic>> debugWeapi(String path, [Map<String, dynamic> data = const {}]) => _weapi(path, data);
+
+  @visibleForTesting
+  Future<Map<String, dynamic>> debugEapi(String path, [Map<String, dynamic> data = const {}]) => _eapi(path, data);
 
   Map<String, dynamic> _parse(Response<String> res) {
     _absorbCookies(res.headers);
@@ -170,7 +220,7 @@ class NeteaseSource extends MusicSource {
         notifyListeners();
         throw NeteaseApiException(code, '请先登录网易云音乐账号');
       }
-      throw NeteaseApiException(code, msg);
+      throw NeteaseApiException(code, '$msg（$code）');
     }
     return j;
   }
@@ -281,6 +331,8 @@ class NeteaseSource extends MusicSource {
         _cookies[k] = part.substring(i + 1).trim();
       }
     }
+    // 登录后不再携带匿名游客身份。
+    if (_cookies.containsKey('MUSIC_U')) _cookies.remove('MUSIC_A');
     _saveCookies();
   }
 
@@ -523,12 +575,21 @@ class NeteaseSource extends MusicSource {
 
   Future<Map<String, dynamic>> _search(String s, int type, int offset, int limit) async {
     final data = {'s': s, 'type': type, 'limit': limit, 'offset': offset, 'total': true};
-    Map<String, dynamic> j;
-    try {
-      j = await _eapi('/cloudsearch/pc', data);
-    } on NeteaseApiException {
-      j = await _weapi('/search/get', data);
+    Map<String, dynamic>? j;
+    Object? error;
+    for (final attempt in <Future<Map<String, dynamic>> Function()>[
+      () => _weapi('/cloudsearch/get/web', data),
+      () => _eapi('/cloudsearch/pc', data),
+      () => _weapi('/search/get', data),
+    ]) {
+      try {
+        j = await attempt();
+        break;
+      } catch (e) {
+        error = e;
+      }
     }
+    if (j == null) throw error!;
     return Map<String, dynamic>.from((j['result'] as Map?) ?? const {});
   }
 
@@ -591,23 +652,25 @@ class NeteaseSource extends MusicSource {
 
   @override
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
+    Map<String, dynamic>? first(Map<String, dynamic> j) => ((j['data'] as List?)?.firstOrNull as Map?)?.cast<String, dynamic>();
+    final v1 = {'ids': '[${song.id}]', 'level': quality.level, 'encodeType': 'flac'};
     Map<String, dynamic>? item;
-    try {
-      final j = await _eapi('/song/enhance/player/url/v1', {
-        'ids': '[${song.id}]',
-        'level': quality.level,
-        'encodeType': 'flac',
-      });
-      item = ((j['data'] as List?)?.firstOrNull as Map?)?.cast<String, dynamic>();
-    } catch (_) {}
-    if (item == null || item['url'] == null) {
-      final j = await _weapi('/song/enhance/player/url', {'ids': '[${song.id}]', 'br': quality.bitrate});
-      item = ((j['data'] as List?)?.firstOrNull as Map?)?.cast<String, dynamic>();
+    for (final attempt in <Future<Map<String, dynamic>> Function()>[
+      () => _weapi('/song/enhance/player/url/v1', v1),
+      () => _eapi('/song/enhance/player/url/v1', v1),
+      () => _weapi('/song/enhance/player/url', {'ids': '[${song.id}]', 'br': quality.bitrate}),
+    ]) {
+      try {
+        item = first(await attempt());
+        if (item?['url'] != null) break;
+      } catch (e) {
+        debugPrint('netease stream: $e');
+      }
     }
     final url = item?['url'] as String?;
     if (url == null || url.isEmpty) return const StreamInfo();
     final trial = item?['freeTrialInfo'] != null;
-    return StreamInfo(url: url.replaceFirst('http://', 'https://'), trial: trial, quality: quality);
+    return StreamInfo(url: url, trial: trial, quality: quality, headers: const {'User-Agent': _ua, 'Referer': 'https://music.163.com/'});
   }
 
   @override
