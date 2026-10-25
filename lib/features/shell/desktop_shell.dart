@@ -44,11 +44,6 @@ class _DesktopShellState extends State<DesktopShell> {
     super.dispose();
   }
 
-  bool get _typing {
-    final ctx = FocusManager.instance.primaryFocus?.context;
-    return ctx != null && ctx.findAncestorWidgetOfExactType<EditableText>() != null || ctx?.widget is EditableText;
-  }
-
   Future<void> _toggleMini() async {
     if (!isDesktopPlatform) {
       setState(() => _mini = !_mini);
@@ -68,36 +63,21 @@ class _DesktopShellState extends State<DesktopShell> {
     }
   }
 
+  /// 播放相关快捷键在应用层处理（见 PlaybackShortcuts），这里只处理搜索与迷你模式。
   KeyEventResult _onKey(FocusNode node, KeyEvent e) {
-    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
-    final player = context.read<PlayerController>();
+    if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final ctrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
-    final k = e.logicalKey;
-    if (k == LogicalKeyboardKey.space && !ctrl) {
-      if (_typing) return KeyEventResult.ignored;
-      if (e is KeyDownEvent) player.toggle();
-      return KeyEventResult.handled;
-    }
     if (!ctrl) return KeyEventResult.ignored;
-    if (k == LogicalKeyboardKey.arrowLeft) {
-      if (_typing) return KeyEventResult.ignored;
-      player.previous();
-    } else if (k == LogicalKeyboardKey.arrowRight) {
-      if (_typing) return KeyEventResult.ignored;
-      player.next();
-    } else if (k == LogicalKeyboardKey.arrowUp) {
-      player.setVolume(player.volume + 0.05);
-    } else if (k == LogicalKeyboardKey.arrowDown) {
-      player.setVolume(player.volume - 0.05);
-    } else if (k == LogicalKeyboardKey.keyF) {
+    if (e.logicalKey == LogicalKeyboardKey.keyF) {
       if (_mini) _toggleMini();
       _searchFocus.requestFocus();
-    } else if (k == LogicalKeyboardKey.keyM) {
-      _toggleMini();
-    } else {
-      return KeyEventResult.ignored;
+      return KeyEventResult.handled;
     }
-    return KeyEventResult.handled;
+    if (e.logicalKey == LogicalKeyboardKey.keyM) {
+      _toggleMini();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   @override

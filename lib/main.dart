@@ -9,6 +9,7 @@ import 'data/downloads.dart';
 import 'data/sources/source_manager.dart';
 import 'features/desktop/window_controls.dart';
 import 'player/player_controller.dart';
+import 'player/system_media.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +41,7 @@ Future<void> main() async {
   final downloads = DownloadManager(sources, settings);
   await downloads.init();
   player.localLookup = downloads.local;
+  await SystemMediaHandler.attach(player);
 
   runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads));
 }

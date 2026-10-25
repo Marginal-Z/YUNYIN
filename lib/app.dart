@@ -79,7 +79,10 @@ class YunyinApp extends StatelessWidget {
                           data: IconThemeData(color: p.text),
                           child: Material(
                             type: MaterialType.transparency,
-                            child: _NoticeListener(child: child!),
+                            child: PlaybackShortcuts(
+                              enabled: width >= kDesktopBreakpoint,
+                              child: _NoticeListener(child: child!),
+                            ),
                           ),
                         ),
                       ),
@@ -201,4 +204,51 @@ class _NoticeListenerState extends State<_NoticeListener> {
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// 桌面端播放快捷键：空格 播放/暂停，Ctrl+←/→ 切歌，Ctrl+↑/↓ 音量。
+class PlaybackShortcuts extends StatelessWidget {
+  const PlaybackShortcuts({super.key, required this.enabled, required this.child});
+
+  final bool enabled;
+  final Widget child;
+
+  static bool get _typing {
+    final ctx = FocusManager.instance.primaryFocus?.context;
+    if (ctx == null) return false;
+    return ctx.widget is EditableText || ctx.findAncestorWidgetOfExactType<EditableText>() != null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, e) {
+        if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+        final player = context.read<PlayerController>();
+        final ctrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+        final k = e.logicalKey;
+        if (k == LogicalKeyboardKey.space && !ctrl) {
+          if (_typing) return KeyEventResult.ignored;
+          if (e is KeyDownEvent) player.toggle();
+          return KeyEventResult.handled;
+        }
+        if (!ctrl) return KeyEventResult.ignored;
+        if (k == LogicalKeyboardKey.arrowLeft && !_typing) {
+          player.previous();
+        } else if (k == LogicalKeyboardKey.arrowRight && !_typing) {
+          player.next();
+        } else if (k == LogicalKeyboardKey.arrowUp) {
+          player.setVolume(player.volume + 0.05);
+        } else if (k == LogicalKeyboardKey.arrowDown) {
+          player.setVolume(player.volume - 0.05);
+        } else {
+          return KeyEventResult.ignored;
+        }
+        return KeyEventResult.handled;
+      },
+      child: child,
+    );
+  }
 }
