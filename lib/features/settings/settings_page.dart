@@ -17,6 +17,7 @@ import '../../player/player_controller.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
+import 'update_dialog.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -41,11 +42,13 @@ class SettingsPage extends StatelessWidget {
         GroupLabel('播放'),
         PlaybackGroup(),
         GroupLabel('外观'),
-        AppearanceGroup(),
+        AppearanceEntry(),
         GroupLabel('播放源'),
         SourceGroup(),
         GroupLabel('下载与缓存'),
         StorageGroup(),
+        GroupLabel('关于与更新'),
+        UpdateGroup(),
       ],
     );
   }
@@ -156,6 +159,33 @@ class PlaybackGroup extends StatelessWidget {
             if (v == null) return;
             player.setSleepTimer(v == 0 ? null : Duration(minutes: v));
           },
+        ),
+      ],
+    );
+  }
+}
+
+/// 设置首页里的“外观”入口，进入二级页面。
+class AppearanceEntry extends StatelessWidget {
+  const AppearanceEntry({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<AppSettings>();
+    final mode = switch (s.themeMode) {
+      ThemeMode.light => '浅色',
+      ThemeMode.dark => '深色',
+      ThemeMode.system => '跟随系统',
+    };
+    return CardList(
+      indent: 56,
+      children: [
+        SettingsRow(
+          icon: YIcons.sparkle,
+          tile: TileColor.values[s.accent.index],
+          title: '外观',
+          value: '$mode · ${s.accent.label}',
+          onTap: () => go(context, AppearanceRoute()),
         ),
       ],
     );
@@ -280,7 +310,7 @@ Future<void> pickSource(BuildContext context) async {
     context,
     title: '选择播放源',
     selected: sm.current.id,
-    options: [for (final s in sm.sources) (s.id, '${s.name}  ·  ${s.description}')],
+    options: [for (final s in sm.selectable) (s.id, '${s.name}  ·  ${s.description}')],
   );
   if (id == null || !context.mounted) return;
   await sm.select(id);
@@ -453,7 +483,7 @@ class _DesktopSettings extends StatelessWidget {
                   const GroupLabel('播放', top: 14),
                   const PlaybackGroup(desktop: true),
                   const GroupLabel('外观'),
-                  const AppearanceGroup(desktop: true),
+                  const AppearanceEntry(),
                   const GroupLabel('账号与播放源'),
                   const SourceGroup(),
                   const SizedBox(height: 12),
@@ -465,7 +495,7 @@ class _DesktopSettings extends StatelessWidget {
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [GroupLabel('快捷键', top: 14), _ShortcutsGroup(), GroupLabel('下载与缓存'), StorageGroup(desktop: true)],
+                children: [GroupLabel('快捷键', top: 14), _ShortcutsGroup(), GroupLabel('下载与缓存'), StorageGroup(desktop: true), GroupLabel('关于与更新'), UpdateGroup()],
               ),
             ),
           ],

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -49,6 +51,16 @@ class CoverImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final u = url;
     if (u == null || u.isEmpty) return const _Placeholder();
+    if (isLocalPath(u)) {
+      return Image.file(
+        File(u.startsWith('file://') ? Uri.parse(u).toFilePath() : u),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        cacheWidth: imageSize,
+        errorBuilder: (_, _, _) => const _Placeholder(),
+      );
+    }
     // 网易云图片服务按 param 返回对应尺寸的缩略图；取 50 的倍数以提高缓存命中率。
     final px = ((imageSize / 50).ceil() * 50).clamp(50, 1200);
     final sized = u.contains('music.126.net') && !u.contains('?') ? '$u?param=${px}y$px' : u;
@@ -94,3 +106,6 @@ class Avatar extends StatelessWidget {
     );
   }
 }
+
+/// 本地文件路径（导入的本地音乐封面）。
+bool isLocalPath(String u) => u.startsWith('/') || u.startsWith('file://') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(u);

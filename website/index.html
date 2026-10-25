@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>云音 · 第三方网易云音乐客户端</title>
+  <meta name="description" content="云音是一款开源的第三方网易云音乐客户端，支持 Android、Windows、Linux 与 macOS：封面取色、逐字歌词、本地音乐、应用内更新。">
+  <meta name="theme-color" content="#F5F7FC" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B0C10" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="云音 YunYin">
+  <meta property="og:description" content="开源的第三方网易云音乐客户端，支持 Android、Windows、Linux 与 macOS。">
+  <meta property="og:image" content="icon.png">
+  <link rel="icon" href="icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="glow" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <header class="nav">
+    <a class="brand" href="#top"><img src="icon.png" alt="" width="32" height="32"><span>云音</span></a>
+    <nav>
+      <a href="#features">功能</a>
+      <a href="#download">下载</a>
+      <a href="https://github.com/Marginal-Z/YUNYIN" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">开源 · 跨平台 · 无广告</p>
+        <h1>听歌这件事，<br>可以更安静一点。</h1>
+        <p class="lead">云音是一款第三方网易云音乐客户端。轻盈的光晕与玻璃质感界面，随封面变化的播放页，逐字点亮的歌词——在 Android、Windows、Linux 与 macOS 上保持一致。</p>
+        <div class="cta">
+          <a class="btn primary" id="primary-download" href="https://github.com/Marginal-Z/YUNYIN/releases/latest">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></svg>
+            <span id="primary-label">下载云音</span>
+          </a>
+          <a class="btn secondary" href="#download">全部版本</a>
+        </div>
+        <p class="meta" id="release-meta">正在获取最新版本…</p>
+      </div>
+
+      <div class="device" aria-label="云音播放页示意">
+        <div class="phone">
+          <div class="screen">
+            <div class="player-glow"><i></i><i></i><i></i></div>
+            <div class="island"></div>
+            <div class="cover"><span></span></div>
+            <div class="track">
+              <strong>晚风与灯</strong>
+              <small>示意曲目</small>
+            </div>
+            <div class="lyrics">
+              <p class="past">城市慢慢暗下来</p>
+              <p class="now"><span data-text="风把夜色吹得很轻">风把夜色吹得很轻</span></p>
+              <p class="next">路灯一盏一盏亮起</p>
+              <p class="far">像在替谁照亮归途</p>
+            </div>
+            <div class="bar"><span></span></div>
+            <div class="controls">
+              <svg viewBox="0 0 24 24"><path d="M6 6h2.2v12H6zM19 6l-9.5 6 9.5 6z" fill="currentColor"/></svg>
+              <b><svg viewBox="0 0 24 24"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/></svg></b>
+              <svg viewBox="0 0 24 24"><path d="M15.8 6H18v12h-2.2zM5 6l9.5 6L5 18z" fill="currentColor"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <h2>为每天的聆听而设计</h2>
+      <div class="grid">
+        <article>
+          <i class="tile red"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></i>
+          <h3>逐字歌词</h3>
+          <p>当前行随演唱逐字点亮，弹簧曲线平滑滚动；Android 上全屏沉浸显示，控件闲置后自动隐藏。</p>
+        </article>
+        <article>
+          <i class="tile teal"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg></i>
+          <h3>封面取色</h3>
+          <p>播放页背景从专辑封面中提取主色与光晕，切歌时颜色缓缓过渡，文字始终保持清晰。</p>
+        </article>
+        <article>
+          <i class="tile blue"><svg viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v9H4z"/></svg></i>
+          <h3>本地音乐</h3>
+          <p>导入 MP3、FLAC、M4A、OGG、WAV，自动读取歌名、歌手、封面与内嵌歌词，与在线歌曲混合播放。</p>
+        </article>
+        <article>
+          <i class="tile orange"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg></i>
+          <h3>五种主题色</h3>
+          <p>浅色、深色或跟随系统；应用图标也会跟随你选择的主题色一起变化。</p>
+        </article>
+        <article>
+          <i class="tile graphite"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"/></svg></i>
+          <h3>应用内更新</h3>
+          <p>自动检查新版本，下载与你的平台、架构和安装方式匹配的安装包，高版本直接覆盖安装。</p>
+        </article>
+        <article>
+          <i class="tile red"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg></i>
+          <h3>一套代码，四个平台</h3>
+          <p>Flutter 构建，支持设备最高刷新率；播放源是可插拔接口，未来可以接入更多平台。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="download" id="download">
+      <h2>下载</h2>
+      <p class="sub" id="download-sub">所有安装包都来自 GitHub Releases，由 CI 自动构建。</p>
+      <div class="platforms">
+        <article data-os="android">
+          <header><h3>Android</h3><small>Android 7.0 及以上</small></header>
+          <ul>
+            <li><a data-asset="android-arm64-v8a.apk">arm64-v8a<em>大多数手机</em></a></li>
+            <li><a data-asset="android-armeabi-v7a.apk">armeabi-v7a<em>较旧的 32 位设备</em></a></li>
+            <li><a data-asset="android-x86_64.apk">x86_64<em>模拟器、部分平板</em></a></li>
+            <li><a data-asset="android-universal.apk">通用安装包<em>不确定时选择</em></a></li>
+          </ul>
+        </article>
+        <article data-os="windows">
+          <header><h3>Windows</h3><small>Windows 10 / 11 · x64</small></header>
+          <ul>
+            <li><a data-asset="windows-x64-setup.exe">安装程序<em>推荐，支持应用内更新</em></a></li>
+            <li><a data-asset="windows-x64.zip">便携版 zip<em>解压即用</em></a></li>
+          </ul>
+        </article>
+        <article data-os="linux">
+          <header><h3>Linux</h3><small>x64 / arm64</small></header>
+          <ul>
+            <li><a data-asset="linux-x64.deb">deb · x64<em>Debian、Ubuntu</em></a></li>
+            <li><a data-asset="linux-x64.AppImage">AppImage · x64<em>任意发行版</em></a></li>
+            <li><a data-asset="linux-x64.tar.gz">tar.gz · x64<em>便携版</em></a></li>
+            <li><a data-asset="linux-arm64.deb">deb · arm64</a></li>
+            <li><a data-asset="linux-arm64.AppImage">AppImage · arm64</a></li>
+            <li><a data-asset="linux-arm64.tar.gz">tar.gz · arm64</a></li>
+          </ul>
+        </article>
+        <article data-os="mac">
+          <header><h3>macOS</h3><small>Intel 与 Apple 芯片通用</small></header>
+          <ul>
+            <li><a data-asset="macos-universal.zip">macOS 应用 zip<em>首次打开请右键选择“打开”</em></a></li>
+          </ul>
+        </article>
+      </div>
+      <details class="notes" id="notes" hidden>
+        <summary>更新说明</summary>
+        <div id="notes-body"></div>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <p>云音是开源的第三方客户端，与网易云音乐官方无关，仅供学习交流使用。音乐内容版权归各自权利人所有。</p>
+    <p><a href="https://github.com/Marginal-Z/YUNYIN" target="_blank" rel="noopener">源代码</a> · <a href="https://github.com/Marginal-Z/YUNYIN/issues" target="_blank" rel="noopener">反馈问题</a> · <a href="https://github.com/Marginal-Z/YUNYIN/releases" target="_blank" rel="noopener">历史版本</a></p>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

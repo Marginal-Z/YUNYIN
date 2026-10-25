@@ -20,6 +20,21 @@ class AppSettings extends ChangeNotifier {
   bool pushNotify = true;
   bool personalized = true;
   bool showTranslation = false;
+
+  /// 应用图标跟随主题色。
+  bool iconFollowsAccent = true;
+
+  /// 播放页背景按封面取色。
+  bool coverColors = true;
+
+  /// 启动时检查更新。
+  bool autoUpdate = true;
+
+  /// 用户选择跳过的版本号，不再自动提示。
+  String? skippedUpdate;
+
+  /// 歌词字号倍数（0.85 / 1.0 / 1.15）。
+  double lyricScale = 1.0;
   String? downloadDir;
   double volume = 0.65;
   List<String> searchHistory = [];
@@ -42,6 +57,11 @@ class AppSettings extends ChangeNotifier {
     pushNotify = _p.getBool('pushNotify') ?? true;
     personalized = _p.getBool('personalized') ?? true;
     showTranslation = _p.getBool('showTranslation') ?? false;
+    iconFollowsAccent = _p.getBool('iconFollowsAccent') ?? true;
+    coverColors = _p.getBool('coverColors') ?? true;
+    autoUpdate = _p.getBool('autoUpdate') ?? true;
+    skippedUpdate = _p.getString('skippedUpdate');
+    lyricScale = _p.getDouble('lyricScale') ?? 1.0;
     downloadDir = _p.getString('downloadDir');
     volume = _p.getDouble('volume') ?? 0.65;
     searchHistory = _p.getStringList('searchHistory') ?? [];
@@ -89,9 +109,29 @@ class AppSettings extends ChangeNotifier {
         personalized = v;
       case 'showTranslation':
         showTranslation = v;
+      case 'iconFollowsAccent':
+        iconFollowsAccent = v;
+      case 'coverColors':
+        coverColors = v;
+      case 'autoUpdate':
+        autoUpdate = v;
     }
     _p.setBool(key, v);
     notifyListeners();
+  }
+
+  void setLyricScale(double v) {
+    lyricScale = v;
+    _p.setDouble('lyricScale', v);
+    notifyListeners();
+  }
+
+  /// 当前应使用的图标颜色。
+  AccentColor get iconAccent => iconFollowsAccent ? accent : AccentColor.red;
+
+  void skipUpdate(String version) {
+    skippedUpdate = version;
+    _p.setString('skippedUpdate', version);
   }
 
   void setDownloadDir(String dir) {

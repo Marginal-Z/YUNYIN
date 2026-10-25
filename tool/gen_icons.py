@@ -5,6 +5,14 @@ from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RED = (0xDC, 0x10, 0x31, 255)
+# 主题色（与应用内“主题色”一致）：名称 → RGBA
+THEMES = {
+    'red': (0xDC, 0x10, 0x31, 255),
+    'blue': (0x2F, 0x7D, 0xE1, 255),
+    'teal': (0x14, 0x91, 0x7F, 255),
+    'orange': (0xD9, 0x68, 0x0A, 255),
+    'graphite': (0x63, 0x63, 0x66, 255),
+}
 WHITE = (255, 255, 255, 255)
 SS = 4  # 超采样倍数
 
@@ -49,15 +57,42 @@ def icon(size, rounded=True, bg=RED, fg=WHITE, padding=0.0):
     return img.resize((size, size), Image.LANCZOS)
 
 
-def foreground(size):
+def foreground(size, cut=RED):
     """Android 自适应图标前景：108dp 画布，图形占中间 ~62%。"""
     s = size * SS
     img = Image.new('RGBA', (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     inner = s * 0.62
     off = (s - inner) / 2
-    _mark(d, SS, off, off, inner / 100 / SS, WHITE, RED)
+    _mark(d, SS, off, off, inner / 100 / SS, WHITE, cut)
     return img.resize((size, size), Image.LANCZOS)
+
+
+def themed_variants():
+    """每种主题色一套图标：桌面端运行时切换窗口图标，Android 通过 activity-alias 切换桌面图标。"""
+    res = os.path.join(ROOT, 'android', 'app', 'src', 'main', 'res')
+    colors = ['<?xml version="1.0" encoding="utf-8"?>', '<resources>',
+              '    <color name="ic_launcher_background">#DC1031</color>']
+    for name, rgba in THEMES.items():
+        img = icon(512, bg=rgba)
+        save(img, 'assets', 'icon', 'themes', f'{name}.png')
+        img.save(os.path.join(ROOT, 'assets', 'icon', 'themes', f'{name}.ico'),
+                 sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+        for density, px in {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}.items():
+            save(icon(px, bg=rgba), 'android', 'app', 'src', 'main', 'res', f'mipmap-{density}', f'ic_launcher_{name}.png')
+        for density, px in {'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 432}.items():
+            save(foreground(px, cut=rgba), 'android', 'app', 'src', 'main', 'res', f'mipmap-{density}', f'ic_launcher_foreground_{name}.png')
+        with open(os.path.join(res, 'mipmap-anydpi-v26', f'ic_launcher_{name}.xml'), 'w') as f:
+            f.write('<?xml version="1.0" encoding="utf-8"?>\n'
+                    '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+                    f'    <background android:drawable="@color/ic_launcher_bg_{name}"/>\n'
+                    f'    <foreground android:drawable="@mipmap/ic_launcher_foreground_{name}"/>\n'
+                    f'    <monochrome android:drawable="@mipmap/ic_launcher_foreground_{name}"/>\n'
+                    '</adaptive-icon>\n')
+        colors.append(f'    <color name="ic_launcher_bg_{name}">#{rgba[0]:02X}{rgba[1]:02X}{rgba[2]:02X}</color>')
+    colors.append('</resources>')
+    with open(os.path.join(res, 'values', 'ic_launcher_background.xml'), 'w') as f:
+        f.write('\n'.join(colors) + '\n')
 
 
 def save(img, *parts):
@@ -86,9 +121,7 @@ def main():
                 '</adaptive-icon>\n')
     values = os.path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'values')
     os.makedirs(values, exist_ok=True)
-    with open(os.path.join(values, 'ic_launcher_background.xml'), 'w') as f:
-        f.write('<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
-                '    <color name="ic_launcher_background">#DC1031</color>\n</resources>\n')
+    themed_variants()
 
     # Windows
     ico = icon(256)

@@ -16,6 +16,7 @@ import '../common/actions.dart';
 import '../common/layout.dart';
 import '../common/song_row.dart';
 import '../shell/nav.dart';
+import 'local_import.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -58,7 +59,7 @@ class _LibraryPageState extends State<LibraryPage> {
             0 => const LibraryOverview(),
             1 => const SubscribedAlbums(),
             2 => const FollowedArtists(),
-            _ => const DownloadedList(),
+            _ => const LocalMusicList(),
           },
         ),
       ],

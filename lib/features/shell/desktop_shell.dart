@@ -279,6 +279,12 @@ class _Sidebar extends StatelessWidget {
                     active: active == 'collection:downloaded',
                     onTap: () => open(CollectionRoute(PlaylistKind.downloaded)),
                   ),
+                  _SideItem(
+                    icon: YIcons.folder,
+                    label: '本地音乐',
+                    active: active == 'collection:local',
+                    onTap: () => open(CollectionRoute(PlaylistKind.local)),
+                  ),
                   _SideItem(icon: YIcons.library, label: '专辑与歌手', active: active == 'collections', onTap: () => open(MyCollectionsRoute())),
                   label('我的歌单', 18),
                   _SidePlaylists(key: ValueKey(sm.generation), source: source, active: active),

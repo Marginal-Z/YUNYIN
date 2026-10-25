@@ -50,6 +50,19 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: 发布签名
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          # 所有版本必须使用同一把密钥签名，新版本才能覆盖安装。
+          if [ -z "$KEYSTORE" ]; then
+            if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "::error::发布版本需要配置 ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_PASSWORD（见 tool/android/set_signing_secrets.sh）"; exit 1; fi
+            echo "::warning::未配置发布密钥，本次构建使用调试签名"
+            exit 0
+          fi
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          { echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore"; echo "ANDROID_KEYSTORE_PASSWORD=$PASSWORD"; } >> "$GITHUB_ENV"
       - run: flutter build apk --release --split-per-abi
       - run: flutter build apk --release
       - name: 整理产物
@@ -118,6 +131,13 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "dist/YunYin-$env:VERSION-windows-x64.zip"
+      - name: 安装程序（Inno Setup）
+        shell: pwsh
+        run: |
+          choco upgrade innosetup -y --no-progress | Out-Null
+          $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe", "$env:ProgramFiles\Inno Setup *\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -Last 1
+          & $iscc.FullName /Qp tool/windows/yunyin.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v5
         with:
           name: YunYin-windows
@@ -222,11 +242,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true
+      - name: 更新说明（取自 CHANGELOG.md，同时显示在应用内更新弹窗中）
+        run: |
+          v="${GITHUB_REF#refs/tags/v}"
+          awk -v v="$v" '/^## /{p = ($2 == "v" v)} p' CHANGELOG.md | tail -n +2 > notes.md
+          test -s notes.md || echo "云音 v$v" > notes.md
+          cat notes.md
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: notes.md

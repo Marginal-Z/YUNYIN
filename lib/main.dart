@@ -7,9 +7,12 @@ import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'core/app_icon.dart';
+import 'core/update/updater.dart';
 import 'core/settings.dart';
 import 'debug/benchmark.dart';
 import 'data/downloads.dart';
+import 'data/local_library.dart';
 import 'data/sources/source_manager.dart';
 import 'features/desktop/window_controls.dart';
 import 'player/player_controller.dart';
@@ -46,7 +49,9 @@ Future<void> main() async {
 
   final settings = AppSettings();
   await settings.init();
-  final sources = SourceManager(SourceRegistry.create());
+  final local = LocalLibrary();
+  await local.init();
+  final sources = SourceManager(SourceRegistry.create(local));
   await sources.init();
   final player = PlayerController(sources, settings);
   await player.init();
@@ -54,7 +59,10 @@ Future<void> main() async {
   await downloads.init();
   player.localLookup = downloads.local;
   await SystemMediaHandler.attach(player);
+  AppIconController(settings);
+  final updater = UpdateManager();
+  await updater.init();
 
-  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads));
+  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, updater: updater));
   if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
 }

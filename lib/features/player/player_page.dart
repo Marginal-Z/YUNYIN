@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/cover_colors.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
@@ -80,7 +81,7 @@ class PlayerPage extends StatelessWidget {
                       radius: 30,
                       imageSize: 800,
                       shadows: [
-                        Shadow2(0, 28, 56, CoverArt.tint(song.coverUrl).withValues(alpha: 0.35)),
+                        Shadow2(0, 28, 56, CoverThemed.shadowOf(context).withValues(alpha: 0.35)),
                         const Shadow2(0, 4, 10, Color.fromRGBO(0, 0, 0, 0.08)),
                       ],
                     ),

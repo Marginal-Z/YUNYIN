@@ -13,22 +13,35 @@ import 'core/ui/icons.dart';
 import 'core/ui/text.dart';
 import 'core/ui/widgets.dart';
 import 'data/downloads.dart';
+import 'data/local_library.dart';
 import 'data/sources/source_manager.dart';
 import 'features/common/layout.dart';
 import 'features/shell/desktop_shell.dart';
 import 'features/shell/mobile_shell.dart';
+import 'features/settings/update_dialog.dart';
 import 'features/shell/nav.dart';
 import 'player/player_controller.dart';
+import 'core/update/updater.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 class YunyinApp extends StatelessWidget {
-  const YunyinApp({super.key, required this.settings, required this.sources, required this.player, required this.downloads});
+  const YunyinApp({
+    super.key,
+    required this.settings,
+    required this.sources,
+    required this.player,
+    required this.downloads,
+    required this.local,
+    required this.updater,
+  });
 
   final AppSettings settings;
   final SourceManager sources;
   final PlayerController player;
   final DownloadManager downloads;
+  final LocalLibrary local;
+  final UpdateManager updater;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +51,8 @@ class YunyinApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: sources),
         ChangeNotifierProvider.value(value: player),
         ChangeNotifierProvider.value(value: downloads),
+        ChangeNotifierProvider.value(value: local),
+        ChangeNotifierProvider.value(value: updater),
         ChangeNotifierProvider(create: (_) => AppNav()),
       ],
       child: Consumer<AppSettings>(
@@ -155,6 +170,18 @@ class _NoticeListenerState extends State<_NoticeListener> {
   void initState() {
     super.initState();
     _sub = context.read<PlayerController>().notices.listen(_show);
+    _autoUpdate();
+  }
+
+  /// 启动几秒后静默检查更新，有新版本（且未被跳过）时弹出更新说明。
+  Future<void> _autoUpdate() async {
+    final settings = context.read<AppSettings>();
+    final updater = context.read<UpdateManager>();
+    if (!settings.autoUpdate || updater.kind == InstallKind.unsupported) return;
+    await Future<void>.delayed(const Duration(seconds: 5));
+    if (!await updater.check() || settings.skippedUpdate == updater.latest!.version) return;
+    final ctx = rootNavigatorKey.currentContext;
+    if (ctx != null && ctx.mounted) await showUpdateDialog(ctx);
   }
 
   @override

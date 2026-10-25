@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/cover_colors.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
@@ -9,6 +10,8 @@ import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/downloads.dart';
+import '../../data/local_library.dart';
+import '../../data/sources/local/local_source.dart';
 import '../../data/models.dart';
 import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
@@ -59,9 +62,9 @@ Route<T> fadeRoute<T>(Widget page) => PageRouteBuilder<T>(
 void openPlayer(BuildContext context) {
   if (context.read<PlayerController>().current == null) return;
   if (LayoutScope.isDesktop(context)) {
-    Navigator.of(context, rootNavigator: true).push(slideUpRoute(const DesktopPlayerPage()));
+    Navigator.of(context, rootNavigator: true).push(slideUpRoute(const PlayerThemed(child: DesktopPlayerPage())));
   } else {
-    Navigator.of(context, rootNavigator: true).push(slideUpRoute(const PlayerPage()));
+    Navigator.of(context, rootNavigator: true).push(slideUpRoute(const PlayerThemed(child: PlayerPage())));
   }
 }
 
@@ -70,7 +73,7 @@ void openLyrics(BuildContext context) {
     openPlayer(context);
     return;
   }
-  Navigator.of(context, rootNavigator: true).push(fadeRoute(const LyricsPage()));
+  Navigator.of(context, rootNavigator: true).push(fadeRoute(const PlayerThemed(child: LyricsPage())));
 }
 
 void openQueue(BuildContext context) {
@@ -83,7 +86,7 @@ void openQueue(BuildContext context) {
       opaque: false,
       transitionDuration: const Duration(milliseconds: 360),
       reverseTransitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (_, _, _) => const QueueSheet(),
+      pageBuilder: (_, _, _) => const PlayerThemed(child: QueueSheet()),
       transitionsBuilder: (_, a, _, child) => child,
     ),
   );
@@ -128,6 +131,7 @@ Future<void> showSongMenu(BuildContext context, Song song) async {
   final downloaded = dl.isDownloaded(song);
   final desktop = LayoutScope.isDesktop(context);
 
+  final isLocal = song.sourceId == LocalSource.sourceId;
   final actions = <(YIconData, String, VoidCallback)>[
     (
       YIcons.queue,
@@ -145,23 +149,34 @@ Future<void> showSongMenu(BuildContext context, Song song) async {
         Toast.show(context, '已加入播放队列');
       },
     ),
-    (liked ? YIcons.heart : YIcons.heartOutline, liked ? '取消喜欢' : '喜欢', () => player.toggleLike(song)),
-    if (dl.supported)
+    if (isLocal)
       (
-        YIcons.download,
-        downloaded ? '删除下载' : '下载',
+        YIcons.trash,
+        '从本地音乐移除',
         () {
-          if (downloaded) {
-            dl.remove(song);
-            Toast.show(context, '已删除下载');
-          } else {
-            downloadSongs(context, [song]);
-          }
+          context.read<LocalLibrary>().remove(song);
+          Toast.show(context, '已从本地音乐移除');
         },
-      ),
-    if (source.supports(SourceFeature.comments)) (YIcons.comment, '评论', () => openComments(context, song)),
-    if (song.artists.isNotEmpty) (YIcons.user, '歌手：${song.artistText}', () => openArtist(context, song.artists.first)),
-    if (song.album != null && song.album!.name.isNotEmpty) (YIcons.library, '专辑：${song.album!.name}', () => openAlbum(context, song.album!)),
+      )
+    else ...[
+      (liked ? YIcons.heart : YIcons.heartOutline, liked ? '取消喜欢' : '喜欢', () => player.toggleLike(song)),
+      if (dl.supported)
+        (
+          YIcons.download,
+          downloaded ? '删除下载' : '下载',
+          () {
+            if (downloaded) {
+              dl.remove(song);
+              Toast.show(context, '已删除下载');
+            } else {
+              downloadSongs(context, [song]);
+            }
+          },
+        ),
+      if (source.supports(SourceFeature.comments)) (YIcons.comment, '评论', () => openComments(context, song)),
+      if (song.artists.isNotEmpty) (YIcons.user, '歌手：${song.artistText}', () => openArtist(context, song.artists.first)),
+      if (song.album != null && song.album!.name.isNotEmpty) (YIcons.library, '专辑：${song.album!.name}', () => openAlbum(context, song.album!)),
+    ],
   ];
 
   await showGeneralDialog<void>(

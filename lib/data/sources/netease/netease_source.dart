@@ -358,26 +358,56 @@ class NeteaseSource extends MusicSource {
 
   @override
   Future<void> sendSmsCode(String phone, {String countryCode = '86'}) async {
-    await _weapi('/sms/captcha/sent', {'cellphone': phone, 'ctcode': countryCode});
+    await _weapi('/sms/captcha/sent', {'cellphone': phone, 'ctcode': countryCode, 'secrete': 'music_middleuser_pclogin'});
   }
 
+  /// 旧的 /login/cellphone 会被风控直接拒绝（-462），使用新版 /w/login/cellphone。
   @override
   Future<void> loginWithSms(String phone, String code, {String countryCode = '86'}) async {
-    final j = await _weapi('/login/cellphone', {'phone': phone, 'countrycode': countryCode, 'captcha': code, 'rememberLogin': 'true'});
-    _absorbCookieString(j['cookie']);
-    await _refreshAccount();
+    final data = {'type': '1', 'https': 'true', 'phone': phone, 'countrycode': countryCode, 'captcha': code, 'remember': 'true'};
+    Map<String, dynamic> j;
+    try {
+      j = await _weapi('/w/login/cellphone', data);
+    } on NeteaseApiException catch (e) {
+      // 两种通道的风控策略不同，被拦截时换另一种再试一次。
+      if (e.code != -462 && e.code != 8821) rethrow;
+      j = await _eapi('/w/login/cellphone', data);
+    }
+    await _finishLogin(j);
   }
 
   @override
   Future<void> loginWithPassword(String account, String password, {String countryCode = '86'}) async {
     final pwd = NeteaseCrypto.md5(password);
-    final Map<String, dynamic> j;
-    if (account.contains('@')) {
-      j = await _weapi('/login', {'username': account, 'password': pwd, 'rememberLogin': 'true'});
-    } else {
-      j = await _weapi('/login/cellphone', {'phone': account, 'countrycode': countryCode, 'password': pwd, 'rememberLogin': 'true'});
+    try {
+      final Map<String, dynamic> j;
+      if (account.contains('@')) {
+        j = await _weapi('/w/login', {'type': '0', 'https': 'true', 'username': account, 'password': pwd, 'rememberLogin': 'true'});
+      } else {
+        j = await _eapi('/w/login/cellphone', {
+          'type': '1',
+          'https': 'true',
+          'phone': account,
+          'countrycode': countryCode,
+          'password': pwd,
+          'remember': 'true',
+        });
+      }
+      await _finishLogin(j);
+    } on NeteaseApiException catch (e) {
+      // 网易云对第三方客户端的手机号 + 密码登录做了风控。
+      if (e.code == -462 || e.code == 10004 || e.code == 8821) {
+        throw NeteaseApiException(e.code, '网易云限制了密码登录，请改用验证码登录或扫码登录');
+      }
+      if (e.code == 501) throw NeteaseApiException(e.code, '账号不存在');
+      if (e.code == 502) throw NeteaseApiException(e.code, '密码错误');
+      rethrow;
     }
+  }
+
+  Future<void> _finishLogin(Map<String, dynamic> j) async {
     _absorbCookieString(j['cookie']);
+    if (!_cookies.containsKey('MUSIC_U')) throw NeteaseApiException(-1, '登录失败，请稍后重试');
     await _refreshAccount();
   }
 

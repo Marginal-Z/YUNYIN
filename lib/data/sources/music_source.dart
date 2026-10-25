@@ -51,6 +51,9 @@ abstract class MusicSource extends ChangeNotifier {
 
   bool supports(SourceFeature f) => features.contains(f);
 
+  /// 是否出现在“切换播放源”列表中（本地音乐等辅助源为 false）。
+  bool get selectable => true;
+
   /// 初始化（读取本地登录状态等）。
   Future<void> init() async {}
 

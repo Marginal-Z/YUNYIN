@@ -132,6 +132,15 @@ class SettingsMoreRoute extends AppRoute {
   String get sideKey => 'settings';
 }
 
+/// 外观（设置的二级页面）。
+class AppearanceRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
 class LoginRoute extends AppRoute {
   @override
   Chrome get chrome => Chrome.none;

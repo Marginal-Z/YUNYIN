@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/cover_colors.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/glow_background.dart';
@@ -106,7 +107,7 @@ class DesktopPlayerPage extends StatelessWidget {
                                     radius: 34,
                                     imageSize: 900,
                                     shadows: [
-                                      Shadow2(0, 32, 64, CoverArt.tint(song.coverUrl).withValues(alpha: 0.35)),
+                                      Shadow2(0, 32, 64, CoverThemed.shadowOf(context).withValues(alpha: 0.35)),
                                       const Shadow2(0, 4, 10, Color.fromRGBO(0, 0, 0, 0.08)),
                                     ],
                                   );
@@ -155,7 +156,7 @@ class DesktopPlayerPage extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const Expanded(flex: 56, child: LyricsView(desktop: true, anchor: 0.32, padding: EdgeInsets.fromLTRB(24, 120, 72, 220))),
+                    const Expanded(flex: 56, child: LyricsView(desktop: true, anchor: 0.32, padding: EdgeInsets.fromLTRB(24, 0, 72, 0))),
                   ],
                 ),
               ),

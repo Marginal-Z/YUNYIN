@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:provider/provider.dart';
+
+import '../settings.dart';
 import '../theme/palette.dart';
 import 'box.dart';
 import 'icons.dart';
@@ -897,30 +900,32 @@ class AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = context.select<AppSettings, AccentColor>((s) => s.iconAccent);
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(painter: _LogoPainter(gradient)),
+      child: CustomPaint(painter: _LogoPainter(gradient, accent)),
     );
   }
 }
 
 class _LogoPainter extends CustomPainter {
-  _LogoPainter(this.gradient);
+  _LogoPainter(this.gradient, this.accent);
 
   final bool gradient;
+  final AccentColor accent;
 
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width / 100;
     canvas.scale(s);
-    const red = Color(0xFFDC1031);
+    final red = accent.base;
     final bgPaint = Paint();
     if (gradient) {
-      bgPaint.shader = const LinearGradient(
+      bgPaint.shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFFF2415B), red],
+        colors: [accent.buttonTop, red],
       ).createShader(const Rect.fromLTWH(0, 0, 100, 100));
     } else {
       bgPaint.color = red;
@@ -940,5 +945,5 @@ class _LogoPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_LogoPainter old) => old.gradient != gradient;
+  bool shouldRepaint(_LogoPainter old) => old.gradient != gradient || old.accent != accent;
 }

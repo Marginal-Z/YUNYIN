@@ -8,6 +8,8 @@ import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/downloads.dart';
+import '../../data/local_library.dart';
+import '../../data/sources/local/local_source.dart';
 import '../../data/models.dart';
 import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
@@ -15,6 +17,7 @@ import '../../player/player_controller.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
 import '../common/song_row.dart';
+import '../library/local_import.dart';
 import '../shell/nav.dart';
 
 /// 加载歌单 / 专辑 / 电台 / 我喜欢 / 最近播放 / 已下载，统一成 [PlaylistInfo]。
@@ -22,6 +25,7 @@ Future<PlaylistInfo> loadCollection(BuildContext context, AppRoute route) async 
   final sm = context.read<SourceManager>();
   final player = context.read<PlayerController>();
   final downloads = context.read<DownloadManager>();
+  final local = context.read<LocalLibrary>();
   switch (route) {
     case PlaylistRoute(:final id, :final preview, :final sourceId):
       if (preview?.tracks != null) return preview!;
@@ -63,8 +67,18 @@ Future<PlaylistInfo> loadCollection(BuildContext context, AppRoute route) async 
             creator: '本机',
             tracks: songs,
           );
-        case PlaylistKind.downloaded:
         case PlaylistKind.local:
+          final songs = local.songs;
+          return PlaylistInfo(
+            id: 'local',
+            sourceId: LocalSource.sourceId,
+            name: '本地音乐',
+            kind: PlaylistKind.local,
+            cover: songs.where((s) => s.coverUrl != null).firstOrNull?.coverUrl,
+            creator: '本机',
+            tracks: songs,
+          );
+        case PlaylistKind.downloaded:
           final songs = downloads.items;
           return PlaylistInfo(
             id: 'downloaded',
@@ -117,13 +131,15 @@ class PlaylistPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gen = context.select<SourceManager, int>((s) => s.generation);
+    // 本地音乐导入后刷新列表。
+    final localCount = route is CollectionRoute ? context.select<LocalLibrary, int>((l) => l.songs.length) : 0;
     final desktop = LayoutScope.isDesktop(context);
     final preview = switch (route) {
       PlaylistRoute(:final preview) => preview,
       _ => null,
     };
     return AsyncView<PlaylistInfo>(
-      keyValue: route is CollectionRoute ? gen : null,
+      keyValue: route is CollectionRoute ? '$gen-$localCount' : null,
       load: () => loadCollection(context, route),
       loading: desktop ? _DesktopPlaylist.loading(preview) : _MobilePlaylist.loading(context, preview),
       builder: (context, pl, reload) => desktop ? _DesktopPlaylist(playlist: pl) : _MobilePlaylist(playlist: pl),
@@ -213,6 +229,7 @@ class _MobilePlaylist extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 18),
+        if (playlist.kind == PlaylistKind.local) ...[const LocalImportBar(), const SizedBox(height: 18)],
       ],
       slivers: [
         if (songs.isEmpty && playlist.id.isNotEmpty)
@@ -345,6 +362,7 @@ class _DesktopPlaylist extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 26),
+        if (playlist.kind == PlaylistKind.local) ...[const LocalImportBar(), const SizedBox(height: 20)],
       ],
       slivers: [
         SliverCard(
