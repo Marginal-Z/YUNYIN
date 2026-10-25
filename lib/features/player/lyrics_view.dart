@@ -136,36 +136,40 @@ class _LyricsViewState extends State<LyricsView> {
         }
         return NotificationListener<ScrollNotification>(
           onNotification: _onScroll,
-          child: ShaderMask(
-            shaderCallback: (r) => const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent],
-              stops: [0, 0.1, 0.84, 1],
-            ).createShader(r),
-            blendMode: BlendMode.dstIn,
-            child: SingleChildScrollView(
-              controller: _scroll,
-              padding: widget.padding.add(
-                synced ? EdgeInsets.only(top: c.maxHeight * widget.anchor, bottom: c.maxHeight * (1 - widget.anchor)) : EdgeInsets.zero,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < lyrics.lines.length; i++)
-                    _LyricLineView(
-                      key: _keys[i],
-                      line: lyrics.lines[i],
-                      end: i + 1 < lyrics.lines.length ? lyrics.lines[i + 1].time : lyrics.lines[i].time + const Duration(seconds: 6),
-                      distance: synced ? i - _active : 3,
-                      style: base,
-                      dimScale: dimScale,
-                      showTranslation: showTr,
-                      translationSize: (widget.desktop ? 20.0 : 16.0) * scale,
-                      gap: (widget.desktop ? 22.0 : 20.0) * scale,
-                      onTap: synced ? () => _player.seek(lyrics.lines[i].time) : null,
-                    ),
-                ],
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            child: ShaderMask(
+              shaderCallback: (r) => const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent],
+                stops: [0, 0.1, 0.84, 1],
+              ).createShader(r),
+              blendMode: BlendMode.dstIn,
+              // 歌词靠自动滚动与拖动浏览，不显示滚动条。
+              child: SingleChildScrollView(
+                controller: _scroll,
+                padding: widget.padding.add(
+                  synced ? EdgeInsets.only(top: c.maxHeight * widget.anchor, bottom: c.maxHeight * (1 - widget.anchor)) : EdgeInsets.zero,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < lyrics.lines.length; i++)
+                      _LyricLineView(
+                        key: _keys[i],
+                        line: lyrics.lines[i],
+                        end: i + 1 < lyrics.lines.length ? lyrics.lines[i + 1].time : lyrics.lines[i].time + const Duration(seconds: 6),
+                        distance: synced ? i - _active : 3,
+                        style: base,
+                        dimScale: dimScale,
+                        showTranslation: showTr,
+                        translationSize: (widget.desktop ? 20.0 : 16.0) * scale,
+                        gap: (widget.desktop ? 22.0 : 20.0) * scale,
+                        onTap: synced ? () => _player.seek(lyrics.lines[i].time) : null,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
