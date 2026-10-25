@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -34,6 +36,8 @@ class _MobileShellState extends State<MobileShell> {
     final showNav = chrome == Chrome.full || chrome == Chrome.navOnly;
     final showMini = hasSong && (chrome == Chrome.full || chrome == Chrome.miniOnly);
 
+    // 横屏或平板上导航栏与迷你播放条不必铺满整行，限制在 560 宽并居中。
+    final barInset = math.max(0.0, (MediaQuery.sizeOf(context).width - 560) / 2);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -63,8 +67,8 @@ class _MobileShellState extends State<MobileShell> {
           AnimatedPositioned(
             duration: const Duration(milliseconds: 260),
             curve: Curves.easeOutCubic,
-            left: 12,
-            right: 12,
+            left: 12 + barInset,
+            right: 12 + barInset,
             bottom: chrome == Chrome.miniOnly ? bottom + 2 : bottom + 74,
             child: IgnorePointer(
               ignoring: !showMini,
@@ -74,8 +78,8 @@ class _MobileShellState extends State<MobileShell> {
           AnimatedPositioned(
             duration: const Duration(milliseconds: 260),
             curve: Curves.easeOutCubic,
-            left: 16,
-            right: 16,
+            left: 16 + barInset,
+            right: 16 + barInset,
             bottom: showNav ? bottom : -100,
             child: const _BottomBar(),
           ),
