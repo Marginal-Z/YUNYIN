@@ -12,7 +12,9 @@ import 'package:yunyin/data/sources/netease/netease_source.dart';
 void main() {
   test('网易云歌曲可以真正播放出声', () async {
     SharedPreferences.setMockInitialValues({});
-    MediaKit.ensureInitialized();
+    // 可用 --dart-define=LIBMPV=<路径> 指定随包附带的 libmpv。
+    const lib = String.fromEnvironment('LIBMPV');
+    MediaKit.ensureInitialized(libmpv: lib.isEmpty ? null : lib);
     final s = NeteaseSource();
     await s.init();
     final chart = await s.soaringChart();

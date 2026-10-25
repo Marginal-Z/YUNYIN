@@ -94,12 +94,13 @@ class PlayerController extends ChangeNotifier {
     _refreshLikes();
   }
 
-  /// Linux 发行包会把 libmpv 及其依赖放在可执行文件旁的 lib 目录中，优先使用它。
+  /// Linux 便携包（tar.gz / AppImage）把 libmpv 及其依赖放在可执行文件旁的 lib/mpv 中，优先使用它；
+  /// 否则使用系统安装的 libmpv（deb 包通过依赖自动安装）。
   static String? bundledLibmpv() {
     if (kIsWeb || !Platform.isLinux) return null;
     final dir = File(Platform.resolvedExecutable).parent.path;
     for (final name in ['libmpv.so.2', 'libmpv.so.1', 'libmpv.so']) {
-      final f = File('$dir/lib/$name');
+      final f = File('$dir/lib/mpv/$name');
       if (f.existsSync()) return f.path;
     }
     return null;

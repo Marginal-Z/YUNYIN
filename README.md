@@ -66,15 +66,27 @@ flutter build windows --release    # Windows（需在 Windows 上构建）
 flutter build linux --release      # Linux
 ```
 
-Linux 构建需要：`clang cmake ninja-build pkg-config libgtk-3-dev libmpv-dev`；运行需要 `libmpv2`（Debian / Ubuntu：`sudo apt install libmpv2`）。
+Linux 构建需要：`clang cmake ninja-build pkg-config libgtk-3-dev libmpv-dev`。
 
-推送到 `main` 后 GitHub Actions 会自动执行检查与测试，并构建 Android APK、Windows zip、Linux tar.gz；推送 `v*` 标签会把三端产物发布到 Releases。
+推送到 `main` 后 GitHub Actions 会自动执行检查与测试并构建各平台安装包；推送 `v*` 标签会发布到 Releases。
+
+### 发行包与架构
+
+| 平台 | 架构 | 文件 | 说明 |
+| --- | --- | --- | --- |
+| Android | arm64-v8a / armeabi-v7a / x86_64 | `*-android-<abi>.apk` | 绝大多数手机选 arm64-v8a；不确定就用 universal |
+| Android | 全部 | `*-android-universal.apk` | 体积较大，任何设备都能装 |
+| Windows | x64 | `*-windows-x64.zip` | 解压运行 `yunyin.exe`；Windows on ARM 可通过系统的 x64 转译运行 |
+| Linux | x64 / arm64 | `*-linux-<arch>.deb` | `sudo apt install ./文件名.deb`，自动安装 libmpv |
+| Linux | x64 / arm64 | `*-linux-<arch>.AppImage` | 便携版，内置 libmpv，`chmod +x` 后直接运行 |
+| Linux | x64 / arm64 | `*-linux-<arch>.tar.gz` | 便携版，内置 libmpv，解压后运行 `./yunyin` |
+| macOS | Intel + Apple 芯片 | `*-macos-universal.zip` | 未签名，首次打开请右键 → 打开 |
 
 测试：
 
 ```bash
 flutter test                                   # 单元测试（加密算法、歌词解析）
-flutter test --run-skipped --tags live         # 联网测试网易云接口
+flutter test --run-skipped --tags live         # 联网测试网易云接口与真实播放（需要 libmpv）
 ```
 
 ## 平台说明
