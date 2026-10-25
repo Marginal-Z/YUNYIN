@@ -86,13 +86,19 @@ Linux 构建需要：`clang cmake ninja-build pkg-config libgtk-3-dev libmpv-dev
 ```bash
 flutter test                                   # 单元测试（加密算法、歌词解析）
 flutter test --run-skipped --tags live         # 联网测试网易云接口与真实播放（需要 libmpv）
+flutter test integration_test -d <设备>         # 音频链路集成测试（CI 在 Android 模拟器与三大桌面系统上运行）
 ```
 
 ## 平台说明
 
+- **刷新率**：Android 启动时请求屏幕支持的最高刷新率（90 / 120 / 144Hz…），iOS 开启 ProMotion，Windows 与 macOS 由 Flutter 引擎跟随显示器刷新率出帧。
+  Linux 版 Flutter 引擎目前没有接入系统垂直同步，固定以 60Hz 出帧，这是引擎本身的限制。
+- **Linux 流畅度**：Wayland 下默认让 GTK 用 OpenGL 绘制窗口（`GDK_GL=always`），并让 Dart UI 在独立线程运行；
+  若个别驱动出现显示异常，可用 `YUNYIN_GDK_GL=0 yunyin` 启动关闭前者。
 - **Web**：网易云接口不允许浏览器跨域请求，Web 版无法使用，不作为发行目标。
 - **字体**：界面英文数字使用内置 Inter；中文使用系统字体（Android / Linux 为 Noto Sans CJK，Windows 为微软雅黑，macOS / iOS 为苹方）。
 - **未登录**：网易云对未登录用户只提供部分歌曲的完整播放，会员歌曲为试听片段。
+- **性能测试**：设置环境变量 `YUNYIN_BENCH=1` 启动桌面版，会自动滚动页面并在终端输出每帧耗时与帧间隔。
 
 ## 隐私
 
