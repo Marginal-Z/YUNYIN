@@ -112,7 +112,7 @@ Android 发布包使用固定的发布密钥签名（CI 从 `ANDROID_KEYSTORE_BA
 
 ### 官网
 
-`website/` 是静态官网，推送到 `main` 后由 `.github/workflows/pages.yml` 部署到 GitHub Pages；下载链接在访问时从 GitHub Releases 读取，发布新版本无需改动官网。
+`website/` 是静态官网（截图均为应用实际渲染画面），推送到 `main` 后由 `.github/workflows/pages.yml` 部署到 GitHub Pages；下载链接在访问时从 GitHub Releases 读取，发布新版本无需改动官网。
 
 测试：
 
@@ -133,6 +133,7 @@ flutter test integration_test -d <设备>         # 音频链路集成测试（C
 - **字体**：界面英文数字使用内置 Inter；中文使用系统字体（Android / Linux 为 Noto Sans CJK，Windows 为微软雅黑，macOS / iOS 为苹方）。
 - **未登录**：网易云对未登录用户只提供部分歌曲的完整播放，会员歌曲为试听片段。
 - **性能测试**：设置环境变量 `YUNYIN_BENCH=1` 启动桌面版，会自动滚动页面并在终端输出每帧耗时与帧间隔。
+- **截图模式**：设置 `YUNYIN_SHOTS=<目录>` 启动桌面版，应用会以 1440×900 桌面尺寸与 392×850 手机尺寸依次打开首页、播放页、歌词、发现与歌单，把真实渲染结果保存为 PNG 后退出；官网 `website/shots/` 中的截图即由此生成（使用全新的配置目录，未登录状态）。
 
 ## 隐私
 
