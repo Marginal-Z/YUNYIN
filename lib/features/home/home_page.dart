@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/data_cache.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
@@ -91,7 +92,12 @@ class HomePage extends StatelessWidget {
         ),
         AsyncView<HomeFeed>(
           keyValue: sources.generation,
-          load: source.homeFeed,
+          cacheKey: DataCache.homeKey(source.id),
+          load: () async {
+            final feed = await source.homeFeed();
+            DataCache.saveHome(source.id, source.user?.id, feed);
+            return feed;
+          },
           loading: const Padding(padding: EdgeInsets.only(top: 20), child: SkeletonList()),
           builder: (context, feed, _) => _HomeBody(feed: feed),
         ),

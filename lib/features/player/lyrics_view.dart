@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/settings.dart';
@@ -233,13 +234,8 @@ class _LyricLineView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (active)
-                  ValueListenableBuilder<Duration>(
-                    valueListenable: context.read<PlayerController>().position,
-                    builder: (context, pos, _) {
-                      final span = (end - line.time).inMilliseconds;
-                      final f = span <= 0 ? 1.0 : ((pos - line.time).inMilliseconds / span).clamp(0.0, 1.0);
-                      return _KaraokeText(line.text, style: style, base: dim, fill: p.lyricActive, progress: f);
-                    },
+                  RepaintBoundary(
+                    child: _LiveKaraoke(line: line, end: end, style: style, base: dim, fill: p.lyricActive),
                   )
                 else
                   TweenAnimationBuilder<Color?>(
@@ -262,6 +258,68 @@ class _LyricLineView extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 当前行的逐字填色进度。播放进度每 250 毫秒更新一次，这里用自身的帧回调在两次更新之间插值，
+/// 填色因此连续平滑；只有这一行每帧重绘。
+class _LiveKaraoke extends StatefulWidget {
+  const _LiveKaraoke({required this.line, required this.end, required this.style, required this.base, required this.fill});
+
+  final LyricLine line;
+  final Duration end;
+  final TextStyle style;
+  final Color base;
+  final Color fill;
+
+  @override
+  State<_LiveKaraoke> createState() => _LiveKaraokeState();
+}
+
+class _LiveKaraokeState extends State<_LiveKaraoke> with SingleTickerProviderStateMixin {
+  late final PlayerController _player = context.read<PlayerController>();
+  late final Ticker _ticker = createTicker((_) => setState(() {}));
+  Duration _base = Duration.zero;
+  final Stopwatch _since = Stopwatch();
+
+  @override
+  void initState() {
+    super.initState();
+    _player.position.addListener(_sync);
+    _player.addListener(_sync);
+    _sync();
+  }
+
+  @override
+  void dispose() {
+    _player.position.removeListener(_sync);
+    _player.removeListener(_sync);
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  void _sync() {
+    _base = _player.position.value;
+    _since
+      ..reset()
+      ..start();
+    final done = _base >= widget.end;
+    if (_player.playing && !done) {
+      if (!_ticker.isActive) _ticker.start();
+    } else {
+      if (_ticker.isActive) _ticker.stop();
+      if (mounted) setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 插值最多向前推 400 毫秒，避免卡顿或缓冲时跑到下一次更新之前太远。
+    final ahead = _player.playing ? Duration(milliseconds: _since.elapsedMilliseconds.clamp(0, 400)) : Duration.zero;
+    final pos = _base + ahead;
+    final span = (widget.end - widget.line.time).inMilliseconds;
+    final f = span <= 0 ? 1.0 : ((pos - widget.line.time).inMilliseconds / span).clamp(0.0, 1.0);
+    return _KaraokeText(widget.line.text, style: widget.style, base: widget.base, fill: widget.fill, progress: f);
   }
 }
 

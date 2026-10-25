@@ -52,6 +52,8 @@ class _CollectionsPageState extends State<CollectionsPage> {
                   0 => Padding(
                     padding: const EdgeInsets.only(top: 20),
                     child: AsyncView<List<PlaylistInfo>>(
+                      cacheKey: 'userPlaylists',
+                      maxAge: Duration.zero,
                       load: source.userPlaylists,
                       builder: (context, lists, _) {
                         if (lists.isEmpty) {

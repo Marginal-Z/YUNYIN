@@ -1,15 +1,19 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
 import 'sources/local/local_source.dart';
+import 'sources/music_source.dart';
 
 /// 支持导入的音频格式。
 const kAudioExtensions = ['mp3', 'flac', 'm4a', 'aac', 'ogg', 'opus', 'wav', 'ape', 'wma', 'aiff', 'alac'];
@@ -192,6 +196,7 @@ class LocalLibrary extends ChangeNotifier {
   Future<ImportResult> _run(Future<ImportResult> Function() body) async {
     importing = true;
     notifyListeners();
+    final before = _songs.length;
     try {
       final r = await body();
       await _save();
@@ -200,7 +205,143 @@ class LocalLibrary extends ChangeNotifier {
       importing = false;
       progress = null;
       notifyListeners();
+      // 新导入的歌曲在后台联网补全缺少的封面与歌词。
+      if (_songs.length > before) unawaited(enrichOnline(only: _songs.sublist(before)));
     }
+  }
+
+  // ── 联网补全封面与歌词 ──────────────────────────────
+
+  /// 用于匹配的在线播放源（网易云）。
+  MusicSource? online;
+  bool enriching = false;
+
+  Future<File> _lyricsFile(Song s, {bool translation = false}) async => File('${(await _dir('lyrics')).path}/${s.id}.${translation ? 'tlrc' : 'lrc'}');
+
+  Future<bool> _hasLyrics(Song s) async => (await lyricsFor(s)) != null;
+
+  /// 为缺少封面或歌词的本地歌曲在网易云中查找同一首歌，下载封面并保存歌词（含翻译）。
+  /// [force] 为 true 时即使已有封面与歌词也重新匹配。返回补全的歌曲数。
+  Future<int> enrichOnline({Iterable<Song>? only, bool force = false}) async {
+    final src = online;
+    if (src == null || enriching) return 0;
+    final targets = <Song>[];
+    for (final s in only ?? List.of(_songs)) {
+      if (force || s.cover == null || !await _hasLyrics(s)) targets.add(s);
+    }
+    if (targets.isEmpty) return 0;
+    enriching = true;
+    notifyListeners();
+    var done = 0;
+    try {
+      for (var i = 0; i < targets.length; i++) {
+        progress = '正在联网补全封面与歌词 ${i + 1}/${targets.length}';
+        notifyListeners();
+        try {
+          if (await _enrichOne(src, targets[i], force: force)) done++;
+        } catch (e) {
+          debugPrint('enrich ${targets[i].name}: $e');
+        }
+        // 控制请求频率，避免触发风控。
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+      await _save();
+    } finally {
+      enriching = false;
+      progress = null;
+      notifyListeners();
+    }
+    return done;
+  }
+
+  Future<bool> _enrichOne(MusicSource src, Song s, {bool force = false}) async {
+    final match = await _match(src, s);
+    if (match == null) return false;
+    var changed = false;
+    var cover = s.cover;
+    final url = match.coverUrl;
+    if ((force || cover == null) && url != null && url.startsWith('http')) {
+      final sized = url.contains('music.126.net') && !url.contains('?') ? '$url?param=800y800' : url;
+      final res = await Dio().get<List<int>>(sized, options: Options(responseType: ResponseType.bytes));
+      final bytes = res.data;
+      if (bytes != null && bytes.isNotEmpty) {
+        final f = File('${(await _dir('covers')).path}/${s.id}.jpg');
+        await f.writeAsBytes(bytes);
+        // 同一路径的图片被替换后需要清掉内存中的旧图。
+        await FileImage(f).evict();
+        cover = f.path;
+        changed = true;
+      }
+    }
+    if (force || !await _hasLyrics(s)) {
+      final ly = await src.lyrics(match);
+      if (ly.lines.isNotEmpty) {
+        await (await _lyricsFile(s)).writeAsString(_toLrc(ly, translation: false));
+        if (ly.hasTranslation) await (await _lyricsFile(s, translation: true)).writeAsString(_toLrc(ly, translation: true));
+        changed = true;
+      }
+    }
+    if (cover != s.cover) {
+      final i = _songs.indexWhere((x) => x.id == s.id);
+      if (i >= 0) _songs[i] = _songs[i].copyWith(cover: cover);
+    }
+    return changed;
+  }
+
+  /// 测试用：按歌名、歌手与时长在 [online] 中匹配。
+  @visibleForTesting
+  Future<Song?> matchOnline(Song s) => _match(online!, s);
+
+  static String _norm(String x) => x.toLowerCase().replaceAll(RegExp(r'''[\s()（）\[\]【】《》\-_·.,，。!！?？'"“”‘’&/、]'''), '');
+
+  /// 按歌名、歌手与时长打分，挑选最可能是同一首歌的结果。
+  Future<Song?> _match(MusicSource src, Song s) async {
+    final artist = s.artists.isEmpty || s.artistText == '未知歌手' ? '' : s.artists.first.name;
+    final r = await src.search('${s.name} $artist'.trim(), type: SearchType.song, limit: 10);
+    final title = _norm(s.name);
+    final artists = [for (final a in s.artists) _norm(a.name)].where((a) => a.isNotEmpty && a != _norm('未知歌手')).toList();
+    Song? best;
+    var bestScore = 0;
+    for (final c in r.songs) {
+      final t = _norm(c.name);
+      var score = t == title ? 4 : ((t.contains(title) || title.contains(t)) && t.isNotEmpty && title.isNotEmpty ? 2 : 0);
+      if (score == 0) continue;
+      final artistHit = artists.isNotEmpty && c.artists.any((a) => artists.any((x) => _norm(a.name) == x || _norm(a.name).contains(x) || x.contains(_norm(a.name))));
+      if (artistHit) score += 3;
+      if (s.duration > Duration.zero && c.duration > Duration.zero) {
+        final diff = (s.duration - c.duration).abs();
+        if (diff <= const Duration(seconds: 3)) {
+          score += 2;
+        } else if (diff > const Duration(seconds: 20)) {
+          score -= 3;
+        }
+      }
+      // 歌名部分吻合（如“晴天 (钢琴版)”）时必须歌手一致；歌手对不上时只接受歌名完全相同且时长几乎一致的结果，
+      // 以免把翻唱、伴奏的封面当成原曲。
+      final durationOk = s.duration > Duration.zero && c.duration > Duration.zero && (s.duration - c.duration).abs() <= const Duration(seconds: 3);
+      if (t != title && !artistHit) continue;
+      if (!artistHit && !durationOk) continue;
+      if (score > bestScore) {
+        best = c;
+        bestScore = score;
+      }
+    }
+    return best;
+  }
+
+  static String _toLrc(Lyrics ly, {required bool translation}) {
+    String stamp(Duration d) =>
+        '[${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}.${(d.inMilliseconds % 1000).toString().padLeft(3, '0')}]';
+    return [
+      for (final l in ly.lines)
+        if (!translation || (l.translation ?? '').isNotEmpty) '${ly.synced ? stamp(l.time) : ''}${translation ? l.translation : l.text}',
+    ].join('\n');
+  }
+
+  /// 联网获取的歌词翻译。
+  Future<String?> translationFor(Song song) async {
+    final f = await _lyricsFile(song, translation: true);
+    return await f.exists() ? f.readAsString() : null;
   }
 
   /// 得到可直接读取的本地路径；移动端把内容复制到应用目录。

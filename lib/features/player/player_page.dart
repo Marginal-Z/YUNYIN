@@ -39,9 +39,12 @@ class PlayerPage extends StatelessWidget {
           builder: (context, c) {
             final h = c.maxHeight - pad.top - pad.bottom;
             final extra = h - 844;
-            final double coverSize = math.min(c.maxWidth - 80, math.max(200.0, 310 + math.min(0.0, extra)));
             final double topGap = 28 + math.max(0.0, extra * 0.25);
-            return Padding(
+            // 封面以外的内容约占 500 高度；矮屏缩小封面（不小于 120），仍放不下（横屏）时整页可滚动。
+            const fixed = 500.0;
+            final double coverSize = math.max(120.0, math.min(math.min(c.maxWidth - 80, 310.0), h - fixed - (topGap - 28)));
+            final scroll = h < fixed + 120;
+            final page = Padding(
               padding: EdgeInsets.only(top: pad.top),
               child: Column(
                 children: [
@@ -110,6 +113,10 @@ class PlayerPage extends StatelessWidget {
                   SizedBox(height: pad.bottom),
                 ],
               ),
+            );
+            if (!scroll) return page;
+            return SingleChildScrollView(
+              child: SizedBox(height: fixed + coverSize + pad.top + pad.bottom, child: page),
             );
           },
         ),

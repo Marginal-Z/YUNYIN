@@ -26,16 +26,21 @@ bool get screenshotsRequested => screenshotDir != null;
 
 /// 截图时的逻辑尺寸、安全区与像素倍率。
 class ShotSpec {
-  const ShotSpec(this.size, this.pixelRatio, {this.padding = EdgeInsets.zero});
+  const ShotSpec(this.size, this.pixelRatio, {this.padding = EdgeInsets.zero, this.textScale = 1});
 
   final Size size;
   final double pixelRatio;
   final EdgeInsets padding;
+  final double textScale;
 }
 
 const _desktop = ShotSpec(Size(1440, 900), 2);
 // 手机：与常见 Android 机型相同的逻辑宽度，顶部状态栏与底部手势条的安全区。
 const _mobile = ShotSpec(Size(392, 850), 3, padding: EdgeInsets.only(top: 40, bottom: 20));
+// 适配检查：小屏手机 + 系统字体放大、横屏手机、最小桌面窗口。
+const _small = ShotSpec(Size(320, 640), 2, padding: EdgeInsets.only(top: 24, bottom: 16), textScale: 1.3);
+const _landscape = ShotSpec(Size(780, 360), 2, padding: EdgeInsets.only(left: 24, right: 24));
+const _desktopMin = ShotSpec(Size(960, 640), 2);
 
 final ValueNotifier<ShotSpec?> _spec = ValueNotifier(null);
 final GlobalKey _boundary = GlobalKey();
@@ -62,7 +67,13 @@ class ShotFrame extends StatelessWidget {
           child: RepaintBoundary(
             key: _boundary,
             child: MediaQuery(
-              data: mq.copyWith(size: spec.size, padding: spec.padding, viewPadding: spec.padding, devicePixelRatio: spec.pixelRatio),
+              data: mq.copyWith(
+                size: spec.size,
+                padding: spec.padding,
+                viewPadding: spec.padding,
+                devicePixelRatio: spec.pixelRatio,
+                textScaler: TextScaler.linear(spec.textScale),
+              ),
               child: Builder(builder: builder),
             ),
           ),
@@ -74,7 +85,7 @@ class ShotFrame extends StatelessWidget {
 
 Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   final out = Directory(screenshotDir!)..createSync(recursive: true);
-  Timer(const Duration(minutes: 4), () {
+  Timer(const Duration(minutes: 8), () {
     stderr.writeln('shots: 超时退出');
     exit(1);
   });
@@ -174,6 +185,48 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   home();
   await shot('desktop-home-cover', settle: 3500);
   settings.setBackground(BackgroundMode.glow);
+
+  // 适配检查。
+  Future<void> fit(String prefix, ShotSpec spec, {bool lyrics = true}) async {
+    _spec.value = spec;
+    home();
+    await shot('$prefix-home', settle: 3000);
+    openPlayer(ctx());
+    await shot('$prefix-player', settle: 2500);
+    navKey.currentState!.pop();
+    if (lyrics) {
+      await wait(500);
+      openLyrics(ctx());
+      await shot('$prefix-lyrics', settle: 1800);
+      navKey.currentState!.pop();
+    }
+    home();
+    await wait(500);
+    if (spec.size.width < 860) {
+      nav.switchTab(1);
+    } else {
+      nav.push(DiscoverRoute());
+    }
+    await shot('$prefix-discover', settle: 2500);
+    if (feed.playlists.isNotEmpty) {
+      openPlaylist(ctx(), feed.playlists.first);
+      await shot('$prefix-playlist', settle: 2500);
+    }
+  }
+
+  // 听歌统计（巡览期间播放的时长）。
+  _spec.value = _mobile;
+  home();
+  nav.push(StatsRoute());
+  await shot('mobile-stats', settle: 2000);
+  _spec.value = _desktop;
+  home();
+  nav.push(StatsRoute());
+  await shot('desktop-stats', settle: 2000);
+
+  await fit('small', _small);
+  await fit('landscape', _landscape);
+  await fit('desktopmin', _desktopMin, lyrics: false);
   stderr.writeln('shots: 完成 → ${out.path}');
   exit(0);
 }

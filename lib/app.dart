@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'core/settings.dart';
+import 'core/ui/adaptive_scale.dart';
 import 'core/theme/palette.dart';
 import 'core/ui/box.dart';
 import 'core/ui/feedback.dart';
@@ -23,6 +24,7 @@ import 'features/settings/update_dialog.dart';
 import 'features/shell/nav.dart';
 import 'player/player_controller.dart';
 import 'core/update/updater.dart';
+import 'data/listen_stats.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -35,6 +37,7 @@ class YunyinApp extends StatelessWidget {
     required this.downloads,
     required this.local,
     required this.updater,
+    required this.stats,
   });
 
   final AppSettings settings;
@@ -43,6 +46,7 @@ class YunyinApp extends StatelessWidget {
   final DownloadManager downloads;
   final LocalLibrary local;
   final UpdateManager updater;
+  final ListenStats stats;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +58,7 @@ class YunyinApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: downloads),
         ChangeNotifierProvider.value(value: local),
         ChangeNotifierProvider.value(value: updater),
+        ChangeNotifierProvider.value(value: stats),
         ChangeNotifierProvider(create: (_) => AppNav()),
       ],
       child: Consumer<AppSettings>(
@@ -67,8 +72,14 @@ class YunyinApp extends StatelessWidget {
             themeMode: s.themeMode,
             theme: _theme(light),
             darkTheme: _theme(dark),
-            builder: (context, child) =>
-                screenshotsRequested ? ShotFrame(builder: (context) => _shell(context, child!, s, light, dark)) : _shell(context, child!, s, light, dark),
+            builder: (context, child) {
+              // 界面整体按设备尺寸等比缩放后再搭建外壳。
+              Widget scaled(BuildContext context) => AdaptiveScale(
+                desktopBreakpoint: kDesktopBreakpoint,
+                child: Builder(builder: (context) => _shell(context, child!, s, light, dark)),
+              );
+              return screenshotsRequested ? ShotFrame(builder: scaled) : scaled(context);
+            },
             home: const _Root(),
           );
         },

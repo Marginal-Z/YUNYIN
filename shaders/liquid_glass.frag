@@ -8,8 +8,8 @@
 //   · 按法线角度计算的高光（左上与右下最亮），在 LCH 空间提高亮度与彩度；
 //   · 「柔和」材质叠加白色色调（模糊由 Dart 端在滤镜链中先行完成）。
 //
-// 与 WebGL 原版的差异只在宿主：输入纹理是 Flutter 背景滤镜截取的、以玻璃为中心的图层
-// （模糊已在外层完成），坐标为物理像素、y 轴向下，法线用中心差分计算。
+// 与 WebGL 原版的差异只在宿主：输入纹理由 Flutter 背景滤镜提供（模糊已在前一层完成），
+// 坐标为物理像素、y 轴向下，法线用中心差分计算。
 
 #version 460 core
 #include <flutter/runtime_effect.glsl>
@@ -18,7 +18,7 @@ precision highp float;
 
 #define PI 3.14159265359
 
-uniform vec2 uSize;        // 输入纹理尺寸（由引擎填写）；玻璃位于纹理正中
+uniform vec2 uSize;        // 输入纹理尺寸（由引擎填写）
 uniform vec2 uShape;       // 玻璃宽高，物理像素
 uniform float uRadius;     // 圆角半径，物理像素
 uniform float uDpr;        // 设备像素比
@@ -28,6 +28,8 @@ uniform float uDispersion; // 色散（原版默认 7）
 uniform float uGlare;      // 边缘高光（原版 glare / 100）
 uniform float uTint;       // 白色色调强度（清透 0，柔和 0.11）
 uniform float uRoundness;  // 圆角指数：圆形与胶囊为 2，面板为 5（同原版形状预设）
+uniform vec2 uOrigin;      // 玻璃在画面中的左上角，物理像素
+uniform float uPad;        // 裁剪区域每边多出的物理像素
 
 uniform sampler2D uTexture;
 
@@ -97,7 +99,12 @@ vec3 lchToSrgb(vec3 lch) {
 void main() {
   vec2 frag = FlutterFragCoord().xy;
   vec2 uv = frag / uSize;
-  vec2 p = frag - uSize * 0.5;
+  // 输入纹理可能是玻璃自己的图层（尺寸 = 玻璃 + 两侧留边，玻璃居中），也可能是整个画面
+  // （多块玻璃共享同一次背景截取时）；据尺寸判断坐标系。
+  vec2 expected = uShape + vec2(2.0 * uPad);
+  bool local = abs(uSize.x - expected.x) < 4.0 && abs(uSize.y - expected.y) < 4.0;
+  vec2 center = local ? uSize * 0.5 : uOrigin + uShape * 0.5;
+  vec2 p = frag - center;
 
   // 玻璃以外直接输出背景（裁剪区域只比玻璃略大）。
   if (abs(p.x) > uShape.x * 0.5 + 2.0 || abs(p.y) > uShape.y * 0.5 + 2.0) {

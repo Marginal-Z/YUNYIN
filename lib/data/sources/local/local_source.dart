@@ -33,6 +33,6 @@ class LocalSource extends MusicSource {
   Future<Lyrics> lyrics(Song song) async {
     final text = await library.lyricsFor(song);
     if (text == null) return Lyrics.empty;
-    return parseLrc(text);
+    return parseLrc(text, translation: await library.translationFor(song) ?? '');
   }
 }

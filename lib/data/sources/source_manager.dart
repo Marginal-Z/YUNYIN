@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../core/data_cache.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../local_library.dart';
@@ -40,6 +41,7 @@ class SourceManager extends ChangeNotifier {
 
   void _onSourceChanged() {
     generation++;
+    DataCache.clear();
     notifyListeners();
   }
 
@@ -49,6 +51,7 @@ class SourceManager extends ChangeNotifier {
     if (id == _current.id) return;
     _current = byId(id);
     generation++;
+    DataCache.clear();
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, id);

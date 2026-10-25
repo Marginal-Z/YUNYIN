@@ -40,6 +40,8 @@ class _LibraryPageState extends State<LibraryPage> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             const Expanded(child: PageTitle('乐库', subtitle: '我的音乐')),
+            CircleButton(YIcons.equalizer, label: '听歌统计', onTap: () => go(context, StatsRoute())),
+            const SizedBox(width: 10),
             CircleButton(YIcons.sliders, label: '设置', onTap: () => go(context, SettingsRoute())),
             const SizedBox(width: 10),
             CircleButton(
@@ -110,6 +112,8 @@ class LibraryOverview extends StatelessWidget {
       );
     }
     return AsyncView<List<PlaylistInfo>>(
+      cacheKey: 'userPlaylists',
+      maxAge: Duration.zero,
       load: source.userPlaylists,
       loading: const Padding(padding: EdgeInsets.only(top: 20), child: SkeletonList()),
       builder: (context, lists, _) {
@@ -289,6 +293,8 @@ class SubscribedAlbums extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: AsyncView<List<AlbumInfo>>(
+        cacheKey: 'subscribedAlbums',
+        maxAge: Duration.zero,
         load: source.subscribedAlbums,
         builder: (context, albums, _) {
           if (albums.isEmpty) {
@@ -352,6 +358,8 @@ class FollowedArtists extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: AsyncView<List<ArtistInfo>>(
+        cacheKey: 'followedArtists',
+        maxAge: Duration.zero,
         load: source.followedArtists,
         builder: (context, artists, _) {
           if (artists.isEmpty) {

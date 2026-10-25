@@ -13,6 +13,7 @@ import '../search/search_result_page.dart';
 import '../settings/appearance_page.dart';
 import '../settings/settings_more_page.dart';
 import '../settings/settings_page.dart';
+import '../stats/stats_page.dart';
 import 'nav.dart';
 
 Widget buildMobileRoute(AppRoute r) => switch (r) {
@@ -27,6 +28,7 @@ Widget buildMobileRoute(AppRoute r) => switch (r) {
   SettingsRoute() => const SettingsPage(),
   SettingsMoreRoute() => const SettingsMorePage(),
   AppearanceRoute() => const AppearancePage(),
+  StatsRoute() => const StatsPage(),
   LoginRoute() => const LoginPage(),
 };
 

@@ -2,9 +2,11 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../settings.dart';
+import 'adaptive_scale.dart';
 
 /// 液态玻璃着色器（shaders/liquid_glass.frag）。只在 Impeller 下可用，其他渲染后端退回普通毛玻璃。
 abstract final class LiquidGlassShader {
@@ -24,8 +26,9 @@ abstract final class LiquidGlassShader {
 
 /// 在子组件背后用液态玻璃着色器处理背景。
 ///
-/// 两层背景滤镜：外层先按材质模糊（清透半径 1、柔和半径 16 物理像素，与原版一致），并把背景截取到
-/// 玻璃自己的图层里；内层着色器读取这张以玻璃为中心的纹理，因此不依赖玻璃在屏幕上的位置。
+/// 「清透」只有一层着色器滤镜，直接读取当前画面；「柔和」先做一层模糊（同一画面中的多块玻璃通过
+/// [BackdropGroup] 共用一次背景截取与模糊），再由着色器读取模糊结果。着色器按输入纹理尺寸判断
+/// 坐标系，因此需要玻璃在画面中的位置：每次绘制时写入，位置因祖先变换变化时下一帧补绘。
 class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
   const LiquidGlassBackdrop({super.key, required this.radius, required this.material, super.child});
 
@@ -33,27 +36,36 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
   final GlassMaterial material;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => RenderLiquidGlass(radius, material, MediaQuery.devicePixelRatioOf(context));
+  RenderObject createRenderObject(BuildContext context) =>
+      RenderLiquidGlass(radius, material, MediaQuery.devicePixelRatioOf(context), BackdropGroup.of(context)?.backdropKey, AdaptiveScale.of(context));
 
   @override
   void updateRenderObject(BuildContext context, RenderLiquidGlass renderObject) {
     renderObject
       ..radius = radius
       ..material = material
-      ..dpr = MediaQuery.devicePixelRatioOf(context);
+      ..dpr = MediaQuery.devicePixelRatioOf(context)
+      ..backdropKey = BackdropGroup.of(context)?.backdropKey
+      ..uiScale = AdaptiveScale.of(context);
   }
 }
 
 /// [LiquidGlassBackdrop] 的渲染对象。
 class RenderLiquidGlass extends RenderProxyBox {
-  RenderLiquidGlass(this._radius, this._material, this._dpr);
+  RenderLiquidGlass(this._radius, this._material, this._dpr, this._backdropKey, this._uiScale);
 
-  /// 裁剪区域比玻璃每边多出的逻辑像素，着色器据此在纹理中居中定位玻璃。
+  /// 裁剪区域比玻璃每边多出的逻辑像素。
   static const _pad = 1.0;
 
   double _radius;
   GlassMaterial _material;
   double _dpr;
+  BackdropKey? _backdropKey;
+
+  /// 界面缩放倍数：全局坐标是缩放后的屏幕坐标，换算物理像素时要除去这一倍数。
+  double _uiScale;
+  Offset? _painted;
+  bool _checkScheduled = false;
   ui.FragmentShader? _shader;
   final _clip = LayerHandle<ClipRectLayer>();
   final _blur = LayerHandle<BackdropFilterLayer>();
@@ -77,6 +89,18 @@ class RenderLiquidGlass extends RenderProxyBox {
     markNeedsPaint();
   }
 
+  set uiScale(double v) {
+    if (v == _uiScale) return;
+    _uiScale = v;
+    markNeedsPaint();
+  }
+
+  set backdropKey(BackdropKey? v) {
+    if (v == _backdropKey) return;
+    _backdropKey = v;
+    markNeedsPaint();
+  }
+
   @override
   bool get alwaysNeedsCompositing => true;
 
@@ -91,6 +115,10 @@ class RenderLiquidGlass extends RenderProxyBox {
 
   @override
   void paint(PaintingContext context, Offset offset) {
+    final global = localToGlobal(Offset.zero);
+    _painted = global;
+    _scheduleCheck();
+
     _shader?.dispose();
     final shader = _shader = LiquidGlassShader._program!.fragmentShader();
     final regular = _material == GlassMaterial.regular;
@@ -107,18 +135,39 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(regular ? 0.11 : 0); // 色调
     // 圆角达到短边一半（圆形、胶囊）时用正圆弧，否则用原版面板的超椭圆圆角。
     f(_radius >= size.shortestSide / 2 - 0.5 ? 2 : 5);
-    // 原版模糊：半径 r 的高斯核，sigma = r / 3。原版以 1 倍屏的像素设计，这里按逻辑像素换算，
-    // 使高分屏手机上的模糊程度与原版观感一致。
-    final sigma = (regular ? 16 : 1) / 3;
+    f(global.dx * _dpr / _uiScale);
+    f(global.dy * _dpr / _uiScale);
+    f(_pad * _dpr);
+
+    void glass(PaintingContext context, Offset offset) {
+      final layer = _glass.layer ??= BackdropFilterLayer();
+      layer.filter = ui.ImageFilter.shader(shader);
+      context.pushLayer(layer, super.paint, offset);
+    }
 
     _clip.layer = context.pushClipRect(needsCompositing, offset, (Offset.zero & size).inflate(_pad), (context, offset) {
+      if (!regular) {
+        // 「清透」原版只有半径 1 的模糊，肉眼不可见，省去这一层。
+        _blur.layer = null;
+        glass(context, offset);
+        return;
+      }
+      // 原版「柔和」：半径 16 的高斯模糊（sigma = 16 / 3）。原版以 1 倍屏像素设计，这里按逻辑像素换算。
       final blur = _blur.layer ??= BackdropFilterLayer();
-      blur.filter = ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp);
-      context.pushLayer(blur, (context, offset) {
-        final glass = _glass.layer ??= BackdropFilterLayer();
-        glass.filter = ui.ImageFilter.shader(shader);
-        context.pushLayer(glass, super.paint, offset);
-      }, offset);
+      blur
+        ..filter = ui.ImageFilter.blur(sigmaX: 16 / 3, sigmaY: 16 / 3, tileMode: TileMode.clamp)
+        ..backdropKey = _backdropKey;
+      context.pushLayer(blur, glass, offset);
     }, oldLayer: _clip.layer);
+  }
+
+  void _scheduleCheck() {
+    if (_checkScheduled) return;
+    _checkScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _checkScheduled = false;
+      if (!attached || _painted == null) return;
+      if ((localToGlobal(Offset.zero) - _painted!).distanceSquared > 0.01) markNeedsPaint();
+    });
   }
 }

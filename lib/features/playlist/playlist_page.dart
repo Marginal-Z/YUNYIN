@@ -140,6 +140,15 @@ class PlaylistPage extends StatelessWidget {
     };
     return AsyncView<PlaylistInfo>(
       keyValue: route is CollectionRoute ? '$gen-$localCount' : null,
+      // 歌单、专辑等内容不常变化；我喜欢、最近播放等集合每次进入都在后台刷新。
+      cacheKey: switch (route) {
+        PlaylistRoute(:final id) => 'playlist:$id',
+        AlbumRoute(:final id) => 'album:$id',
+        CollectionRoute(:final kind) => 'collection:${kind.name}:$localCount',
+        RadioRoute(:final radio) => 'radio:${radio.id}',
+        _ => null,
+      },
+      maxAge: route is CollectionRoute ? Duration.zero : const Duration(minutes: 10),
       load: () => loadCollection(context, route),
       loading: desktop ? _DesktopPlaylist.loading(preview) : _MobilePlaylist.loading(context, preview),
       builder: (context, pl, reload) => desktop ? _DesktopPlaylist(playlist: pl) : _MobilePlaylist(playlist: pl),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../data_cache.dart';
 import '../theme/palette.dart';
 import 'box.dart';
 import 'icons.dart';
@@ -310,7 +311,7 @@ class SkeletonList extends StatelessWidget {
 
 /// 根据 Future 渲染加载 / 错误 / 内容。
 class AsyncView<T> extends StatefulWidget {
-  const AsyncView({super.key, required this.load, required this.builder, this.loading, this.keyValue});
+  const AsyncView({super.key, required this.load, required this.builder, this.loading, this.keyValue, this.cacheKey, this.maxAge = const Duration(minutes: 10)});
 
   final Future<T> Function() load;
   final Widget Function(BuildContext context, T data, VoidCallback reload) builder;
@@ -319,36 +320,97 @@ class AsyncView<T> extends StatefulWidget {
   /// 变化时重新加载（例如切换播放源）。
   final Object? keyValue;
 
+  /// 缓存键：有缓存时直接显示上次的数据，超过 [maxAge] 后在后台静默刷新。
+  final String? cacheKey;
+  final Duration maxAge;
+
   @override
   State<AsyncView<T>> createState() => _AsyncViewState<T>();
 }
 
 class _AsyncViewState<T> extends State<AsyncView<T>> {
-  late Future<T> _future = widget.load();
+  T? _data;
+  bool _hasData = false;
+  Object? _error;
+  int _request = 0;
 
-  void _reload() => setState(() => _future = widget.load());
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  void _start() {
+    final key = widget.cacheKey;
+    final cached = key == null ? null : DataCache.lookup(key);
+    if (cached != null && cached.$1 is T) {
+      _data = cached.$1 as T;
+      _hasData = true;
+      _error = null;
+      if (DateTime.now().difference(cached.$2) > widget.maxAge) _fetch(silent: true);
+    } else {
+      _hasData = false;
+      _data = null;
+      _fetch();
+    }
+  }
+
+  /// 加载数据。静默刷新失败时保留现有内容。
+  Future<void> _fetch({bool silent = false}) async {
+    final request = ++_request;
+    if (!silent && _error != null) setState(() => _error = null);
+    try {
+      final v = await widget.load();
+      if (!mounted || request != _request) return;
+      if (widget.cacheKey != null) DataCache.put(widget.cacheKey!, v);
+      setState(() {
+        _data = v;
+        _hasData = true;
+        _error = null;
+      });
+    } catch (e) {
+      if (!mounted || request != _request) return;
+      if (silent && _hasData) return;
+      setState(() => _error = e);
+    }
+  }
+
+  void _reload() => _fetch(silent: _hasData);
 
   @override
   void didUpdateWidget(AsyncView<T> old) {
     super.didUpdateWidget(old);
-    if (old.keyValue != widget.keyValue) _reload();
+    if (old.keyValue != widget.keyValue || old.cacheKey != widget.cacheKey) {
+      setState(_start);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<T>(
-      future: _future,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return widget.loading ?? const SkeletonList();
-        }
-        if (snap.hasError) {
-          return Center(
-            child: StateView.network(onRetry: _reload, message: errorText(snap.error)),
-          );
-        }
-        return widget.builder(context, snap.data as T, _reload);
-      },
+    final Widget child;
+    if (_hasData) {
+      child = KeyedSubtree(key: const ValueKey('data'), child: widget.builder(context, _data as T, _reload));
+    } else if (_error != null) {
+      child = Center(
+        key: const ValueKey('error'),
+        child: StateView.network(
+          onRetry: () {
+            setState(() => _error = null);
+            _fetch();
+          },
+          message: errorText(_error),
+        ),
+      );
+    } else {
+      child = KeyedSubtree(key: const ValueKey('loading'), child: widget.loading ?? const SkeletonList());
+    }
+    // 骨架屏与内容之间短暂淡入淡出，避免内容突然“蹦”出来。
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, children: [...previous, ?current]),
+      child: child,
     );
   }
 }

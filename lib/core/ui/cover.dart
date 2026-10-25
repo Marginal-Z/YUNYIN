@@ -58,6 +58,7 @@ class CoverImage extends StatelessWidget {
         width: double.infinity,
         height: double.infinity,
         cacheWidth: imageSize,
+        gaplessPlayback: true,
         errorBuilder: (_, _, _) => const _Placeholder(),
       );
     }
@@ -70,7 +71,10 @@ class CoverImage extends StatelessWidget {
       width: double.infinity,
       height: double.infinity,
       memCacheWidth: px,
-      fadeInDuration: const Duration(milliseconds: 160),
+      // 已在内存中的图片直接显示；切换地址（换歌）时保留旧图直到新图就绪，避免闪成灰色占位。
+      fadeInDuration: const Duration(milliseconds: 140),
+      fadeOutDuration: Duration.zero,
+      useOldImageOnUrlChange: true,
       placeholder: (_, _) => const _Placeholder(),
       errorWidget: (_, _, _) => const _Placeholder(),
     );

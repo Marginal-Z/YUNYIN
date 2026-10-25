@@ -36,7 +36,7 @@ class LocalImportBar extends StatelessWidget {
     final p = Palette.of(context);
     final lib = context.watch<LocalLibrary>();
     if (!lib.supported) return const SizedBox.shrink();
-    if (lib.importing) {
+    if (lib.importing || lib.enriching) {
       return YCard(
         child: SizedBox(
           height: 56,
@@ -116,6 +116,21 @@ class LocalMusicList extends StatelessWidget {
               top: 0,
               action: '全部播放',
               onAction: () => playAll(context, local, title: '本地音乐'),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Pressable(
+                onTap: lib.enriching || lib.importing
+                    ? null
+                    : () async {
+                        final n = await lib.enrichOnline();
+                        if (context.mounted) Toast.show(context, n > 0 ? '已为 $n 首歌曲补全歌词或封面' : '没有需要补全的歌曲', icon: YIcons.check);
+                      },
+                child: Text(
+                  '联网补全缺少的歌词与封面',
+                  style: ts(13, weight: w600, color: Palette.of(context).accentText),
+                ),
+              ),
             ),
             list(local, '本地音乐'),
           ],

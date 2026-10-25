@@ -149,7 +149,16 @@ Future<void> showSongMenu(BuildContext context, Song song) async {
         Toast.show(context, '已加入播放队列');
       },
     ),
-    if (isLocal)
+    if (isLocal) ...[
+      (
+        YIcons.refresh,
+        '联网匹配歌词与封面',
+        () async {
+          Toast.show(context, '正在联网匹配…', icon: YIcons.search);
+          final n = await context.read<LocalLibrary>().enrichOnline(only: [song], force: true);
+          if (context.mounted) Toast.show(context, n > 0 ? '已更新歌词与封面' : '没有找到匹配的歌曲', icon: n > 0 ? YIcons.check : YIcons.info);
+        },
+      ),
       (
         YIcons.trash,
         '从本地音乐移除',
@@ -157,8 +166,8 @@ Future<void> showSongMenu(BuildContext context, Song song) async {
           context.read<LocalLibrary>().remove(song);
           Toast.show(context, '已从本地音乐移除');
         },
-      )
-    else ...[
+      ),
+    ] else ...[
       (liked ? YIcons.heart : YIcons.heartOutline, liked ? '取消喜欢' : '喜欢', () => player.toggleLike(song)),
       if (dl.supported)
         (

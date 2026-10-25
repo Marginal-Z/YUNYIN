@@ -49,6 +49,7 @@ class _SearchResultPageState extends State<SearchResultPage> {
     final type = SearchType.values[_tab];
     final body = AsyncView<SearchResult>(
       key: ValueKey('$k-$_tab-${sources.generation}'),
+      cacheKey: 'search:$k:${type.name}',
       load: () => sources.current.search(k, type: type, limit: type == SearchType.all ? 20 : 50),
       builder: (context, r, _) => switch (type) {
         SearchType.all =>

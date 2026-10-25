@@ -141,6 +141,12 @@ class AppearanceRoute extends AppRoute {
   String get sideKey => 'settings';
 }
 
+/// 听歌统计。
+class StatsRoute extends AppRoute {
+  @override
+  String get sideKey => 'stats';
+}
+
 class LoginRoute extends AppRoute {
   @override
   Chrome get chrome => Chrome.none;

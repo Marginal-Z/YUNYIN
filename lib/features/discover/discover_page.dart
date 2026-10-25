@@ -62,6 +62,7 @@ class _Recommend extends StatelessWidget {
       children: [
         const SizedBox(height: 20),
         AsyncView<List<AlbumInfo>>(
+          cacheKey: 'newAlbums:6',
           load: () => source.newAlbums(limit: 6),
           loading: const SizedBox(height: 160),
           builder: (context, albums, _) {
@@ -74,6 +75,7 @@ class _Recommend extends StatelessWidget {
           },
         ),
         AsyncView<PlaylistInfo>(
+          cacheKey: 'soaring',
           load: source.soaringChart,
           builder: (context, chart, _) {
             final songs = (chart.tracks ?? const <Song>[]).take(desktop ? 10 : 5).toList();
@@ -100,6 +102,7 @@ class _Recommend extends StatelessWidget {
         ),
         if (desktop)
           AsyncView<List<PlaylistInfo>>(
+            cacheKey: 'recommend:12',
             load: () => source.recommendPlaylists(limit: 12),
             loading: const SizedBox.shrink(),
             builder: (context, list, _) => Column(
@@ -211,6 +214,7 @@ class _Charts extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: AsyncView<List<ChartInfo>>(
+        cacheKey: 'charts',
         load: source.charts,
         builder: (context, charts, _) => CardList(
           indent: 78,
@@ -266,6 +270,7 @@ class _Radios extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: AsyncView<List<RadioInfo>>(
+        cacheKey: 'hotRadios',
         load: source.hotRadios,
         builder: (context, radios, _) => CardList(
           indent: 78,
@@ -326,6 +331,7 @@ class _NewAlbums extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: AsyncView<List<AlbumInfo>>(
+        cacheKey: 'newAlbums:24',
         load: () => source.newAlbums(limit: 24),
         builder: (context, albums, _) => AlbumGrid(items: albums),
       ),

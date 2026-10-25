@@ -8,6 +8,8 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'core/app_icon.dart';
+import 'core/data_cache.dart';
+import 'data/listen_stats.dart';
 import 'core/ui/liquid_glass_filter.dart';
 import 'core/update/updater.dart';
 import 'core/settings.dart';
@@ -59,9 +61,16 @@ Future<void> main() async {
   final local = LocalLibrary();
   await local.init();
   final sources = SourceManager(SourceRegistry.create(local));
+  // 本地歌曲联网补全封面与歌词使用网易云。
+  local.online = sources.sources.where((s) => s.id == 'netease').firstOrNull;
   await sources.init();
+  // 首页先显示上次的数据，随后在后台刷新。
+  await DataCache.restoreHome(sources.current.id, sources.current.user?.id);
   final player = PlayerController(sources, settings);
   await player.init();
+  final stats = ListenStats();
+  await stats.init();
+  stats.attach(player);
   final downloads = DownloadManager(sources, settings);
   await downloads.init();
   player.localLookup = downloads.local;
@@ -70,7 +79,7 @@ Future<void> main() async {
   final updater = UpdateManager();
   await updater.init();
 
-  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, updater: updater));
+  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, updater: updater, stats: stats));
   if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
   if (screenshotsRequested) unawaited(runScreenshots(rootNavigatorKey));
 }

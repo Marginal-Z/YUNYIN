@@ -170,6 +170,7 @@ class SearchSuggestions extends StatelessWidget {
         SectionHeader('热搜榜', action: '完整榜单', onAction: () => context.read<AppNav>().push(DiscoverRoute(tab: 1))),
         AsyncView<List<HotSearch>>(
           keyValue: sources.generation,
+          cacheKey: 'hotSearches',
           load: sources.current.hotSearches,
           builder: (context, list, _) => CardList(
             indent: 50,

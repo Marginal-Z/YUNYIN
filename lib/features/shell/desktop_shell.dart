@@ -225,7 +225,7 @@ class _Sidebar extends StatelessWidget {
     return YBox(
       radius: BorderRadius.circular(26),
       color: p.sidebar,
-      blur: true,
+      // 侧边栏只覆盖静态的光晕背景，模糊没有可见效果，省去每帧的背景截取。
       border: p.glassBorder,
       shadows: p.sidebarShadow,
       insets: p.glassButtonInset,
@@ -281,6 +281,7 @@ class _Sidebar extends StatelessWidget {
                   ),
                   _SideItem(icon: YIcons.folder, label: '本地音乐', active: active == 'collection:local', onTap: () => open(CollectionRoute(PlaylistKind.local))),
                   _SideItem(icon: YIcons.library, label: '专辑与歌手', active: active == 'collections', onTap: () => open(MyCollectionsRoute())),
+                  _SideItem(icon: YIcons.equalizer, label: '听歌统计', active: active == 'stats', onTap: () => open(StatsRoute())),
                   label('我的歌单', 18),
                   _SidePlaylists(key: ValueKey(sm.generation), source: source, active: active),
                 ],

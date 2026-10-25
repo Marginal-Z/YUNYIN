@@ -146,6 +146,32 @@ class PlaylistInfo {
 
   String get genre => tags.isEmpty ? '' : tags.first;
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'sourceId': sourceId,
+    'name': name,
+    'cover': cover,
+    'trackCount': trackCount,
+    'creator': creator,
+    'description': description,
+    'tags': tags,
+    'playCount': playCount,
+    'kind': kind.name,
+  };
+
+  factory PlaylistInfo.fromJson(Map<String, dynamic> j) => PlaylistInfo(
+    id: '${j['id']}',
+    sourceId: '${j['sourceId']}',
+    name: '${j['name']}',
+    cover: j['cover'] as String?,
+    trackCount: (j['trackCount'] as num?)?.toInt() ?? 0,
+    creator: j['creator'] as String?,
+    description: j['description'] as String?,
+    tags: [for (final t in (j['tags'] as List? ?? const [])) '$t'],
+    playCount: (j['playCount'] as num?)?.toInt() ?? 0,
+    kind: PlaylistKind.values.asNameMap()[j['kind']] ?? PlaylistKind.playlist,
+  );
+
   Duration get totalDuration => (tracks ?? const <Song>[]).fold(Duration.zero, (a, s) => a + s.duration);
 
   PlaylistInfo withTracks(List<Song> songs) => PlaylistInfo(
@@ -350,6 +376,13 @@ class HotSearch {
 /// 首页数据。
 class HomeFeed {
   const HomeFeed({required this.daily, required this.playlists});
+
+  Map<String, dynamic> toJson() => {'daily': [for (final s in daily) s.toJson()], 'playlists': [for (final p in playlists) p.toJson()]};
+
+  factory HomeFeed.fromJson(Map<String, dynamic> j) => HomeFeed(
+    daily: [for (final s in (j['daily'] as List? ?? const [])) Song.fromJson(Map<String, dynamic>.from(s as Map))],
+    playlists: [for (final p in (j['playlists'] as List? ?? const [])) PlaylistInfo.fromJson(Map<String, dynamic>.from(p as Map))],
+  );
 
   /// 每日推荐歌曲。
   final List<Song> daily;

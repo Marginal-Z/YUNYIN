@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/data_cache.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/feedback.dart';
 import '../../core/ui/text.dart';
@@ -41,7 +42,12 @@ class DesktopHomePage extends StatelessWidget {
         const SizedBox(height: 18),
         AsyncView<HomeFeed>(
           keyValue: sources.generation,
-          load: source.homeFeed,
+          cacheKey: DataCache.homeKey(source.id),
+          load: () async {
+            final feed = await source.homeFeed();
+            DataCache.saveHome(source.id, source.user?.id, feed);
+            return feed;
+          },
           builder: (context, feed, _) {
             final player = context.watch<PlayerController>();
             final recent = player.history.take(4).toList();
