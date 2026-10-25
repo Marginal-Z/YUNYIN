@@ -141,8 +141,11 @@ jobs:
           if (Test-Path $lang) {
             Copy-Item $lang tool/windows/ChineseSimplified.isl
           } else {
-            $v = (Get-Item $iscc.FullName).VersionInfo.ProductVersion.Trim() -replace '[^0-9.].*$', ''
-            $v = (($v -split '\.') | Select-Object -First 3) -join '.'
+            # ISCC.exe 的文件版本信息不可靠，从安装记录读取版本号；读不到时用 choco 的包版本。
+            $reg = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+              Where-Object { $_.DisplayName -like 'Inno Setup*' } | Select-Object -First 1
+            $v = if ($reg.DisplayVersion) { $reg.DisplayVersion } else { ((choco list innosetup --exact --limit-output) -split '\|')[1] }
+            $v = (($v.Trim() -replace '[^0-9.].*$', '') -split '\.' | Select-Object -First 3) -join '.'
             $tag = 'is-' + ($v -replace '\.', '_')
             Write-Host "Inno Setup $v，从 $tag 下载中文语言文件"
             $ok = $false
