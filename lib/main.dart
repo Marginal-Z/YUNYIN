@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'core/settings.dart';
+import 'debug/benchmark.dart';
 import 'data/downloads.dart';
 import 'data/sources/source_manager.dart';
 import 'features/desktop/window_controls.dart';
@@ -44,4 +47,5 @@ Future<void> main() async {
   await SystemMediaHandler.attach(player);
 
   runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads));
+  if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
 }
