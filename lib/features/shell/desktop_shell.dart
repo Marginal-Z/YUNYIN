@@ -192,10 +192,21 @@ class _FadePage extends Page<void> {
   @override
   Route<void> createRoute(BuildContext context) => PageRouteBuilder<void>(
     settings: this,
-    transitionDuration: const Duration(milliseconds: 180),
-    reverseTransitionDuration: const Duration(milliseconds: 140),
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (_, _, _) => child,
-    transitionsBuilder: (_, a, _, c) => FadeTransition(opacity: a, child: c),
+    // 新页面淡入并从下方 16 像素处升起；返回时淡出并略微下沉。
+    transitionsBuilder: (_, a, _, c) {
+      final curved = CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: AnimatedBuilder(
+          animation: curved,
+          builder: (_, child) => Transform.translate(offset: Offset(0, 16 * (1 - curved.value)), child: child),
+          child: c,
+        ),
+      );
+    },
   );
 }
 

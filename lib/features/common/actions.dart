@@ -23,6 +23,7 @@ import '../player/player_page.dart';
 import '../queue/queue_sheet.dart';
 import '../shell/nav.dart';
 import 'layout.dart';
+import 'sheet_route.dart';
 
 void go(BuildContext context, AppRoute route) => context.read<AppNav>().push(route);
 
@@ -38,34 +39,29 @@ void openArtist(BuildContext context, ArtistRef a) => go(context, ArtistRoute(a.
 
 void openAlbum(BuildContext context, AlbumRef a) => go(context, AlbumRoute(a.id));
 
-/// 从底部滑入的全屏页面。
-Route<T> slideUpRoute<T>(Widget page) => PageRouteBuilder<T>(
-  opaque: true,
-  transitionDuration: const Duration(milliseconds: 380),
-  reverseTransitionDuration: const Duration(milliseconds: 300),
-  pageBuilder: (_, _, _) => page,
-  transitionsBuilder: (_, a, _, child) => SlideTransition(
-    position: Tween(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic)),
-    child: child,
-  ),
-);
-
 Route<T> fadeRoute<T>(Widget page) => PageRouteBuilder<T>(
-  transitionDuration: const Duration(milliseconds: 260),
+  transitionDuration: const Duration(milliseconds: 300),
+  reverseTransitionDuration: const Duration(milliseconds: 220),
   pageBuilder: (_, _, _) => page,
-  transitionsBuilder: (_, a, _, child) => FadeTransition(opacity: a, child: child),
+  transitionsBuilder: (_, a, _, child) {
+    final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    return FadeTransition(
+      opacity: c,
+      child: ScaleTransition(scale: Tween(begin: 0.97, end: 1.0).animate(c), child: child),
+    );
+  },
 );
 
 void openPlayer(BuildContext context) {
   if (context.read<PlayerController>().current == null) return;
-  if (LayoutScope.isDesktop(context)) {
-    Navigator.of(context, rootNavigator: true).push(slideUpRoute(const PlayerThemed(child: DesktopPlayerPage())));
-  } else {
-    Navigator.of(context, rootNavigator: true).push(slideUpRoute(const PlayerThemed(child: PlayerPage())));
-  }
+  final desktop = LayoutScope.isDesktop(context);
+  Navigator.of(context, rootNavigator: true).push(
+    SheetRoute<void>(
+      // 移动端可以下拉收起；桌面端用按钮收起，拖动留给歌词浏览。
+      dismissible: !desktop,
+      builder: (_) => PlayerThemed(child: desktop ? const DesktopPlayerPage() : const PlayerPage()),
+    ),
+  );
 }
 
 void openLyrics(BuildContext context) {

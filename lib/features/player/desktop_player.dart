@@ -29,6 +29,7 @@ class DesktopPlayerPage extends StatelessWidget {
       child: GlowBackground.player(
         context,
         scale: 2.4,
+        flow: player.playing,
         child: Stack(
           children: [
             Positioned(

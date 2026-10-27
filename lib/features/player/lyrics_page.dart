@@ -76,22 +76,19 @@ class _LyricsPageState extends State<LyricsPage> {
     final size = MediaQuery.sizeOf(context);
     final land = size.width > size.height * 1.3;
     final side = land ? (size.width * 0.42).clamp(300.0, 380.0) : 0.0;
+    // 控件隐藏时滑出屏幕。不用透明度渐隐：液态玻璃是背景滤镜，叠加透明度时 Impeller 无法正确合成，会闪烁。
     Widget fade(Widget child, {required bool top}) => IgnorePointer(
       ignoring: !_controls,
-      child: AnimatedOpacity(
-        opacity: _controls ? 1 : 0,
-        duration: const Duration(milliseconds: 360),
-        curve: Curves.easeOutCubic,
-        child: AnimatedSlide(
-          offset: _controls ? Offset.zero : Offset(0, top ? -0.15 : 0.15),
-          duration: const Duration(milliseconds: 420),
-          curve: Curves.easeOutCubic,
-          child: child,
-        ),
+      child: AnimatedSlide(
+        offset: _controls ? Offset.zero : Offset(0, top ? -1.05 : 1.6),
+        duration: Duration(milliseconds: _controls ? 520 : 420),
+        curve: _controls ? Curves.easeOutCubic : Curves.easeInCubic,
+        child: child,
       ),
     );
     return GlowBackground.player(
       context,
+      flow: player.playing,
       child: Listener(
         onPointerDown: (_) {
           if (_controls) _poke();

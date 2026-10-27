@@ -55,73 +55,69 @@ class PlayerPage extends StatelessWidget {
         ],
       ),
     );
-    return GestureDetector(
-      onVerticalDragEnd: (d) {
-        if ((d.primaryVelocity ?? 0) > 600) Navigator.of(context).maybePop();
-      },
-      child: GlowBackground.player(
-        context,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            if (c.maxWidth > c.maxHeight * 1.3) return _landscape(context, c, header);
-            final h = c.maxHeight - pad.top - pad.bottom;
-            final extra = h - 844;
-            final double topGap = 28 + math.max(0.0, extra * 0.25);
-            // 封面以外的内容约占 500 高度；矮屏缩小封面（不小于 120），仍放不下（横屏）时整页可滚动。
-            const fixed = 500.0;
-            final double coverSize = math.max(120.0, math.min(math.min(c.maxWidth - 80, 310.0), h - fixed - (topGap - 28)));
-            final scroll = h < fixed + 120;
-            final page = Padding(
-              padding: EdgeInsets.only(top: pad.top),
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  header,
-                  SizedBox(height: topGap),
-                  Hero(
-                    tag: 'cover',
-                    child: Cover(
-                      song.coverUrl,
-                      size: coverSize,
-                      radius: 30,
-                      imageSize: 800,
-                      shadows: [
-                        Shadow2(0, 28, 56, CoverThemed.shadowOf(context).withValues(alpha: 0.35)),
-                        const Shadow2(0, 4, 10, Color.fromRGBO(0, 0, 0, 0.08)),
-                      ],
-                    ),
+    // 下拉收起由 SheetRoute 处理（页面跟随手指）。
+    return GlowBackground.player(
+      context,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          if (c.maxWidth > c.maxHeight * 1.3) return _landscape(context, c, header);
+          final h = c.maxHeight - pad.top - pad.bottom;
+          final extra = h - 844;
+          final double topGap = 28 + math.max(0.0, extra * 0.25);
+          // 封面以外的内容约占 500 高度；矮屏缩小封面（不小于 120），仍放不下（横屏）时整页可滚动。
+          const fixed = 500.0;
+          final double coverSize = math.max(120.0, math.min(math.min(c.maxWidth - 80, 310.0), h - fixed - (topGap - 28)));
+          final scroll = h < fixed + 120;
+          final page = Padding(
+            padding: EdgeInsets.only(top: pad.top),
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                header,
+                SizedBox(height: topGap),
+                Hero(
+                  tag: 'cover',
+                  child: Cover(
+                    song.coverUrl,
+                    size: coverSize,
+                    radius: 30,
+                    imageSize: 800,
+                    shadows: [
+                      Shadow2(0, 28, 56, CoverThemed.shadowOf(context).withValues(alpha: 0.35)),
+                      const Shadow2(0, 4, 10, Color.fromRGBO(0, 0, 0, 0.08)),
+                    ],
                   ),
-                  const SizedBox(height: 22),
-                  // 封面下方两行歌词；歌名、进度与播放控件放在下方，靠近功能卡片。
-                  const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 28),
-                    child: Column(
-                      children: [
-                        _TitleRow(song: song),
-                        const SizedBox(height: 20),
-                        const _Progress(),
-                        const SizedBox(height: 18),
-                        const _Controls(),
-                      ],
-                    ),
+                ),
+                const SizedBox(height: 22),
+                // 封面下方两行歌词；歌名、进度与播放控件放在下方，靠近功能卡片。
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Column(
+                    children: [
+                      _TitleRow(song: song),
+                      const SizedBox(height: 20),
+                      const _Progress(),
+                      const SizedBox(height: 18),
+                      const _Controls(),
+                    ],
                   ),
-                  const SizedBox(height: 22),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(16, 0, 16, math.max(22, pad.bottom + 8) - pad.bottom),
-                    child: _PlayerTabs(song: song),
-                  ),
-                  SizedBox(height: pad.bottom),
-                ],
-              ),
-            );
-            if (!scroll) return page;
-            return SingleChildScrollView(
-              child: SizedBox(height: fixed + coverSize + pad.top + pad.bottom, child: page),
-            );
-          },
-        ),
+                ),
+                const SizedBox(height: 22),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, math.max(22, pad.bottom + 8) - pad.bottom),
+                  child: _PlayerTabs(song: song),
+                ),
+                SizedBox(height: pad.bottom),
+              ],
+            ),
+          );
+          if (!scroll) return page;
+          return SingleChildScrollView(
+            child: SizedBox(height: fixed + coverSize + pad.top + pad.bottom, child: page),
+          );
+        },
       ),
     );
   }

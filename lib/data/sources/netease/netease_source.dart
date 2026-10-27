@@ -709,15 +709,18 @@ class NeteaseSource extends MusicSource {
 
   @override
   Future<Lyrics> lyrics(Song song) async {
+    // v1 接口额外返回逐字歌词（yrc）。
     final res = await _dio.get<String>(
-      'https://music.163.com/api/song/lyric',
-      queryParameters: {'id': song.id, 'lv': -1, 'kv': -1, 'tv': -1},
+      'https://music.163.com/api/song/lyric/v1',
+      queryParameters: {'id': song.id, 'lv': -1, 'kv': -1, 'tv': -1, 'yv': -1},
       options: Options(headers: {'User-Agent': _ua, 'Referer': 'https://music.163.com', 'Cookie': _cookieHeader}),
     );
     final j = _parse(res);
     final lrc = j['lrc']?['lyric'] as String? ?? '';
     final tr = j['tlyric']?['lyric'] as String? ?? '';
-    return parseLrc(lrc, translation: tr);
+    final yrc = j['yrc']?['lyric'] as String? ?? '';
+    final words = parseYrc(yrc, translation: tr);
+    return words.lines.isNotEmpty ? words : parseLrc(lrc, translation: tr);
   }
 
   // ── 评论 ──────────────────────────────────────────
@@ -845,5 +848,49 @@ Lyrics parseLrc(String lrc, {String translation = ''}) {
   return Lyrics([
     for (final k in keys)
       if (main[k]!.isNotEmpty) LyricLine(Duration(milliseconds: k), main[k]!, translation: tr[k]),
+  ]);
+}
+
+final _yrcLine = RegExp(r'^\[(\d+),(\d+)\]');
+final _yrcWord = RegExp(r'\((\d+),(\d+),\d+\)([^(]*)');
+
+/// 解析网易云逐字歌词（yrc）：`[行开始,行时长](字开始,字时长,0)字…`，时间为毫秒。
+/// 翻译歌词以 LRC 时间轴给出，按最接近的行开始时间（1.5 秒内）匹配。
+Lyrics parseYrc(String yrc, {String translation = ''}) {
+  final lines = <LyricLine>[];
+  for (final raw in const LineSplitter().convert(yrc)) {
+    final m = _yrcLine.firstMatch(raw.trim());
+    if (m == null) continue;
+    final words = [
+      for (final w in _yrcWord.allMatches(raw))
+        if (w.group(3)!.isNotEmpty) LyricWord(Duration(milliseconds: int.parse(w.group(1)!)), Duration(milliseconds: int.parse(w.group(2)!)), w.group(3)!),
+    ];
+    final text = words.map((w) => w.text).join().trim();
+    if (text.isEmpty) continue;
+    lines.add(
+      LyricLine(
+        Duration(milliseconds: int.parse(m.group(1)!)),
+        text,
+        words: words,
+        duration: Duration(milliseconds: int.parse(m.group(2)!)),
+      ),
+    );
+  }
+  lines.sort((a, b) => a.time.compareTo(b.time));
+  final tr = parseLrc(translation).lines.where((l) => l.text.isNotEmpty);
+  if (lines.isEmpty) return const Lyrics([]);
+  // 每行翻译归给时间最接近的一行（1.5 秒内），同一行有多条候选时取最接近的。
+  final best = <int, (Duration, String)>{};
+  for (final t in tr) {
+    var k = 0;
+    for (var i = 1; i < lines.length; i++) {
+      if ((lines[i].time - t.time).abs() < (lines[k].time - t.time).abs()) k = i;
+    }
+    final d = (lines[k].time - t.time).abs();
+    if (d <= const Duration(milliseconds: 1500) && (best[k] == null || d < best[k]!.$1)) best[k] = (d, t.text);
+  }
+  return Lyrics([
+    for (var i = 0; i < lines.length; i++)
+      best[i] == null ? lines[i] : LyricLine(lines[i].time, lines[i].text, words: lines[i].words, duration: lines[i].duration, translation: best[i]!.$2),
   ]);
 }

@@ -263,12 +263,29 @@ class RadioInfo {
   final String? category;
 }
 
+/// 逐字歌词中的一个字 / 词：开始时间与持续时长。
+class LyricWord {
+  const LyricWord(this.start, this.duration, this.text);
+
+  final Duration start;
+  final Duration duration;
+  final String text;
+
+  Duration get end => start + duration;
+}
+
 class LyricLine {
-  const LyricLine(this.time, this.text, {this.translation});
+  const LyricLine(this.time, this.text, {this.translation, this.words, this.duration});
 
   final Duration time;
   final String text;
   final String? translation;
+
+  /// 逐字时间轴（网易云 yrc）；没有时为 null，按整行时长估算填色。
+  final List<LyricWord>? words;
+
+  /// 本行演唱时长（逐字歌词提供）。
+  final Duration? duration;
 }
 
 class Lyrics {
@@ -280,6 +297,9 @@ class Lyrics {
   final bool synced;
 
   bool get hasTranslation => lines.any((l) => (l.translation ?? '').isNotEmpty);
+
+  /// 是否带逐字时间轴。
+  bool get wordSynced => lines.any((l) => l.words != null);
 
   int indexAt(Duration pos) {
     if (!synced || lines.isEmpty) return -1;
@@ -377,7 +397,10 @@ class HotSearch {
 class HomeFeed {
   const HomeFeed({required this.daily, required this.playlists});
 
-  Map<String, dynamic> toJson() => {'daily': [for (final s in daily) s.toJson()], 'playlists': [for (final p in playlists) p.toJson()]};
+  Map<String, dynamic> toJson() => {
+    'daily': [for (final s in daily) s.toJson()],
+    'playlists': [for (final p in playlists) p.toJson()],
+  };
 
   factory HomeFeed.fromJson(Map<String, dynamic> j) => HomeFeed(
     daily: [for (final s in (j['daily'] as List? ?? const [])) Song.fromJson(Map<String, dynamic>.from(s as Map))],

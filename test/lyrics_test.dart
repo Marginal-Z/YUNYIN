@@ -3,10 +3,7 @@ import 'package:yunyin/data/sources/netease/netease_source.dart';
 
 void main() {
   test('解析带翻译的 LRC', () {
-    final l = parseLrc(
-      '[00:01.50]第一行\n[00:03.123]第二行\n[00:05][00:07.00]重复行',
-      translation: '[00:01.50]Line one\n[00:03.123]Line two',
-    );
+    final l = parseLrc('[00:01.50]第一行\n[00:03.123]第二行\n[00:05][00:07.00]重复行', translation: '[00:01.50]Line one\n[00:03.123]Line two');
     expect(l.synced, isTrue);
     expect(l.lines.map((e) => e.text), ['第一行', '第二行', '重复行', '重复行']);
     expect(l.lines[0].time, const Duration(milliseconds: 1500));
@@ -20,5 +17,20 @@ void main() {
     final l = parseLrc('作词 : 某人\n没有时间轴');
     expect(l.synced, isFalse);
     expect(l.lines, hasLength(2));
+  });
+
+  test('解析逐字歌词并匹配翻译', () {
+    final l = parseYrc(
+      '{"t":0,"c":[{"tx":"作词: 某人"}]}\n[28480,1000](28480,160,0)我(28640,420,0)带 (29060,230,0)着\n[30000,500](30000,500,0)Hi',
+      translation: '[00:28.50]I bring\n[00:40.00]Far away',
+    );
+    expect(l.synced, isTrue);
+    expect(l.wordSynced, isTrue);
+    expect(l.lines.map((e) => e.text), ['我带 着', 'Hi']);
+    expect(l.lines[0].words!.map((w) => w.text), ['我', '带 ', '着']);
+    expect(l.lines[0].words![1].start, const Duration(milliseconds: 28640));
+    expect(l.lines[0].duration, const Duration(milliseconds: 1000));
+    expect(l.lines[0].translation, 'I bring');
+    expect(l.lines[1].translation, isNull);
   });
 }

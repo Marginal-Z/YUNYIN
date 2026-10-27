@@ -101,8 +101,10 @@ void main() {
   vec2 uv = frag / uSize;
   // 输入纹理可能是玻璃自己的图层（尺寸 = 玻璃 + 两侧留边，玻璃居中），也可能是整个画面
   // （多块玻璃共享同一次背景截取时）；据尺寸判断坐标系。
+  // 「柔和」材质的模糊层裁成玻璃形状后，纹理可能恰好等于玻璃尺寸（不含留边）。
   vec2 expected = uShape + vec2(2.0 * uPad);
-  bool local = abs(uSize.x - expected.x) < 4.0 && abs(uSize.y - expected.y) < 4.0;
+  bool local = (abs(uSize.x - expected.x) < 4.0 && abs(uSize.y - expected.y) < 4.0) ||
+      (abs(uSize.x - uShape.x) < 2.0 && abs(uSize.y - uShape.y) < 2.0);
   vec2 center = local ? uSize * 0.5 : uOrigin + uShape * 0.5;
   vec2 p = frag - center;
 

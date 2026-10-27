@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -70,6 +71,7 @@ class RenderLiquidGlass extends RenderProxyBox {
   final _clip = LayerHandle<ClipRectLayer>();
   final _blur = LayerHandle<BackdropFilterLayer>();
   final _glass = LayerHandle<BackdropFilterLayer>();
+  final _shapeClip = LayerHandle<ClipPathLayer>();
 
   set radius(double v) {
     if (v == _radius) return;
@@ -109,6 +111,7 @@ class RenderLiquidGlass extends RenderProxyBox {
     _clip.layer = null;
     _blur.layer = null;
     _glass.layer = null;
+    _shapeClip.layer = null;
     _shader?.dispose();
     super.dispose();
   }
@@ -149,16 +152,62 @@ class RenderLiquidGlass extends RenderProxyBox {
       if (!regular) {
         // 「清透」原版只有半径 1 的模糊，肉眼不可见，省去这一层。
         _blur.layer = null;
+        _shapeClip.layer = null;
         glass(context, offset);
         return;
       }
       // 原版「柔和」：半径 16 的高斯模糊（sigma = 16 / 3）。原版以 1 倍屏像素设计，这里按逻辑像素换算。
+      // 模糊层必须裁成玻璃的形状：否则圆角外、裁剪留边内的背景也被模糊，玻璃周围会露出一块方形。
       final blur = _blur.layer ??= BackdropFilterLayer();
       blur
         ..filter = ui.ImageFilter.blur(sigmaX: 16 / 3, sigmaY: 16 / 3, tileMode: TileMode.clamp)
         ..backdropKey = _backdropKey;
-      context.pushLayer(blur, glass, offset);
+      _shapeClip.layer = context.pushClipPath(needsCompositing, offset, Offset.zero & size, _shapePath(), (context, offset) {
+        context.pushLayer(blur, glass, offset);
+      }, oldLayer: _shapeClip.layer);
     }, oldLayer: _clip.layer);
+  }
+
+  Path? _path;
+  Size? _pathSize;
+  double? _pathRadius;
+
+  /// 与着色器 shapeSDF 一致的轮廓：圆角为指数 n 的超椭圆（圆形、胶囊 n = 2，面板 n = 5）。
+  Path _shapePath() {
+    if (_path != null && _pathSize == size && _pathRadius == _radius) return _path!;
+    final n = _radius >= size.shortestSide / 2 - 0.5 ? 2.0 : 5.0;
+    final r = math.min(_radius, size.shortestSide / 2);
+    final path = Path();
+    // 四个角各取 16 段，从右上角开始顺时针。
+    const steps = 16;
+    final corners = [
+      (Offset(size.width - r, r), 1.0, -1.0),
+      (Offset(size.width - r, size.height - r), 1.0, 1.0),
+      (Offset(r, size.height - r), -1.0, 1.0),
+      (Offset(r, r), -1.0, -1.0),
+    ];
+    var first = true;
+    for (var c = 0; c < 4; c++) {
+      final (center, sx, sy) = corners[c];
+      for (var i = 0; i <= steps; i++) {
+        // 右上角从顶边走到右边，其余角依次旋转。
+        final t = (c + i / steps) * math.pi / 2 - math.pi / 2;
+        final cx = math.cos(t), sy0 = math.sin(t);
+        final x = center.dx + sx * r * math.pow(cx.abs(), 2 / n);
+        final y = center.dy + sy * r * math.pow(sy0.abs(), 2 / n);
+        if (first) {
+          path.moveTo(x, y);
+          first = false;
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+    }
+    path.close();
+    _path = path;
+    _pathSize = size;
+    _pathRadius = _radius;
+    return path;
   }
 
   void _scheduleCheck() {

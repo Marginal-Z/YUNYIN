@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/palette.dart';
@@ -15,6 +14,7 @@ import '../common/actions.dart';
 import '../common/layout.dart';
 import 'nav.dart';
 import 'routes.dart';
+import 'tab_bar.dart';
 
 /// 移动端外壳：三个标签各自的导航栈 + 悬浮玻璃导航栏与迷你播放条。
 class MobileShell extends StatefulWidget {
@@ -102,17 +102,10 @@ class _BottomBar extends StatelessWidget {
           child: Semantics(
             label: '主导航',
             container: true,
-            child: Glass(
-              radius: 32,
-              height: 64,
-              padding: const EdgeInsets.all(5),
-              child: Row(
-                children: [
-                  _NavItem(icon: YIcons.home, label: '首页', active: nav.tab == 0, onTap: () => nav.switchTab(0)),
-                  _NavItem(icon: YIcons.discover, label: '发现', active: nav.tab == 1, onTap: () => nav.switchTab(1)),
-                  _NavItem(icon: YIcons.library, label: '乐库', active: nav.tab == 2, onTap: () => nav.switchTab(2)),
-                ],
-              ),
+            child: SlidingTabBar(
+              items: const [TabBarItem(YIcons.home, '首页'), TabBarItem(YIcons.discover, '发现'), TabBarItem(YIcons.library, '乐库')],
+              index: nav.tab,
+              onSelect: nav.switchTab,
             ),
           ),
         ),
@@ -130,46 +123,6 @@ class _BottomBar extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({required this.icon, required this.label, required this.active, required this.onTap});
-
-  final YIconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = Palette.of(context);
-    final color = active ? p.accentText : p.text3;
-    return Expanded(
-      child: Pressable(
-        onTap: onTap,
-        scale: 0.96,
-        semanticLabel: label,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          decoration: BoxDecoration(color: active ? p.navActive : Colors.transparent, borderRadius: BorderRadius.circular(27)),
-          child: CustomPaint(
-            foregroundPainter: active ? InsetShadowPainter(BorderRadius.circular(27), [Shadow2(0, 0.5, 1, p.navActiveInset)]) : null,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                YIcon(icon, size: 22, color: color),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  style: ts(11, weight: active ? w600 : w500, color: color, height: 1.2),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

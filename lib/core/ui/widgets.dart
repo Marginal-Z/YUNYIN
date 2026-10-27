@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 
 import 'package:provider/provider.dart';
 
@@ -10,7 +12,10 @@ import 'box.dart';
 import 'icons.dart';
 import 'text.dart';
 
-/// 按压反馈：缩放 0.98（设计规范“按下”状态），桌面端显示手型光标。
+/// 按压反馈：缩放 0.98（设计规范“按下”状态），桌面端显示手型光标与悬停底色。
+///
+/// 按下时快速收缩，松开时以轻微回弹的弹簧恢复。组件树结构固定：悬停底色只改变颜色，
+/// 不插入新的父组件，子组件（例如封面图片）因此不会在鼠标移入移出时重建。
 class Pressable extends StatefulWidget {
   const Pressable({
     super.key,
@@ -39,37 +44,65 @@ class Pressable extends StatefulWidget {
   State<Pressable> createState() => _PressableState();
 }
 
-class _PressableState extends State<Pressable> {
-  bool _down = false;
+class _PressableState extends State<Pressable> with SingleTickerProviderStateMixin {
+  /// 0 = 松开，1 = 按下。
+  late final AnimationController _press = AnimationController(vsync: this, duration: const Duration(milliseconds: 90));
   bool _hover = false;
+  bool _down = false;
 
-  void _set(bool v) {
-    if (_down != v) setState(() => _down = v);
+  /// 松开的回弹：轻微欠阻尼。
+  static final _release = SpringDescription.withDampingRatio(mass: 1, stiffness: 520, ratio: 0.62);
+
+  @override
+  void dispose() {
+    _press.dispose();
+    super.dispose();
+  }
+
+  void _set(bool down) {
+    // 触屏没有悬停，按下时显示底色。
+    if (widget.hoverColor != null && _down != down) setState(() => _down = down);
+    _down = down;
+    if (down) {
+      _press.animateTo(1, curve: Curves.easeOut);
+    } else if (_press.value > 0 || _press.isAnimating) {
+      // 点得很快时先补完按下，让反馈可见。
+      final from = math.max(_press.value, 0.6);
+      _press.animateWith(SpringSimulation(_release, from, 0, 0));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null || widget.onLongPress != null;
     Widget child = widget.child;
-    if (widget.hoverColor != null && (_hover || _down)) {
-      child = DecoratedBox(
-        decoration: BoxDecoration(color: widget.hoverColor, borderRadius: widget.radius),
+    if (widget.hoverColor != null) {
+      child = AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(color: _hover || _down ? widget.hoverColor : widget.hoverColor!.withValues(alpha: 0), borderRadius: widget.radius),
         child: child,
       );
     }
-    child = AnimatedScale(
-      scale: _down ? widget.scale : 1,
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-      child: AnimatedOpacity(opacity: _down ? widget.pressedOpacity : 1, duration: const Duration(milliseconds: 120), child: child),
-    );
+    if (widget.scale != 1 || widget.pressedOpacity != 1) {
+      child = AnimatedBuilder(
+        animation: _press,
+        builder: (context, child) {
+          final t = _press.value;
+          Widget c = Transform.scale(scale: 1 - (1 - widget.scale) * t, child: child);
+          if (widget.pressedOpacity != 1) c = Opacity(opacity: (1 - (1 - widget.pressedOpacity) * t).clamp(0.0, 1.0), child: c);
+          return c;
+        },
+        child: child,
+      );
+    }
     return Semantics(
       button: enabled,
       label: widget.semanticLabel,
       child: MouseRegion(
         cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
+        onEnter: widget.hoverColor == null ? null : (_) => setState(() => _hover = true),
+        onExit: widget.hoverColor == null ? null : (_) => setState(() => _hover = false),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: enabled ? (_) => _set(true) : null,
@@ -605,7 +638,8 @@ class Tag extends StatelessWidget {
   }
 }
 
-/// 正在播放的三根跳动竖条。以较低帧率跳动，避免持续触发整屏重绘。
+/// 正在播放的三根跳动竖条。像均衡器一样按帧跳动（约每秒 6 帧），不做补间：
+/// 每次跳动只产生一帧，避免为了这个小动画持续以满帧率重绘整个画面（玻璃背景滤镜每帧都要重新计算）。
 class NowPlayingBars extends StatefulWidget {
   const NowPlayingBars({super.key, required this.color, this.playing = true});
 
@@ -619,9 +653,13 @@ class NowPlayingBars extends StatefulWidget {
 class _NowPlayingBarsState extends State<NowPlayingBars> {
   static const _frames = [
     [9.0, 16.0, 12.0],
+    [12.0, 13.0, 8.0],
     [14.0, 10.0, 6.0],
+    [10.0, 7.0, 11.0],
     [6.0, 13.0, 16.0],
+    [9.0, 15.0, 13.0],
     [12.0, 7.0, 10.0],
+    [15.0, 9.0, 7.0],
   ];
   Timer? _timer;
   int _i = 0;
@@ -640,7 +678,7 @@ class _NowPlayingBarsState extends State<NowPlayingBars> {
 
   void _sync() {
     if (widget.playing && _timer == null) {
-      _timer = Timer.periodic(const Duration(milliseconds: 220), (_) => setState(() => _i = (_i + 1) % _frames.length));
+      _timer = Timer.periodic(const Duration(milliseconds: 160), (_) => setState(() => _i = (_i + 1) % _frames.length));
     } else if (!widget.playing && _timer != null) {
       _timer!.cancel();
       _timer = null;
@@ -656,28 +694,29 @@ class _NowPlayingBarsState extends State<NowPlayingBars> {
 
   @override
   Widget build(BuildContext context) {
-    final h = _frames[_i];
     return RepaintBoundary(
-      child: SizedBox(
-        height: 16,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            for (var i = 0; i < 3; i++) ...[
-              if (i > 0) const SizedBox(width: 3),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 3,
-                height: h[i],
-                decoration: BoxDecoration(color: widget.color, borderRadius: BorderRadius.circular(1.5)),
-              ),
-            ],
-          ],
-        ),
-      ),
+      child: CustomPaint(size: const Size(15, 16), painter: _BarsPainter(_frames[_i], widget.color)),
     );
   }
+}
+
+class _BarsPainter extends CustomPainter {
+  _BarsPainter(this.heights, this.color);
+
+  final List<double> heights;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    for (var i = 0; i < 3; i++) {
+      final h = heights[i];
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(i * 6.0, size.height - h, 3, h), const Radius.circular(1.5)), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BarsPainter old) => !identical(old.heights, heights) || old.color != color;
 }
 
 /// 进度条：4px 轨道 + 可选 12px 圆点，支持拖动。

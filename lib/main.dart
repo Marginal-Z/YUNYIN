@@ -13,6 +13,7 @@ import 'data/listen_stats.dart';
 import 'core/ui/liquid_glass_filter.dart';
 import 'core/update/updater.dart';
 import 'core/settings.dart';
+import 'core/smooth_wheel.dart';
 import 'debug/benchmark.dart';
 import 'debug/screenshots.dart';
 import 'data/downloads.dart';
@@ -24,6 +25,7 @@ import 'player/system_media.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SmoothWheel.install();
 
   if (isDesktopPlatform) {
     await windowManager.ensureInitialized();
