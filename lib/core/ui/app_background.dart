@@ -12,7 +12,7 @@ import '../theme/cover_colors.dart';
 import '../theme/palette.dart';
 import 'glow_background.dart';
 
-/// 界面背景：默认光晕、正在播放歌曲的封面取色，或用户选择的图片。
+/// 界面背景：默认纯色、正在播放歌曲的封面取色，或用户选择的图片。
 class AppBackground extends StatelessWidget {
   const AppBackground({super.key, this.scale = 1, this.child});
 
@@ -23,7 +23,7 @@ class AppBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final mode = context.select<AppSettings, BackgroundMode>((s) => s.background);
     final Widget bg = switch (mode) {
-      BackgroundMode.glow => _Glow(scale: scale),
+      BackgroundMode.glow => const _Plain(),
       BackgroundMode.cover => _CoverBackground(scale: scale),
       BackgroundMode.image => const _ImageBackground(),
     };
@@ -38,19 +38,18 @@ class AppBackground extends StatelessWidget {
   }
 }
 
-class _Glow extends StatelessWidget {
-  const _Glow({required this.scale});
-
-  final double scale;
+/// 默认背景：纯色。浅色模式纯白；深色模式使用色板的深色底色。
+class _Plain extends StatelessWidget {
+  const _Plain();
 
   @override
-  Widget build(BuildContext context) {
-    final p = Palette.of(context);
-    return GlowBackground(color: p.bg, glows: p.glows, scale: scale);
-  }
+  Widget build(BuildContext context) => ColoredBox(color: plainBackground(Palette.of(context)));
 }
 
-/// 封面取色背景：底色与三团光晕取自当前歌曲封面，切歌时平滑过渡；没有歌曲时使用默认光晕。
+/// 默认纯色背景的颜色。
+Color plainBackground(Palette p) => p.isDark ? p.bg : const Color(0xFFFFFFFF);
+
+/// 封面取色背景：底色与三团光晕取自当前歌曲封面，切歌时平滑过渡；没有歌曲时使用默认纯色。
 class _CoverBackground extends StatefulWidget {
   const _CoverBackground({required this.scale});
 
@@ -109,7 +108,7 @@ class _ImageBackground extends StatelessWidget {
     final p = Palette.of(context);
     final s = context.watch<AppSettings>();
     final path = s.backgroundImage;
-    if (path == null || !File(path).existsSync()) return GlowBackground(color: p.bg, glows: p.glows);
+    if (path == null || !File(path).existsSync()) return const _Plain();
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final width = (MediaQuery.sizeOf(context).longestSide * dpr).round();
     Widget image = Image.file(
@@ -117,7 +116,7 @@ class _ImageBackground extends StatelessWidget {
       fit: BoxFit.cover,
       cacheWidth: s.backgroundBlur ? (width / 4).round() : width,
       gaplessPlayback: true,
-      errorBuilder: (_, _, _) => GlowBackground(color: p.bg, glows: p.glows),
+      errorBuilder: (_, _, _) => const _Plain(),
     );
     if (s.backgroundBlur) {
       image = ImageFiltered(

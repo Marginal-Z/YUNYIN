@@ -25,6 +25,19 @@ class MainActivity : AudioServiceActivity() {
 
     private val themes = listOf("red", "blue", "teal", "orange", "graphite")
     private var pendingScan: Result? = null
+    private var pendingIcon: String? = null
+
+    /**
+     * 在应用退到后台时切换桌面图标。许多桌面（ZUI、MIUI、ColorOS 等）在应用位于前台时不会刷新
+     * activity-alias 的启用状态，桌面上会一直显示旧图标；退到后台后切换，桌面回到前台时即可重新加载。
+     */
+    override fun onStop() {
+        super.onStop()
+        pendingIcon?.let {
+            pendingIcon = null
+            setIcon(it)
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -35,7 +48,8 @@ class MainActivity : AudioServiceActivity() {
                     if (name !in themes) {
                         result.error("bad_icon", "unknown icon $name", null)
                     } else {
-                        setIcon(name)
+                        // 记下来，退到后台时再切换（见 onStop）。
+                        pendingIcon = name
                         result.success(null)
                     }
                 }

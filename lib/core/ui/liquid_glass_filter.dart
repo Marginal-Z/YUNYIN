@@ -136,8 +136,8 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(7); // 色散
     f(0.9); // 边缘高光 90%
     f(regular ? 0.11 : 0); // 色调
-    // 圆角达到短边一半（圆形、胶囊）时用正圆弧，否则用原版面板的超椭圆圆角。
-    f(_radius >= size.shortestSide / 2 - 0.5 ? 2 : 5);
+    // 圆角一律用正圆弧，与关闭液态玻璃时的圆角矩形完全一致（原版面板的超椭圆圆角看起来偏方）。
+    f(2);
     f(global.dx * _dpr / _uiScale);
     f(global.dy * _dpr / _uiScale);
     f(_pad * _dpr);
@@ -172,10 +172,10 @@ class RenderLiquidGlass extends RenderProxyBox {
   Size? _pathSize;
   double? _pathRadius;
 
-  /// 与着色器 shapeSDF 一致的轮廓：圆角为指数 n 的超椭圆（圆形、胶囊 n = 2，面板 n = 5）。
+  /// 与着色器 shapeSDF 一致的轮廓：圆角为正圆弧（超椭圆指数 n = 2）。
   Path _shapePath() {
     if (_path != null && _pathSize == size && _pathRadius == _radius) return _path!;
-    final n = _radius >= size.shortestSide / 2 - 0.5 ? 2.0 : 5.0;
+    const n = 2.0;
     final r = math.min(_radius, size.shortestSide / 2);
     final path = Path();
     // 四个角各取 16 段，从右上角开始顺时针。

@@ -114,6 +114,11 @@ void main() {
     expect(int.tryParse(rate) ?? 0, greaterThan(0), reason: '没有解码出音频');
     expect(volume, greaterThan(0), reason: '音量为 0');
     expect(af.contains('loudnorm'), isFalse, reason: '精简版 libmpv 不支持 loudnorm，不能使用');
+    if (Platform.isAndroid) {
+      // 平板兼容：16 位立体声输出（见 PlayerController._configureAndroidAudio）。
+      expect(await native.getProperty('audiotrack-pcm-float'), 'no');
+      expect(await native.getProperty('audio-channels'), 'stereo');
+    }
     player.dispose();
   });
 }

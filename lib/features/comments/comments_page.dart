@@ -212,7 +212,7 @@ class _CommentsPageState extends State<CommentsPage> {
                           child: StateView.network(onRetry: () => _load(reset: true), message: errorText(_error)),
                         )
                       else if (_items.isEmpty && _loading)
-                        const SkeletonList()
+                        const SkeletonComments()
                       else if (_items.isEmpty)
                         YCard(
                           child: StateView.empty(title: '还没有评论', message: '来抢沙发吧。', icon: YIcons.comment, tile: TileColor.red),

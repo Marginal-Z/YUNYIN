@@ -95,15 +95,20 @@ class _FlowingGlowState extends State<_FlowingGlow> with SingleTickerProviderSta
 
   @override
   Widget build(BuildContext context) {
+    final flowing = widget.flow || _phase.value > 0;
+    final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
     return CustomPaint(
-      painter: _GlowPainter(widget.color, widget.glows, widget.scale, phase: widget.flow || _phase.value > 0 ? _phase : null),
+      // 静止时按屏幕原始分辨率生成一次；流动时每帧重新生成，用一半分辨率。
+      painter: _GlowPainter(widget.color, widget.glows, widget.scale, phase: flowing ? _phase : null, resolution: flowing ? dpr / 2 : dpr),
       child: const SizedBox.expand(),
     );
   }
 }
 
 class _GlowPainter extends CustomPainter {
-  _GlowPainter(this.color, this.source, this.scale, {this.phase}) : glows = [for (final g in source) g.scaled(scale)], super(repaint: phase);
+  _GlowPainter(this.color, this.source, this.scale, {this.phase, this.resolution = 1})
+    : glows = [for (final g in source) g.scaled(scale)],
+      super(repaint: phase);
 
   final Color color;
   final List<Glow> source;
@@ -113,15 +118,17 @@ class _GlowPainter extends CustomPainter {
   /// 流动相位（秒）；null 时静止。
   final ValueListenable<double>? phase;
 
-  /// 绘制分辨率（相对逻辑像素）。光晕是很柔和的渐变，低分辨率绘制后双线性放大几乎看不出差别；
-  /// 而 Impeller 每帧都会重新光栅化整个画面，直接绘制意味着每帧重新计算几块铺满窗口的径向渐变
-  /// （桌面端放大 2.4 倍后尤其昂贵），低分辨率图片则只需一次整屏贴图。
-  static const _lowRes = 1 / 6;
+  /// 生成图片的分辨率（每逻辑像素的像素数）。
+  ///
+  /// Impeller 每帧都会重新光栅化整个画面：直接绘制意味着每帧重新计算几块铺满窗口的径向渐变
+  /// （桌面端放大 2.4 倍后尤其昂贵）。这里先把光晕画成图片，之后每帧只是一次整屏贴图。
+  /// 图片分辨率不能太低：渐变自带的抖动纹理被放大后会呈现块状。
+  final double resolution;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final w = (size.width * _lowRes).ceil(), h = (size.height * _lowRes).ceil();
+    final w = (size.width * resolution).ceil(), h = (size.height * resolution).ceil();
     final recorder = ui.PictureRecorder();
     _draw(Canvas(recorder)..scale(w / size.width, h / size.height), size);
     final picture = recorder.endRecording();
@@ -163,5 +170,5 @@ class _GlowPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_GlowPainter old) => old.color != color || !identical(old.source, source) || old.scale != scale || old.phase != phase;
+  bool shouldRepaint(_GlowPainter old) => old.color != color || !identical(old.source, source) || old.scale != scale || old.phase != phase || old.resolution != resolution;
 }

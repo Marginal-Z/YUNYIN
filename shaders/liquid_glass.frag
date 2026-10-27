@@ -27,7 +27,7 @@ uniform float uRefraction; // 折射强度（原版 refraction / 100）
 uniform float uDispersion; // 色散（原版默认 7）
 uniform float uGlare;      // 边缘高光（原版 glare / 100）
 uniform float uTint;       // 白色色调强度（清透 0，柔和 0.11）
-uniform float uRoundness;  // 圆角指数：圆形与胶囊为 2，面板为 5（同原版形状预设）
+uniform float uRoundness;  // 圆角指数：2 为正圆弧（与普通圆角矩形一致）
 uniform vec2 uOrigin;      // 玻璃在画面中的左上角，物理像素
 uniform float uPad;        // 裁剪区域每边多出的物理像素
 

@@ -87,6 +87,7 @@ class PlayerController extends ChangeNotifier {
       debugPrint('player engine unavailable: $e');
     }
     settings.addListener(_applyVolume);
+    settings.addListener(_applyOutput);
     sources.addListener(_refreshLikes);
     await _restore();
     _refreshLikes();
@@ -134,8 +135,61 @@ class PlayerController extends ChangeNotifier {
       p.stream.error.listen((e) {
         if (current != null && e.isNotEmpty) debugPrint('player error: $e');
       }),
+      p.stream.log.listen((l) {
+        if (l.text.contains('Could not open/initialize audio device')) _onAudioDeviceFailed();
+      }),
     ]);
+    if (!kIsWeb && Platform.isAndroid) await _configureAndroidAudio(p);
     await _applyVolume();
+  }
+
+  /// Android 音频输出的兼容设置。
+  ///
+  /// mpv 默认把浮点 PCM、按音源声道数交给 AudioTrack。部分平板（多扬声器、部分联发科芯片等）
+  /// 的音频 HAL 接受浮点格式却输出静音，或者无法按多声道布局打开设备。音乐本身都是立体声，
+  /// 这里统一以 16 位立体声交给系统混音，这是所有 Android 设备都支持的格式，手机上听感相同。
+  Future<void> _configureAndroidAudio(Player p) async {
+    final native = p.platform;
+    if (native is! NativePlayer) return;
+    await native.setProperty('audio-channels', 'stereo');
+    await native.setProperty('audiotrack-pcm-float', 'no');
+    if (settings.openSles) await native.setProperty('ao', 'opensles');
+    _openSles = settings.openSles;
+  }
+
+  bool _openSles = false;
+
+  /// 设置中切换“兼容音频输出”：改用 / 取消 OpenSL ES 并在原位置重新加载当前歌曲。
+  Future<void> _applyOutput() async {
+    if (kIsWeb || !Platform.isAndroid || settings.openSles == _openSles) return;
+    _openSles = settings.openSles;
+    final native = _player?.platform;
+    if (native is! NativePlayer) return;
+    await native.setProperty('ao', _openSles ? 'opensles' : 'audiotrack,opensles');
+    if (current != null) await _load(autoplay: playing, keepPosition: true);
+  }
+
+  /// 已经尝试过的音频输出兜底次数。
+  int _audioFallback = 0;
+
+  /// mpv 无法打开音频设备（静音播放）：Android 上依次改用 48kHz 采样率与 OpenSL ES 输出并重新加载；
+  /// 仍然失败时提示，而不是一直无声播放。
+  Future<void> _onAudioDeviceFailed() async {
+    final native = _player?.platform;
+    if (!kIsWeb && Platform.isAndroid && native is NativePlayer && _audioFallback < 2) {
+      _audioFallback++;
+      debugPrint('audio device failed, fallback $_audioFallback');
+      if (_audioFallback == 1) {
+        await native.setProperty('audio-samplerate', '48000');
+      } else {
+        await native.setProperty('ao', 'opensles');
+      }
+      if (current != null) await _load(autoplay: playing, keepPosition: true);
+      return;
+    }
+    if (_audioFallback == 99) return;
+    _audioFallback = 99;
+    _notices.add(const PlayerNotice('无法打开音频设备', message: '系统没有可用的音频输出，请检查音量、蓝牙耳机或其他占用音频的应用后重新播放。'));
   }
 
   /// 底层播放器，供集成测试检查音频输出状态。
@@ -554,6 +608,7 @@ class PlayerController extends ChangeNotifier {
       s.cancel();
     }
     settings.removeListener(_applyVolume);
+    settings.removeListener(_applyOutput);
     sources.removeListener(_refreshLikes);
     _sleepTimer?.cancel();
     _player?.dispose();

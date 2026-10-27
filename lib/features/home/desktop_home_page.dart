@@ -48,6 +48,7 @@ class DesktopHomePage extends StatelessWidget {
             DataCache.saveHome(source.id, source.user?.id, feed);
             return feed;
           },
+          loading: const SkeletonHome(desktop: true),
           builder: (context, feed, _) {
             final player = context.watch<PlayerController>();
             final recent = player.history.take(4).toList();

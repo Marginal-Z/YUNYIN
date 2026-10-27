@@ -98,7 +98,7 @@ class HomePage extends StatelessWidget {
             DataCache.saveHome(source.id, source.user?.id, feed);
             return feed;
           },
-          loading: const Padding(padding: EdgeInsets.only(top: 20), child: SkeletonList()),
+          loading: const SkeletonHome(),
           builder: (context, feed, _) => _HomeBody(feed: feed),
         ),
       ],
@@ -217,10 +217,10 @@ class _DailyCardState extends State<DailyCard> {
     if (!identical(old.songs, widget.songs)) _pick();
   }
 
-  /// 每次进入首页随机取三首推荐歌曲的封面。
+  /// 每次进入首页随机取推荐歌曲的封面：第一张铺满整张卡片作为背景，其余三张叠在右侧。
   void _pick() {
     final urls = {for (final s in widget.songs) ?s.coverUrl}.toList()..shuffle(_random);
-    _covers = urls.take(3).toList();
+    _covers = urls.take(4).toList();
   }
 
   @override
@@ -230,6 +230,13 @@ class _DailyCardState extends State<DailyCard> {
     final onOpen = widget.onOpen;
     final onPlay = widget.onPlay;
     final p = Palette.of(context);
+    final background = _covers.isEmpty ? null : _covers.first;
+    final stack = _covers.length > 1 ? _covers.sublist(1) : const <String>[];
+    // 有封面背景时文字统一用白色，压在左侧的深色渐变上。
+    final onCover = background != null;
+    final text = onCover ? Colors.white : p.text;
+    final desc = onCover ? const Color(0xD9FFFFFF) : p.dailyDesc;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
     return Pressable(
       onTap: onOpen,
       scale: 0.99,
@@ -237,11 +244,40 @@ class _DailyCardState extends State<DailyCard> {
         clip: true,
         height: height,
         radius: BorderRadius.circular(desktop ? 30 : 28),
-        gradient: CssGradient(150, colors: p.dailyGradient),
-        shadows: const [Shadow2(0, 16, 34, Color.fromRGBO(255, 106, 87, 0.22))],
+        gradient: onCover ? null : CssGradient(150, colors: p.dailyGradient),
+        color: onCover ? p.skeleton : null,
+        shadows: onCover ? const [Shadow2(0, 16, 34, Color.fromRGBO(0, 0, 0, 0.22))] : const [Shadow2(0, 16, 34, Color.fromRGBO(255, 106, 87, 0.22))],
         insets: [Shadow2(0, 1, 0, p.highlightInset)],
         child: Stack(
           children: [
+            if (onCover) ...[
+              Positioned.fill(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: CoverImage(background, key: ValueKey(background), imageSize: ((desktop ? 900 : 420) * dpr).round()),
+                ),
+              ),
+              // 左侧压暗保证文字可读，右侧保留封面本色。
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [Color(0xB3000000), Color(0x66000000), Color(0x14000000)],
+                      stops: [0, 0.5, 1],
+                    ),
+                  ),
+                ),
+              ),
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0x40000000)]),
+                  ),
+                ),
+              ),
+            ],
             if (_covers.isEmpty)
               Positioned(
                 right: 0,
@@ -251,13 +287,13 @@ class _DailyCardState extends State<DailyCard> {
                   painter: _DailyArt(desktop, p.isDark ? const Color(0xFFFFE3DA) : const Color(0xFF1D1D1F)),
                 ),
               )
-            else
+            else if (stack.isNotEmpty)
               Positioned(
                 right: desktop ? 36 : 14,
                 top: 0,
                 bottom: 0,
                 width: desktop ? 300 : 150,
-                child: _CoverStack(covers: _covers, size: desktop ? 136 : 98),
+                child: _CoverStack(covers: stack, size: desktop ? 136 : 98),
               ),
             Padding(
               padding: EdgeInsets.all(desktop ? 28 : 22),
@@ -270,23 +306,23 @@ class _DailyCardState extends State<DailyCard> {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                        decoration: BoxDecoration(color: p.dailyLabelBg, borderRadius: BorderRadius.circular(9)),
+                        decoration: BoxDecoration(color: onCover ? const Color(0x33FFFFFF) : p.dailyLabelBg, borderRadius: BorderRadius.circular(9)),
                         child: Text(
                           'DAILY MIX',
-                          style: ts(11, weight: w700, em: 0.1, color: p.dailyLabel),
+                          style: ts(11, weight: w700, em: 0.1, color: onCover ? Colors.white : p.dailyLabel),
                         ),
                       ),
                       SizedBox(height: desktop ? 8 : 6),
                       Text(
                         '每日推荐',
-                        style: ts(desktop ? 36 : 30, weight: w700, em: -0.02, height: 1.12, color: p.text),
+                        style: ts(desktop ? 36 : 30, weight: w700, em: -0.02, height: 1.12, color: text),
                       ),
                       const SizedBox(height: 6),
                       ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: desktop ? 400 : 150),
                         child: Text(
                           '新歌与老朋友，每天清晨更新',
-                          style: ts(desktop ? 14 : 13, height: desktop ? null : 1.5, color: p.dailyDesc),
+                          style: ts(desktop ? 14 : 13, height: desktop ? null : 1.5, color: desc),
                         ),
                       ),
                     ],

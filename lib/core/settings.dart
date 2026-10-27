@@ -18,7 +18,7 @@ enum GlassMaterial {
 
 /// 界面背景。
 enum BackgroundMode {
-  /// 默认光晕。
+  /// 默认：纯色（浅色模式纯白）。枚举名保留 glow 以兼容已保存的设置。
   glow('默认'),
 
   /// 根据正在播放歌曲的封面取色。
@@ -41,6 +41,9 @@ class AppSettings extends ChangeNotifier {
   AudioQuality downloadQuality = AudioQuality.higher;
   bool crossfade = true;
   bool normalize = true;
+
+  /// Android：使用 OpenSL ES 输出音频（个别设备上 AudioTrack 输出没有声音时的兼容选项）。
+  bool openSles = false;
   bool wifiOnlyDownload = true;
   bool autoClean = true;
   bool glass = true;
@@ -90,6 +93,7 @@ class AppSettings extends ChangeNotifier {
     downloadQuality = AudioQuality.values[_p.getInt('downloadQuality') ?? AudioQuality.higher.index];
     crossfade = _p.getBool('crossfade') ?? true;
     normalize = _p.getBool('normalize') ?? true;
+    openSles = _p.getBool('openSles') ?? false;
     wifiOnlyDownload = _p.getBool('wifiOnlyDownload') ?? true;
     autoClean = _p.getBool('autoClean') ?? true;
     glass = _p.getBool('glass') ?? true;
@@ -141,6 +145,8 @@ class AppSettings extends ChangeNotifier {
         crossfade = v;
       case 'normalize':
         normalize = v;
+      case 'openSles':
+        openSles = v;
       case 'wifiOnlyDownload':
         wifiOnlyDownload = v;
       case 'autoClean':

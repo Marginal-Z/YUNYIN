@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import '../data_cache.dart';
 import '../theme/palette.dart';
 import 'box.dart';
+import 'skeleton.dart';
 import 'icons.dart';
 import 'text.dart';
 import 'widgets.dart';
+
+export 'skeleton.dart';
 
 /// 玻璃轻提示（“已加入下一首播放”）。
 abstract final class Toast {
@@ -251,58 +254,6 @@ class StateView extends StatelessWidget {
                 ? PrimaryButton(label: action!, onTap: onAction, height: 40, fontSize: 14)
                 : SecondaryButton(label: action!, icon: actionIcon, iconSize: 18, onTap: onAction, height: 40, fontSize: 14, flat: true),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// 骨架屏行。
-class SkeletonList extends StatelessWidget {
-  const SkeletonList({super.key, this.count = 4, this.padding = const EdgeInsets.fromLTRB(16, 14, 16, 14)});
-
-  final int count;
-  final EdgeInsetsGeometry padding;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = Palette.of(context);
-    Widget bar(double f, double h) => FractionallySizedBox(
-      widthFactor: f,
-      alignment: Alignment.centerLeft,
-      child: Container(
-        height: h,
-        decoration: BoxDecoration(color: p.skeleton, borderRadius: BorderRadius.circular(h / 2)),
-      ),
-    );
-    return YCard(
-      padding: padding,
-      child: Column(
-        children: [
-          for (var i = 0; i < count; i++)
-            Padding(
-              padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
-              child: SizedBox(
-                height: 44,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(color: p.skeleton, borderRadius: BorderRadius.circular(10)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [bar(0.58, 12), const SizedBox(height: 8), bar(0.32, 10)],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
         ],
       ),
     );

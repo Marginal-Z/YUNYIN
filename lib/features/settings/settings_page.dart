@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -142,6 +145,15 @@ class PlaybackGroup extends StatelessWidget {
           title: '音量均衡',
           trailing: YSwitch(value: s.normalize, label: '音量均衡', onChanged: (v) => s.setFlag('normalize', v)),
         ),
+        // 个别 Android 设备（部分平板）上默认的 AudioTrack 输出没有声音，可改用 OpenSL ES。
+        if (!kIsWeb && Platform.isAndroid)
+          SettingsRow(
+            icon: YIcons.volume,
+            tile: TileColor.blue,
+            title: '兼容音频输出',
+            value: s.openSles ? 'OpenSL ES' : null,
+            trailing: YSwitch(value: s.openSles, label: '兼容音频输出', onChanged: (v) => s.setFlag('openSles', v)),
+          ),
         SettingsRow(
           icon: desktop ? YIcons.clock : YIcons.timer,
           tile: TileColor.orange,
