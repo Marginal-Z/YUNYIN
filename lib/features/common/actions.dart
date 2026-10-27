@@ -42,7 +42,7 @@ void openAlbum(BuildContext context, AlbumRef a) => go(context, AlbumRoute(a.id)
 Route<T> fadeRoute<T>(Widget page) => PageRouteBuilder<T>(
   transitionDuration: const Duration(milliseconds: 300),
   reverseTransitionDuration: const Duration(milliseconds: 220),
-  pageBuilder: (_, _, _) => page,
+  pageBuilder: (_, _, _) => BackdropGroup(child: page),
   transitionsBuilder: (_, a, _, child) {
     final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
     return FadeTransition(
@@ -82,7 +82,7 @@ void openQueue(BuildContext context) {
       opaque: false,
       transitionDuration: const Duration(milliseconds: 360),
       reverseTransitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (_, _, _) => const PlayerThemed(child: QueueSheet()),
+      pageBuilder: (_, _, _) => BackdropGroup(child: const PlayerThemed(child: QueueSheet())),
       transitionsBuilder: (_, a, _, child) => child,
     ),
   );

@@ -52,7 +52,14 @@ class _MobileShellState extends State<MobileShell> {
                 for (var i = 0; i < 3; i++)
                   Navigator(
                     key: _keys[i],
-                    pages: [for (final r in nav.stacks[i]) CupertinoPage<void>(key: ValueKey(r.uid), child: buildMobileRoute(r))],
+                    // 每个页面单独一组背景截取：转场时上下两个页面都在绘制，各自的玻璃读取各自的背景。
+                    pages: [
+                      for (final r in nav.stacks[i])
+                        CupertinoPage<void>(
+                          key: ValueKey(r.uid),
+                          child: BackdropGroup(child: buildMobileRoute(r)),
+                        ),
+                    ],
                     onDidRemovePage: (page) {
                       final key = page.key;
                       if (key is ValueKey<int>) {

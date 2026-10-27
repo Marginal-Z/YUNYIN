@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 起系统启动画面的图标：240dp 画布，云朵宽 120dp 居中（系统按圆形遮罩裁切，内容需在中心 160dp 内）。
+     三根均衡条画成与背景相同的品牌红，看起来是镂空。坐标沿用 Logo 的 72 × 62 画布（x 14..86, y 18..80）。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    <group
+        android:scaleX="1.6667"
+        android:scaleY="1.6667"
+        android:translateX="36.67"
+        android:translateY="38.33">
+        <path android:fillColor="#FFFFFF" android:pathData="M33,50 H67 A11,11 0 0 1 67,72 H33 A11,11 0 0 1 33,50 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M29,48 A13,13 0 1 0 55,48 A13,13 0 1 0 29,48 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M44,42 A16,16 0 1 0 76,42 A16,16 0 1 0 44,42 Z" />
+        <path android:fillColor="#DC1031" android:pathData="M38,52 A3,3 0 0 1 44,52 V60 A3,3 0 0 1 38,60 Z" />
+        <path android:fillColor="#DC1031" android:pathData="M47,47 A3,3 0 0 1 53,47 V65 A3,3 0 0 1 47,65 Z" />
+        <path android:fillColor="#DC1031" android:pathData="M56,50 A3,3 0 0 1 62,50 V62 A3,3 0 0 1 56,62 Z" />
+    </group>
+</vector>

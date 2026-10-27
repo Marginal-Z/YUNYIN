@@ -44,6 +44,9 @@ class AppSettings extends ChangeNotifier {
 
   /// Android：使用 OpenSL ES 输出音频（个别设备上 AudioTrack 输出没有声音时的兼容选项）。
   bool openSles = false;
+
+  /// 已播放过完整的启动动画；之后冷启动只播缩短版。
+  bool splashSeen = false;
   bool wifiOnlyDownload = true;
   bool autoClean = true;
   bool glass = true;
@@ -94,6 +97,7 @@ class AppSettings extends ChangeNotifier {
     crossfade = _p.getBool('crossfade') ?? true;
     normalize = _p.getBool('normalize') ?? true;
     openSles = _p.getBool('openSles') ?? false;
+    splashSeen = _p.getBool('splashSeen') ?? false;
     wifiOnlyDownload = _p.getBool('wifiOnlyDownload') ?? true;
     autoClean = _p.getBool('autoClean') ?? true;
     glass = _p.getBool('glass') ?? true;
@@ -147,6 +151,8 @@ class AppSettings extends ChangeNotifier {
         normalize = v;
       case 'openSles':
         openSles = v;
+      case 'splashSeen':
+        splashSeen = v;
       case 'wifiOnlyDownload':
         wifiOnlyDownload = v;
       case 'autoClean':

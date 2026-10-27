@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -17,13 +18,15 @@ class TabBarItem {
   final String label;
 }
 
-/// 移动端玻璃标签栏：选中底色是一个可滑动的滑块。
+/// 移动端玻璃标签栏：选中底色是一个可滑动的滑块（与酷安底部导航栏的交互相同）。
 ///
-/// 滑块的左右两条边各是一个弹簧：前进方向的边弹簧较硬、先到，后面的边较软、随后跟上，
-/// 滑块因此先拉长再收拢，呈现非线性的“液滴”滑动（与酷安底部导航栏相似）。
-/// - 点击：滑块滑到目标标签（再次点击当前标签交给 [onSelect] 处理，例如回到根页面）；
-/// - 按住拖动：滑块跟随手指并略微放大；松手后按位置与速度停在最近的标签上，
-///   经过每个标签时有轻微触感反馈。
+/// - 按下：滑块立即放大浮起；
+/// - 按住拖动：滑块中心紧跟手指，越快拉得越长；经过每个标签时有轻微触感反馈；
+/// - 松手：滑块缩回，并以两条边各自的弹簧滑到最近的标签——前进方向的边先到、后面的边随后跟上，
+///   滑块先拉长再收拢（非线性）。轻甩可以越过半格；
+/// - 轻点：切到该标签（再次点击当前标签交给 [onSelect] 处理，例如回到根页面）。
+///
+/// 直接处理原始指针事件，不经过手势竞争，按下的瞬间就有反馈，拖动也不会被其他手势抢走。
 class SlidingTabBar extends StatefulWidget {
   const SlidingTabBar({super.key, required this.items, required this.index, required this.onSelect, this.height = 64});
 
@@ -41,22 +44,29 @@ class _SlidingTabBarState extends State<SlidingTabBar> with TickerProviderStateM
   late final AnimationController _left = AnimationController.unbounded(vsync: this, value: widget.index.toDouble());
   late final AnimationController _right = AnimationController.unbounded(vsync: this, value: widget.index + 1.0);
 
-  /// 拖动时的放大程度（0 ~ 1）。
-  late final AnimationController _lift = AnimationController(vsync: this, duration: const Duration(milliseconds: 180));
+  /// 按下时的放大程度（0 ~ 1，松开时带轻微回弹）。
+  late final AnimationController _lift = AnimationController.unbounded(vsync: this);
 
   /// 前进方向的边（硬）与后面的边（软）。
-  static final _lead = SpringDescription.withDampingRatio(mass: 1, stiffness: 700, ratio: 0.82);
-  static final _trail = SpringDescription.withDampingRatio(mass: 1, stiffness: 210, ratio: 0.9);
+  static final _lead = SpringDescription.withDampingRatio(mass: 1, stiffness: 620, ratio: 0.8);
+  static final _trail = SpringDescription.withDampingRatio(mass: 1, stiffness: 190, ratio: 0.86);
+  static final _pop = SpringDescription.withDampingRatio(mass: 1, stiffness: 520, ratio: 0.62);
 
   /// 滑块要去的位置（左边）。
   late double _target = widget.index.toDouble();
+
+  // 当前这次按压的状态。
+  int? _pointer;
+  double _downX = 0;
   bool _dragging = false;
   int _hovered = -1;
+  double _velocity = 0;
+  VelocityTracker? _tracker;
 
   @override
   void didUpdateWidget(SlidingTabBar old) {
     super.didUpdateWidget(old);
-    if (!_dragging && widget.index != old.index) _moveTo(widget.index.toDouble());
+    if (_pointer == null && widget.index != old.index) _moveTo(widget.index.toDouble());
   }
 
   @override
@@ -67,26 +77,41 @@ class _SlidingTabBarState extends State<SlidingTabBar> with TickerProviderStateM
     super.dispose();
   }
 
-  /// 两条边分别以各自的弹簧奔向目标；保留当前速度，连续拖动时不会顿挫。
+  /// 两条边分别以各自的弹簧奔向目标；保留当前速度，不会顿挫。
   void _moveTo(double target) {
-    final forward = target > _target || (target == _target && target > _left.value);
+    final forward = target > _left.value;
     _target = target;
     _left.animateWith(SpringSimulation(forward ? _trail : _lead, _left.value, target, _left.velocity));
     _right.animateWith(SpringSimulation(forward ? _lead : _trail, _right.value, target + 1, _right.velocity));
   }
 
-  double _at(double dx, double itemWidth) => (dx / itemWidth - 0.5).clamp(0.0, widget.items.length - 1.0);
+  void _setLift(double v) => _lift.animateWith(SpringSimulation(_pop, _lift.value, v, _lift.velocity));
 
-  void _start(Offset local, double w) {
-    _dragging = true;
-    _lift.forward();
+  double _at(double dx, double w) => (dx / w - 0.5).clamp(0.0, widget.items.length - 1.0);
+
+  void _down(PointerDownEvent e, double w) {
+    if (_pointer != null) return;
+    _pointer = e.pointer;
+    _downX = e.localPosition.dx;
+    _dragging = false;
     _hovered = _target.round();
-    _move(local, w);
+    _tracker = VelocityTracker.withKind(e.kind)..addPosition(e.timeStamp, e.localPosition);
+    _setLift(1);
   }
 
-  void _move(Offset local, double w) {
-    final v = _at(local.dx, w);
-    _moveTo(v);
+  void _move(PointerMoveEvent e, double w) {
+    if (e.pointer != _pointer) return;
+    _tracker?.addPosition(e.timeStamp, e.localPosition);
+    if (!_dragging && (e.localPosition.dx - _downX).abs() < kTouchSlop / 2) return;
+    _dragging = true;
+    // 滑块中心紧跟手指，速度带来的拉伸在绘制时计算。
+    final v = _at(e.localPosition.dx, w);
+    _left.stop();
+    _right.stop();
+    _target = v;
+    _left.value = v;
+    _right.value = v + 1;
+    setState(() => _velocity = (_tracker?.getVelocity().pixelsPerSecond.dx ?? 0) / w);
     final i = v.round();
     if (i != _hovered) {
       _hovered = i;
@@ -94,14 +119,33 @@ class _SlidingTabBarState extends State<SlidingTabBar> with TickerProviderStateM
     }
   }
 
-  void _end(double velocity, double w) {
+  void _up(PointerUpEvent e, double w) {
+    if (e.pointer != _pointer) return;
+    _pointer = null;
+    _setLift(0);
+    final n = widget.items.length;
+    if (_dragging) {
+      final v = (_tracker?.getVelocity().pixelsPerSecond.dx ?? 0) / w;
+      // 按 0.12 秒后的位置取最近的标签：轻甩可以越过半格，但最多多走约半格，不会一下跳过一个标签。
+      final target = (_target + (v * 0.12).clamp(-0.6, 0.6)).round().clamp(0, n - 1);
+      _velocity = 0;
+      _moveTo(target.toDouble());
+      if (target != widget.index) widget.onSelect(target);
+    } else {
+      final i = (e.localPosition.dx / w).floor().clamp(0, n - 1);
+      if (i != widget.index) _moveTo(i.toDouble());
+      widget.onSelect(i);
+    }
     _dragging = false;
-    _lift.reverse();
-    final v = velocity / w;
-    // 按 0.12 秒后的位置取最近的标签：轻甩可以越过半格，但最多多走约半格，不会一下跳过一个标签。
-    final target = (_target + (v * 0.12).clamp(-0.6, 0.6)).round().clamp(0, widget.items.length - 1);
-    _moveTo(target.toDouble());
-    if (target != widget.index) widget.onSelect(target);
+  }
+
+  void _cancel(PointerCancelEvent e) {
+    if (e.pointer != _pointer) return;
+    _pointer = null;
+    _dragging = false;
+    _velocity = 0;
+    _setLift(0);
+    _moveTo(widget.index.toDouble());
   }
 
   @override
@@ -115,42 +159,50 @@ class _SlidingTabBarState extends State<SlidingTabBar> with TickerProviderStateM
       child: LayoutBuilder(
         builder: (context, c) {
           final w = c.maxWidth / n;
-          return GestureDetector(
+          return Listener(
             behavior: HitTestBehavior.opaque,
-            onTapUp: (d) {
-              final i = (d.localPosition.dx / w).floor().clamp(0, n - 1);
-              if (i != widget.index) _moveTo(i.toDouble());
-              widget.onSelect(i);
-            },
-            onHorizontalDragStart: (d) => _start(d.localPosition, w),
-            onHorizontalDragUpdate: (d) => _move(d.localPosition, w),
-            onHorizontalDragEnd: (d) => _end(d.velocity.pixelsPerSecond.dx, w),
-            onHorizontalDragCancel: () => _end(0, w),
+            onPointerDown: (e) => _down(e, w),
+            onPointerMove: (e) => _move(e, w),
+            onPointerUp: (e) => _up(e, w),
+            onPointerCancel: _cancel,
             child: AnimatedBuilder(
               animation: Listenable.merge([_left, _right, _lift]),
               builder: (context, _) {
-                final l = _left.value, r = math.max(_right.value, _left.value + 0.6);
+                final lift = _lift.value;
+                var l = _left.value, r = math.max(_right.value, _left.value + 0.6);
+                // 拖动时按速度向后拉伸（最多 0.45 格），像被拖着走的液滴。
+                if (_dragging) {
+                  final stretch = (_velocity.abs() * 0.08).clamp(0.0, 0.45);
+                  if (_velocity > 0) {
+                    l -= stretch;
+                  } else {
+                    r += stretch;
+                  }
+                }
                 final center = (l + r) / 2 - 0.5;
-                final lift = Curves.easeOut.transform(_lift.value);
-                // 拖动时滑块整体略微放大。
-                final grow = w * 0.04 * lift;
-                final pillH = c.maxHeight * (1 + 0.1 * lift);
+                // 按下时滑块放大浮起：宽高各放大约 14%。
+                final grow = 0.14 * lift;
+                final pillW = (r - l) * w * (1 + grow);
+                final pillH = c.maxHeight * (1 + grow);
                 final rr = BorderRadius.circular(pillH / 2);
+                final up = lift.clamp(0.0, 1.0);
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
                     Positioned(
-                      left: l * w - grow,
+                      left: (l + r) / 2 * w - pillW / 2,
                       top: (c.maxHeight - pillH) / 2,
-                      width: (r - l) * w + grow * 2,
+                      width: pillW,
                       height: pillH,
                       child: CustomPaint(
                         foregroundPainter: InsetShadowPainter(rr, [Shadow2(0, 0.5, 1, p.navActiveInset)]),
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: Color.lerp(p.navActive, p.isDark ? const Color(0x33FFFFFF) : const Color(0xCCFFFFFF), lift * 0.6),
+                            color: Color.lerp(p.navActive, p.isDark ? const Color(0x40FFFFFF) : const Color(0xF2FFFFFF), up * 0.75),
                             borderRadius: rr,
-                            boxShadow: lift > 0 ? [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.12 * lift), blurRadius: 16, offset: const Offset(0, 4))] : null,
+                            boxShadow: up > 0.01
+                                ? [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.16 * up), blurRadius: 18 * up, offset: Offset(0, 5 * up))]
+                                : null,
                           ),
                         ),
                       ),
@@ -161,7 +213,7 @@ class _SlidingTabBarState extends State<SlidingTabBar> with TickerProviderStateM
                           Expanded(
                             child: _Item(
                               item: widget.items[i],
-                              // 颜色随滑块中心的距离渐变；按住时滑块下的图标略微放大。
+                              // 颜色随滑块中心的距离渐变；按住时滑块下的图标放大。
                               active: (1 - (center - i).abs()).clamp(0.0, 1.0),
                               grow: lift * (1 - (center - i).abs()).clamp(0.0, 1.0),
                               selected: i == widget.index,
@@ -201,7 +253,7 @@ class _Item extends StatelessWidget {
       onTap: onTap,
       excludeSemantics: true,
       child: Transform.scale(
-        scale: 1 + 0.12 * grow,
+        scale: 1 + 0.18 * grow,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

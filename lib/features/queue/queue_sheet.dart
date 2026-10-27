@@ -256,19 +256,22 @@ void showDesktopQueue(BuildContext context) {
     transitionDuration: const Duration(milliseconds: 280),
     pageBuilder: (ctx, _, _) {
       final p = Palette.of(ctx);
-      return Align(
-        alignment: Alignment.centerRight,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(0, 10, 10, 10),
-          child: YBox(
-            width: 380,
-            radius: BorderRadius.circular(26),
-            color: p.isDark ? const Color.fromRGBO(28, 29, 33, 0.92) : const Color.fromRGBO(255, 255, 255, 0.92),
-            blur: true,
-            border: p.glassBorder,
-            shadows: p.sidebarShadow,
-            padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
-            child: const Material(type: MaterialType.transparency, child: QueueContent()),
+      // 单独一组背景截取（见 SheetRoute）。
+      return BackdropGroup(
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 10, 10, 10),
+            child: YBox(
+              width: 380,
+              radius: BorderRadius.circular(26),
+              color: p.isDark ? const Color.fromRGBO(28, 29, 33, 0.92) : const Color.fromRGBO(255, 255, 255, 0.92),
+              blur: true,
+              border: p.glassBorder,
+              shadows: p.sidebarShadow,
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+              child: const Material(type: MaterialType.transparency, child: QueueContent()),
+            ),
           ),
         ),
       );

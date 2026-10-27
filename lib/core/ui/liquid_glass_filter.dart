@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -27,9 +26,9 @@ abstract final class LiquidGlassShader {
 
 /// 在子组件背后用液态玻璃着色器处理背景。
 ///
-/// 「清透」只有一层着色器滤镜，直接读取当前画面；「柔和」先做一层模糊（同一画面中的多块玻璃通过
-/// [BackdropGroup] 共用一次背景截取与模糊），再由着色器读取模糊结果。着色器按输入纹理尺寸判断
-/// 坐标系，因此需要玻璃在画面中的位置：每次绘制时写入，位置因祖先变换变化时下一帧补绘。
+/// 「清透」是一层着色器滤镜；「柔和」是“模糊 → 着色器”组合成的一层滤镜。同一画面中的多块玻璃通过
+/// [BackdropGroup] 共用一次背景截取。着色器按输入纹理尺寸判断坐标系，因此需要玻璃在画面中的位置：
+/// 每次绘制时写入，位置因祖先变换变化时下一帧补绘。
 class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
   const LiquidGlassBackdrop({super.key, required this.radius, required this.material, super.child});
 
@@ -69,9 +68,7 @@ class RenderLiquidGlass extends RenderProxyBox {
   bool _checkScheduled = false;
   ui.FragmentShader? _shader;
   final _clip = LayerHandle<ClipRectLayer>();
-  final _blur = LayerHandle<BackdropFilterLayer>();
   final _glass = LayerHandle<BackdropFilterLayer>();
-  final _shapeClip = LayerHandle<ClipPathLayer>();
 
   set radius(double v) {
     if (v == _radius) return;
@@ -109,9 +106,7 @@ class RenderLiquidGlass extends RenderProxyBox {
   @override
   void dispose() {
     _clip.layer = null;
-    _blur.layer = null;
     _glass.layer = null;
-    _shapeClip.layer = null;
     _shader?.dispose();
     super.dispose();
   }
@@ -142,72 +137,27 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(global.dy * _dpr / _uiScale);
     f(_pad * _dpr);
 
-    void glass(PaintingContext context, Offset offset) {
-      final layer = _glass.layer ??= BackdropFilterLayer();
-      layer.filter = ui.ImageFilter.shader(shader);
-      context.pushLayer(layer, super.paint, offset);
-    }
-
-    _clip.layer = context.pushClipRect(needsCompositing, offset, (Offset.zero & size).inflate(_pad), (context, offset) {
-      if (!regular) {
-        // 「清透」原版只有半径 1 的模糊，肉眼不可见，省去这一层。
-        _blur.layer = null;
-        _shapeClip.layer = null;
-        glass(context, offset);
-        return;
-      }
-      // 原版「柔和」：半径 16 的高斯模糊（sigma = 16 / 3）。原版以 1 倍屏像素设计，这里按逻辑像素换算。
-      // 模糊层必须裁成玻璃的形状：否则圆角外、裁剪留边内的背景也被模糊，玻璃周围会露出一块方形。
-      final blur = _blur.layer ??= BackdropFilterLayer();
-      blur
-        ..filter = ui.ImageFilter.blur(sigmaX: 16 / 3, sigmaY: 16 / 3, tileMode: TileMode.clamp)
-        ..backdropKey = _backdropKey;
-      _shapeClip.layer = context.pushClipPath(needsCompositing, offset, Offset.zero & size, _shapePath(), (context, offset) {
-        context.pushLayer(blur, glass, offset);
-      }, oldLayer: _shapeClip.layer);
-    }, oldLayer: _clip.layer);
-  }
-
-  Path? _path;
-  Size? _pathSize;
-  double? _pathRadius;
-
-  /// 与着色器 shapeSDF 一致的轮廓：圆角为正圆弧（超椭圆指数 n = 2）。
-  Path _shapePath() {
-    if (_path != null && _pathSize == size && _pathRadius == _radius) return _path!;
-    const n = 2.0;
-    final r = math.min(_radius, size.shortestSide / 2);
-    final path = Path();
-    // 四个角各取 16 段，从右上角开始顺时针。
-    const steps = 16;
-    final corners = [
-      (Offset(size.width - r, r), 1.0, -1.0),
-      (Offset(size.width - r, size.height - r), 1.0, 1.0),
-      (Offset(r, size.height - r), -1.0, 1.0),
-      (Offset(r, r), -1.0, -1.0),
-    ];
-    var first = true;
-    for (var c = 0; c < 4; c++) {
-      final (center, sx, sy) = corners[c];
-      for (var i = 0; i <= steps; i++) {
-        // 右上角从顶边走到右边，其余角依次旋转。
-        final t = (c + i / steps) * math.pi / 2 - math.pi / 2;
-        final cx = math.cos(t), sy0 = math.sin(t);
-        final x = center.dx + sx * r * math.pow(cx.abs(), 2 / n);
-        final y = center.dy + sy * r * math.pow(sy0.abs(), 2 / n);
-        if (first) {
-          path.moveTo(x, y);
-          first = false;
-        } else {
-          path.lineTo(x, y);
-        }
-      }
-    }
-    path.close();
-    _path = path;
-    _pathSize = size;
-    _pathRadius = _radius;
-    return path;
+    // 每块玻璃只有一层背景滤镜，同一画面中的所有玻璃通过 [BackdropGroup] 共用一次背景截取：
+    // 背景截取在移动端 GPU 上很昂贵，原先每块玻璃各截一次（「柔和」还要再截一次并按形状裁剪）。
+    // 着色器在玻璃形状以外输出透明，滤镜结果以 srcOver 叠回背景，形状以外保持原样，无需按形状裁剪。
+    final layer = _glass.layer ??= BackdropFilterLayer();
+    final glass = ui.ImageFilter.shader(shader);
+    layer
+      ..filter = regular
+          // 原版「柔和」：半径 16 的高斯模糊（sigma = 16 / 3），再由着色器读取模糊结果。原版以 1 倍屏像素设计，这里按逻辑像素换算。
+          ? ui.ImageFilter.compose(
+              outer: glass,
+              inner: ui.ImageFilter.blur(sigmaX: 16 / 3, sigmaY: 16 / 3, tileMode: TileMode.clamp),
+            )
+          : glass
+      ..backdropKey = _backdropKey;
+    _clip.layer = context.pushClipRect(
+      needsCompositing,
+      offset,
+      (Offset.zero & size).inflate(_pad),
+      (context, offset) => context.pushLayer(layer, super.paint, offset),
+      oldLayer: _clip.layer,
+    );
   }
 
   void _scheduleCheck() {

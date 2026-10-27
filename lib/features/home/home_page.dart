@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -251,29 +252,31 @@ class _DailyCardState extends State<DailyCard> {
         child: Stack(
           children: [
             if (onCover) ...[
+              // 封面放大并模糊成一片色彩（取小尺寸缩略图，模糊开销很小），不与文字和右侧封面抢眼。
               Positioned.fill(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 400),
-                  child: CoverImage(background, key: ValueKey(background), imageSize: ((desktop ? 900 : 420) * dpr).round()),
+                child: RepaintBoundary(
+                  child: ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28, tileMode: TileMode.clamp),
+                    child: Transform.scale(
+                      scale: 1.3,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 400),
+                        child: CoverImage(background, key: ValueKey(background), imageSize: (120 * dpr).round()),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              // 左侧压暗保证文字可读，右侧保留封面本色。
+              // 统一压暗，左侧更深，保证白色文字在任何封面上都清晰。
               const Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
-                      colors: [Color(0xB3000000), Color(0x66000000), Color(0x14000000)],
-                      stops: [0, 0.5, 1],
+                      colors: [Color(0x99000000), Color(0x52000000), Color(0x29000000)],
+                      stops: [0, 0.55, 1],
                     ),
-                  ),
-                ),
-              ),
-              const Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0x40000000)]),
                   ),
                 ),
               ),
@@ -319,7 +322,7 @@ class _DailyCardState extends State<DailyCard> {
                       ),
                       const SizedBox(height: 6),
                       ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: desktop ? 400 : 150),
+                        constraints: BoxConstraints(maxWidth: desktop ? 400 : (onCover ? 180 : 150)),
                         child: Text(
                           '新歌与老朋友，每天清晨更新',
                           style: ts(desktop ? 14 : 13, height: desktop ? null : 1.5, color: desc),

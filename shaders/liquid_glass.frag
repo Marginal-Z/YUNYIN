@@ -108,9 +108,9 @@ void main() {
   vec2 center = local ? uSize * 0.5 : uOrigin + uShape * 0.5;
   vec2 p = frag - center;
 
-  // 玻璃以外直接输出背景（裁剪区域只比玻璃略大）。
+  // 玻璃以外输出透明：滤镜结果以 srcOver 叠回背景，这些像素保持原样（「柔和」的模糊不会溢出到圆角外）。
   if (abs(p.x) > uShape.x * 0.5 + 2.0 || abs(p.y) > uShape.y * 0.5 + 2.0) {
-    fragColor = sampleBg(uv);
+    fragColor = vec4(0.0);
     return;
   }
 
@@ -168,6 +168,6 @@ void main() {
     outColor = mix(outColor, vec4(clamp(lchToSrgb(glareLch), 0.0, 1.0), 1.0), glareFactor * glareGeo);
   }
 
-  // 形状边缘 1 像素抗锯齿。
-  fragColor = mix(outColor, bg, smoothstep(-0.5, 0.5, sd));
+  // 形状边缘 1 像素抗锯齿；形状以外透明（预乘 alpha）。
+  fragColor = outColor * (1.0 - smoothstep(-0.5, 0.5, sd));
 }

@@ -19,8 +19,10 @@ import 'data/sources/source_manager.dart';
 import 'features/common/layout.dart';
 import 'features/shell/desktop_shell.dart';
 import 'features/shell/mobile_shell.dart';
+import 'debug/benchmark.dart';
 import 'debug/screenshots.dart';
 import 'features/settings/update_dialog.dart';
+import 'features/splash/splash.dart';
 import 'features/shell/nav.dart';
 import 'player/player_controller.dart';
 import 'core/update/updater.dart';
@@ -78,7 +80,7 @@ class YunyinApp extends StatelessWidget {
                 desktopBreakpoint: kDesktopBreakpoint,
                 child: Builder(builder: (context) => _shell(context, child!, s, light, dark)),
               );
-              return screenshotsRequested ? ShotFrame(builder: scaled) : scaled(context);
+              return screenshotsRequested ? ShotFrame(builder: scaled) : _SplashGate(child: scaled(context));
             },
             home: const _Root(),
           );
@@ -90,7 +92,8 @@ class YunyinApp extends StatelessWidget {
   /// 应用外壳：主题色板、毛玻璃开关、桌面 / 移动布局与全局快捷键。
   Widget _shell(BuildContext context, Widget child, AppSettings s, Palette light, Palette dark) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final p = isDark ? dark : light;
+    // 默认纯白背景下卡片改为浅灰底（见 Palette.onWhite）；封面取色与自定义图片背景保持原样。
+    final p = isDark ? dark : (s.background == BackgroundMode.glow ? _onWhite(light) : light);
     final width = MediaQuery.sizeOf(context).width;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
@@ -124,6 +127,11 @@ class YunyinApp extends StatelessWidget {
     );
   }
 
+  static final _white = Expando<Palette>();
+
+  /// 缓存纯白背景用的色板：色板对象不变时 PaletteScope 不会通知整棵树重建。
+  static Palette _onWhite(Palette light) => _white[light] ??= light.onWhite();
+
   ThemeData _theme(Palette p) => ThemeData(
     useMaterial3: true,
     brightness: p.isDark ? Brightness.dark : Brightness.light,
@@ -154,6 +162,49 @@ class YunyinApp extends StatelessWidget {
       },
     ),
   );
+}
+
+/// 启动动画盖在应用上方：首页在下面照常加载，动画结束后淡出并移除。
+/// 首次启动播完整版，之后只播缩短版；截图与性能测试模式不播放。
+class _SplashGate extends StatefulWidget {
+  const _SplashGate({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_SplashGate> createState() => _SplashGateState();
+}
+
+class _SplashGateState extends State<_SplashGate> {
+  bool _done = benchmarkRequested;
+  late final bool _full = !context.read<AppSettings>().splashSeen;
+
+  void _finish() {
+    final s = context.read<AppSettings>();
+    if (!s.splashSeen) s.setFlag('splashSeen', true);
+    setState(() => _done = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_done) return widget.child;
+    return Stack(
+      textDirection: TextDirection.ltr,
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Splash(
+            full: _full,
+            desktop: MediaQuery.sizeOf(context).width >= kDesktopBreakpoint,
+            version: context.read<UpdateManager>().current,
+            onDone: _finish,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _Root extends StatelessWidget {

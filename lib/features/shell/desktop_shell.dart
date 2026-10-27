@@ -100,7 +100,13 @@ class _DesktopShellState extends State<DesktopShell> {
           Positioned.fill(
             child: Navigator(
               key: _navKey,
-              pages: [for (final r in nav.stacks[0]) _FadePage(key: ValueKey(r.uid), child: buildDesktopRoute(r))],
+              pages: [
+                for (final r in nav.stacks[0])
+                  _FadePage(
+                    key: ValueKey(r.uid),
+                    child: BackdropGroup(child: buildDesktopRoute(r)),
+                  ),
+              ],
               onDidRemovePage: (page) {
                 final key = page.key;
                 if (key is ValueKey<int>) {

@@ -33,7 +33,8 @@ class SheetRoute<T> extends PageRoute<T> {
   bool _dragging = false;
 
   @override
-  Widget buildPage(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation) => builder(context);
+  // 单独一组背景截取：滑入时下方页面仍在绘制，本页的玻璃应读取本页的背景。
+  Widget buildPage(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation) => BackdropGroup(child: builder(context));
 
   @override
   Widget buildTransitions(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
@@ -77,7 +78,11 @@ class SheetRoute<T> extends PageRoute<T> {
     if (close) {
       navigator?.pop();
       if (c.isAnimating) {
-        c.animateBack(0, duration: Duration(milliseconds: (300 * c.value).round().clamp(120, 300)), curve: curve);
+        c.animateBack(
+          0,
+          duration: Duration(milliseconds: (300 * c.value).round().clamp(120, 300)),
+          curve: curve,
+        );
       }
     } else {
       c.animateTo(
