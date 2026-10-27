@@ -11,6 +11,7 @@ import '../core/settings.dart';
 import '../data/models.dart';
 import '../data/sources/music_source.dart';
 import '../data/sources/source_manager.dart';
+import 'mpv_property.dart' if (dart.library.js_interop) 'mpv_property_web.dart';
 
 enum PlayMode { sequence, shuffle, repeatOne }
 
@@ -149,11 +150,9 @@ class PlayerController extends ChangeNotifier {
   /// 的音频 HAL 接受浮点格式却输出静音，或者无法按多声道布局打开设备。音乐本身都是立体声，
   /// 这里统一以 16 位立体声交给系统混音，这是所有 Android 设备都支持的格式，手机上听感相同。
   Future<void> _configureAndroidAudio(Player p) async {
-    final native = p.platform;
-    if (native is! NativePlayer) return;
-    await native.setProperty('audio-channels', 'stereo');
-    await native.setProperty('audiotrack-pcm-float', 'no');
-    if (settings.openSles) await native.setProperty('ao', 'opensles');
+    if (!await setMpvProperty(p, 'audio-channels', 'stereo')) return;
+    await setMpvProperty(p, 'audiotrack-pcm-float', 'no');
+    if (settings.openSles) await setMpvProperty(p, 'ao', 'opensles');
     _openSles = settings.openSles;
   }
 
@@ -163,9 +162,8 @@ class PlayerController extends ChangeNotifier {
   Future<void> _applyOutput() async {
     if (kIsWeb || !Platform.isAndroid || settings.openSles == _openSles) return;
     _openSles = settings.openSles;
-    final native = _player?.platform;
-    if (native is! NativePlayer) return;
-    await native.setProperty('ao', _openSles ? 'opensles' : 'audiotrack,opensles');
+    final p = _player;
+    if (p == null || !await setMpvProperty(p, 'ao', _openSles ? 'opensles' : 'audiotrack,opensles')) return;
     if (current != null) await _load(autoplay: playing, keepPosition: true);
   }
 
@@ -175,14 +173,14 @@ class PlayerController extends ChangeNotifier {
   /// mpv 无法打开音频设备（静音播放）：Android 上依次改用 48kHz 采样率与 OpenSL ES 输出并重新加载；
   /// 仍然失败时提示，而不是一直无声播放。
   Future<void> _onAudioDeviceFailed() async {
-    final native = _player?.platform;
-    if (!kIsWeb && Platform.isAndroid && native is NativePlayer && _audioFallback < 2) {
+    final p = _player;
+    if (!kIsWeb && Platform.isAndroid && p != null && _audioFallback < 2) {
       _audioFallback++;
       debugPrint('audio device failed, fallback $_audioFallback');
       if (_audioFallback == 1) {
-        await native.setProperty('audio-samplerate', '48000');
+        await setMpvProperty(p, 'audio-samplerate', '48000');
       } else {
-        await native.setProperty('ao', 'opensles');
+        await setMpvProperty(p, 'ao', 'opensles');
       }
       if (current != null) await _load(autoplay: playing, keepPosition: true);
       return;

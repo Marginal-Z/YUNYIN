@@ -664,9 +664,13 @@ class _NowPlayingBarsState extends State<NowPlayingBars> {
   Timer? _timer;
   int _i = 0;
 
+  /// 所在页面被遮住或标签被切走时（TickerMode 关闭）停止跳动。
+  bool _visible = true;
+
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _visible = TickerMode.valuesOf(context).enabled;
     _sync();
   }
 
@@ -677,9 +681,10 @@ class _NowPlayingBarsState extends State<NowPlayingBars> {
   }
 
   void _sync() {
-    if (widget.playing && _timer == null) {
+    final run = widget.playing && _visible;
+    if (run && _timer == null) {
       _timer = Timer.periodic(const Duration(milliseconds: 160), (_) => setState(() => _i = (_i + 1) % _frames.length));
-    } else if (!widget.playing && _timer != null) {
+    } else if (!run && _timer != null) {
       _timer!.cancel();
       _timer = null;
       _i = 0;

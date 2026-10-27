@@ -72,8 +72,8 @@ class YunyinApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             navigatorKey: rootNavigatorKey,
             themeMode: s.themeMode,
-            theme: _theme(light),
-            darkTheme: _theme(dark),
+            theme: _themeOf(light),
+            darkTheme: _themeOf(dark),
             builder: (context, child) {
               // 界面整体按设备尺寸等比缩放后再搭建外壳。
               Widget scaled(BuildContext context) => AdaptiveScale(
@@ -132,7 +132,13 @@ class YunyinApp extends StatelessWidget {
   /// 缓存纯白背景用的色板：色板对象不变时 PaletteScope 不会通知整棵树重建。
   static Palette _onWhite(Palette light) => _white[light] ??= light.onWhite();
 
-  ThemeData _theme(Palette p) => ThemeData(
+  static final _themes = Expando<ThemeData>();
+
+  /// 主题按色板缓存：任何设置变化（例如记录一条搜索历史）都会重建 MaterialApp，
+  /// 不缓存的话每次都要重新计算两套 ColorScheme.fromSeed，并让依赖主题的组件全部重建。
+  static ThemeData _themeOf(Palette p) => _themes[p] ??= _theme(p);
+
+  static ThemeData _theme(Palette p) => ThemeData(
     useMaterial3: true,
     brightness: p.isDark ? Brightness.dark : Brightness.light,
     fontFamily: kFontFamily,
@@ -187,21 +193,22 @@ class _SplashGateState extends State<_SplashGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (_done) return widget.child;
+    // 动画结束后只移除上层，应用本身保持在同一位置，不会整棵树重新挂载（否则结束瞬间会卡一下，状态也会丢失）。
     return Stack(
       textDirection: TextDirection.ltr,
       fit: StackFit.expand,
       children: [
         widget.child,
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Splash(
-            full: _full,
-            desktop: MediaQuery.sizeOf(context).width >= kDesktopBreakpoint,
-            version: context.read<UpdateManager>().current,
-            onDone: _finish,
+        if (!_done)
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Splash(
+              full: _full,
+              desktop: MediaQuery.sizeOf(context).width >= kDesktopBreakpoint,
+              version: context.read<UpdateManager>().current,
+              onDone: _finish,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -247,6 +254,7 @@ class _NoticeListenerState extends State<_NoticeListener> {
     final updater = context.read<UpdateManager>();
     if (!settings.autoUpdate || updater.kind == InstallKind.unsupported || screenshotsRequested) return;
     await Future<void>.delayed(const Duration(seconds: 5));
+    if (!mounted) return;
     if (!await updater.check() || settings.skippedUpdate == updater.latest!.version) return;
     final ctx = rootNavigatorKey.currentContext;
     if (ctx != null && ctx.mounted) await showUpdateDialog(ctx);

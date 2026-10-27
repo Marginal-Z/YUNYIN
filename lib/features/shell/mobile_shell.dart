@@ -15,6 +15,7 @@ import '../common/layout.dart';
 import 'nav.dart';
 import 'routes.dart';
 import 'tab_bar.dart';
+import 'transitions.dart';
 
 /// 移动端外壳：三个标签各自的导航栈 + 悬浮玻璃导航栏与迷你播放条。
 class MobileShell extends StatefulWidget {
@@ -46,7 +47,7 @@ class _MobileShellState extends State<MobileShell> {
       child: Stack(
         children: [
           Positioned.fill(
-            child: IndexedStack(
+            child: TabStack(
               index: nav.tab,
               children: [
                 for (var i = 0; i < 3; i++)

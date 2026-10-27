@@ -22,6 +22,7 @@ import '../player/player_page.dart';
 import '../search/search_page.dart';
 import 'nav.dart';
 import 'routes.dart';
+import 'transitions.dart';
 
 /// 桌面端外壳：玻璃侧边栏 + 顶栏 + 内容区 + 底部播放条。
 class DesktopShell extends StatefulWidget {
@@ -102,7 +103,7 @@ class _DesktopShellState extends State<DesktopShell> {
               key: _navKey,
               pages: [
                 for (final r in nav.stacks[0])
-                  _FadePage(
+                  FadePage(
                     key: ValueKey(r.uid),
                     child: BackdropGroup(child: buildDesktopRoute(r)),
                   ),
@@ -188,32 +189,6 @@ class _DesktopShellState extends State<DesktopShell> {
       ),
     );
   }
-}
-
-class _FadePage extends Page<void> {
-  const _FadePage({required super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Route<void> createRoute(BuildContext context) => PageRouteBuilder<void>(
-    settings: this,
-    transitionDuration: const Duration(milliseconds: 280),
-    reverseTransitionDuration: const Duration(milliseconds: 180),
-    pageBuilder: (_, _, _) => child,
-    // 新页面淡入并从下方 16 像素处升起；返回时淡出并略微下沉。
-    transitionsBuilder: (_, a, _, c) {
-      final curved = CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: AnimatedBuilder(
-          animation: curved,
-          builder: (_, child) => Transform.translate(offset: Offset(0, 16 * (1 - curved.value)), child: child),
-          child: c,
-        ),
-      );
-    },
-  );
 }
 
 class _Sidebar extends StatelessWidget {

@@ -260,6 +260,43 @@ class StateView extends StatelessWidget {
   }
 }
 
+/// 入场动画：内容淡入并从下方 [offset] 像素处升起。换 key 即重新播放，用于分段标签切换后的内容，
+/// 只有新内容做动画，旧内容立即移除，不会两份内容叠在一起排版。
+class EntranceFade extends StatefulWidget {
+  const EntranceFade({super.key, required this.child, this.offset = 10, this.duration = const Duration(milliseconds: 260)});
+
+  final Widget child;
+  final double offset;
+  final Duration duration;
+
+  @override
+  State<EntranceFade> createState() => _EntranceFadeState();
+}
+
+class _EntranceFadeState extends State<EntranceFade> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: widget.duration)..forward();
+  late final CurvedAnimation _curve = CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+
+  @override
+  void dispose() {
+    _curve.dispose();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _curve,
+      child: AnimatedBuilder(
+        animation: _curve,
+        builder: (context, child) => Transform.translate(offset: Offset(0, widget.offset * (1 - _curve.value)), child: child),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 /// 根据 Future 渲染加载 / 错误 / 内容。
 class AsyncView<T> extends StatefulWidget {
   const AsyncView({super.key, required this.load, required this.builder, this.loading, this.keyValue, this.cacheKey, this.maxAge = const Duration(minutes: 10)});

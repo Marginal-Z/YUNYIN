@@ -36,7 +36,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
         PageTitle('发现', subtitle: '新歌 · 榜单 · 电台', size: desktop ? 40 : 36),
         const SizedBox(height: 18),
         ChipBar(labels: const ['推荐', '排行榜', '电台', '新碟'], index: _tab, onChanged: (i) => setState(() => _tab = i)),
-        KeyedSubtree(
+        EntranceFade(
           key: ValueKey('${sources.generation}-$_tab'),
           child: switch (_tab) {
             0 => const _Recommend(),

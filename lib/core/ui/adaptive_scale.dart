@@ -35,15 +35,11 @@ class AdaptiveScale extends StatelessWidget {
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     final textScaler = mq.textScaler.clamp(minScaleFactor: 0.9, maxScaleFactor: 1.15);
-    final s = scaleFor(mq.size, desktopBreakpoint);
+    var s = scaleFor(mq.size, desktopBreakpoint);
+    if ((s - 1).abs() < 0.01) s = 1;
     final desktop = mq.size.width >= desktopBreakpoint;
-    if ((s - 1).abs() < 0.01) {
-      return _ScaleScope(
-        scale: 1,
-        desktop: desktop,
-        child: MediaQuery(data: mq.copyWith(textScaler: textScaler), child: child),
-      );
-    }
+    // 无论是否缩放都使用同一组件结构：调整窗口大小跨过设计尺寸时，整个应用不会被重新挂载。
+    // 倍数为 1 时 FittedBox 的变换是单位矩阵，不会产生额外的图层。
     final logical = mq.size / s;
     final data = mq.copyWith(
       size: logical,

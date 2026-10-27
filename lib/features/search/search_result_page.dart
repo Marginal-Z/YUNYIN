@@ -85,7 +85,7 @@ class _SearchResultPageState extends State<SearchResultPage> {
         SizedBox(height: desktop ? 0 : 16),
         ChipBar(labels: _tabs, index: _tab, scroll: !desktop, onChanged: (i) => setState(() => _tab = i)),
         SizedBox(height: desktop ? 22 : 18),
-        body,
+        EntranceFade(key: ValueKey(_tab), child: body),
       ],
     );
   }

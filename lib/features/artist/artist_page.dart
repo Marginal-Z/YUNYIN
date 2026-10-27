@@ -94,19 +94,22 @@ class _ArtistPageState extends State<ArtistPage> {
       if (loading)
         const SkeletonList()
       else
-        switch (_tab) {
-          0 => _HotSongs(artist: a),
-          1 => AsyncView<List<AlbumInfo>>(
-            cacheKey: 'artistAlbums:${a.id}',
-            load: () => source.artistAlbums(a.id),
-            builder: (c, list, _) => AlbumGrid(items: list),
-          ),
-          _ => AsyncView<List<ArtistInfo>>(
-            cacheKey: 'similarArtists:${a.id}',
-            load: () => source.similarArtists(a.id),
-            builder: (c, list, _) => ArtistStrip(artists: list, wrap: true),
-          ),
-        },
+        EntranceFade(
+          key: ValueKey(_tab),
+          child: switch (_tab) {
+            0 => _HotSongs(artist: a),
+            1 => AsyncView<List<AlbumInfo>>(
+              cacheKey: 'artistAlbums:${a.id}',
+              load: () => source.artistAlbums(a.id),
+              builder: (c, list, _) => AlbumGrid(items: list),
+            ),
+            _ => AsyncView<List<ArtistInfo>>(
+              cacheKey: 'similarArtists:${a.id}',
+              load: () => source.similarArtists(a.id),
+              builder: (c, list, _) => ArtistStrip(artists: list, wrap: true),
+            ),
+          },
+        ),
     ];
     return AdaptivePage(
       mobileTop: 76,

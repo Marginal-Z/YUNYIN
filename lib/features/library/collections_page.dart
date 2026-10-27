@@ -44,7 +44,7 @@ class _CollectionsPageState extends State<CollectionsPage> {
         PageTitle('我的收藏', subtitle: '歌单 · 专辑 · 歌手', size: desktop ? 40 : 36),
         const SizedBox(height: 18),
         ChipBar(labels: const ['歌单', '专辑', '歌手'], index: _tab, onChanged: (i) => setState(() => _tab = i)),
-        KeyedSubtree(
+        EntranceFade(
           key: ValueKey('${sources.generation}-$_tab'),
           child: needLogin
               ? LoginPrompt(source: source)

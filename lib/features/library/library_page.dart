@@ -55,7 +55,7 @@ class _LibraryPageState extends State<LibraryPage> {
         ),
         const SizedBox(height: 18),
         ChipBar(labels: const ['歌单', '专辑', '歌手', '本地'], index: _tab, onChanged: (i) => setState(() => _tab = i)),
-        KeyedSubtree(
+        EntranceFade(
           key: ValueKey('${sources.generation}-$_tab'),
           child: switch (_tab) {
             0 => const LibraryOverview(),

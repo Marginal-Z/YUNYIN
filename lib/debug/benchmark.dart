@@ -117,6 +117,14 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
   Size logical() => view.physicalSize / view.devicePixelRatio;
 
   await phase('桌面·空闲', () => wait(2000));
+  await phase('桌面·页面切换', () async {
+    for (var i = 0; i < 3; i++) {
+      nav.push(DiscoverRoute());
+      await wait(600);
+      nav.pop();
+      await wait(600);
+    }
+  });
   await phase('桌面·首页滚动', () async {
     final s = logical();
     await scroll(Offset(s.width * 0.6, s.height * 0.5), 6, 2500);
@@ -153,6 +161,12 @@ Future<void> runBenchmark(GlobalKey<NavigatorState> navKey) async {
     final s = logical();
     await scroll(Offset(s.width * 0.5, s.height * 0.45), 6, 2500);
     await scroll(Offset(s.width * 0.5, s.height * 0.45), -6, 2500);
+  });
+  await phase('移动·标签切换', () async {
+    for (final t in [1, 2, 0, 2, 1, 0]) {
+      nav.switchTab(t);
+      await wait(500);
+    }
   });
 
   report();
