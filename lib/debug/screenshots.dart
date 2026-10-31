@@ -303,6 +303,44 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   navKey.currentState!.pop();
   settings.setPlayerStyle(PlayerStyle.cover);
 
+  // 新的播放样式：竖屏、横屏与桌面端。
+  for (final st in [PlayerStyle.cardFlow, PlayerStyle.coverFlow, PlayerStyle.wall, PlayerStyle.minimal]) {
+    settings.setPlayerStyle(st);
+    for (final (name, spec) in [('mobile', _mobile), ('land', _landscape), ('desktop', _desktop)]) {
+      _spec.value = spec;
+      home();
+      openPlayer(ctx());
+      await shot('$name-player-${st.name}', settle: 3000);
+      navKey.currentState!.pop();
+      await wait(500);
+    }
+  }
+  settings.setPlayerStyle(PlayerStyle.cover);
+
+  // 个人中心（网易云与 QQ 音乐模式）、设置页与首页照片墙。
+  _spec.value = _mobile;
+  home();
+  nav.push(ProfileRoute());
+  await shot('mobile-profile', settle: 2000);
+  final sources = ctx().read<SourceManager>();
+  await sources.select('qq');
+  home();
+  nav.push(ProfileRoute());
+  await shot('mobile-profile-qq', settle: 2000);
+  home();
+  await shot('mobile-home-qq', settle: 4000);
+  await sources.select('netease');
+  home();
+  nav.push(SettingsRoute());
+  await shot('mobile-settings', settle: 1500);
+  settings.setHomeLayout(HomeLayout.photoWall);
+  home();
+  await shot('mobile-home-wall', settle: 3000);
+  _spec.value = _desktop;
+  home();
+  await shot('desktop-home-wall', settle: 3000);
+  settings.setHomeLayout(HomeLayout.standard);
+
   await fit('small', _small);
   await fit('landscape', _landscape);
   await fit('desktopmin', _desktopMin, lyrics: false);
