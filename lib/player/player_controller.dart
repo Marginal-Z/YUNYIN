@@ -93,6 +93,7 @@ class PlayerController extends ChangeNotifier {
     settings.addListener(_scheduleEq);
     sources.addListener(_refreshLikes);
     await _restore();
+    _scheduleEq();
     _refreshLikes();
   }
 
@@ -316,6 +317,7 @@ class PlayerController extends ChangeNotifier {
   Future<void> _onEqFailed() async {
     if (eqUnsupported) return;
     eqUnsupported = true;
+    unawaited(SharedPreferences.getInstance().then((p) => p.setBool('eqUnsupported', true)));
     final p = _player;
     if (p != null) await setMpvProperty(p, 'af', '');
     _eqApplied = '';
@@ -629,7 +631,19 @@ class PlayerController extends ChangeNotifier {
         await _setFade(1);
         await p.play();
       }
+      if (_eqApplied.isNotEmpty) _watchEq(token, resume);
     }
+  }
+
+  /// 均衡器滤镜在个别播放引擎中无法创建时，mpv 不报错而是一直停在开头：
+  /// 打开均衡器的歌曲 4 秒后仍没有开始播放，就关闭均衡器、记住当前设备不支持，并在原位置重新播放。
+  void _watchEq(int token, Duration start) {
+    Timer(const Duration(seconds: 4), () async {
+      if (token != _loadToken || _eqApplied.isEmpty || !playing || buffering) return;
+      if (position.value > start + const Duration(milliseconds: 300)) return;
+      await _onEqFailed();
+      if (token == _loadToken) await _load(autoplay: true, keepPosition: true);
+    });
   }
 
   Future<void> _loadLyrics(MusicSource source, Song song, int token) async {
@@ -688,6 +702,7 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> _restore() async {
     final p = await SharedPreferences.getInstance();
+    eqUnsupported = p.getBool('eqUnsupported') ?? false;
     try {
       final h = p.getString('player.history');
       if (h != null) {

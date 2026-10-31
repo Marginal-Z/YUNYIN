@@ -4,7 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   flutter_js
-  media_kit_libs_windows_audio
+  media_kit_libs_windows_video
   screen_retriever_windows
   url_launcher_windows
   window_manager
