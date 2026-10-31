@@ -4,10 +4,7 @@ import 'sources/music_source.dart';
 /// 在某个播放源中找出“同一首歌”：按歌名主干、歌手与时长打分，排除翻唱、伴奏等版本。
 /// 用于本地音乐与网盘歌曲联网补全封面歌词，以及酷狗无法播放时换源到网易云播放。
 abstract final class SongMatcher {
-  static String _norm(String x) => x.toLowerCase().replaceAll(
-    RegExp(r'''[\s()（）\[\]【】《》\-_·.,，。!！?？'"“”‘’&/、]'''),
-    '',
-  );
+  static String _norm(String x) => x.toLowerCase().replaceAll(RegExp(r'''[\s()（）\[\]【】《》\-_·.,，。!！?？'"“”‘’&/、]'''), '');
 
   static final _trackNo = RegExp(r'^\s*\d{1,3}\s*[.\-_、\s]\s*');
   static final _brackets = RegExp(r'[（(\[【《][^（()\[\]【】《》]*[）)\]】》]');
@@ -25,12 +22,7 @@ abstract final class SongMatcher {
         in a
             .replaceAll(RegExp(r'[（(]'), '/')
             .replaceAll(RegExp(r'[）)]'), '')
-            .split(
-              RegExp(
-                r'\s*(?:/|&|,|，|、|;|；|\sfeat\.?\s|\sft\.?\s|\sx\s)\s*',
-                caseSensitive: false,
-              ),
-            ))
+            .split(RegExp(r'\s*(?:/|&|,|，|、|;|；|\sfeat\.?\s|\sft\.?\s|\sx\s)\s*', caseSensitive: false)))
       if (_norm(x).isNotEmpty && _norm(x) != _norm('未知歌手')) _norm(x),
   ];
 
@@ -58,35 +50,14 @@ abstract final class SongMatcher {
       if (title.isEmpty) continue;
       final artists = _artistsOf(artist);
       // 搜索词：去掉括号说明的歌名 + 第一位歌手。
-      final plain = name
-          .replaceAll(_brackets, ' ')
-          .replaceFirst(_feat, '')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
+      final plain = name.replaceAll(_brackets, ' ').replaceFirst(_feat, '').replaceAll(RegExp(r'\s+'), ' ').trim();
       final q = plain.isEmpty ? name : plain;
-      final first = artist
-          .split(RegExp(r'\s*(?:/|&|,|，|、|;|；)\s*'))
-          .first
-          .trim();
-      final queries = [
-        '$q ${artists.isEmpty ? '' : first}'.trim(),
-        if (artists.isNotEmpty) q,
-      ];
+      final first = artist.split(RegExp(r'\s*(?:/|&|,|，|、|;|；)\s*')).first.trim();
+      final queries = ['$q ${artists.isEmpty ? '' : first}'.trim(), if (artists.isNotEmpty) q];
       for (var k = 0; k < queries.length; k++) {
-        final r = await src.search(
-          queries[k],
-          type: SearchType.song,
-          limit: 10,
-        );
+        final r = await src.search(queries[k], type: SearchType.song, limit: 10);
         // 只用歌名补搜时结果里翻唱很多，必须歌手吻合。
-        final best = _pick(
-          s,
-          r.songs,
-          title,
-          artists,
-          guessed: guessed,
-          needArtist: k > 0,
-        );
+        final best = _pick(s, r.songs, title, artists, guessed: guessed, needArtist: k > 0);
         if (best != null) return best;
       }
     }
@@ -94,19 +65,9 @@ abstract final class SongMatcher {
   }
 
   /// 翻唱、伴奏、混音等版本标记：本地歌名没有这些字样时，不接受带这些字样的结果。
-  static final _variant = RegExp(
-    r'翻自|翻唱|原唱|cover|伴奏|instrumental|纯音乐|karaoke|remix|dj版|beat',
-    caseSensitive: false,
-  );
+  static final _variant = RegExp(r'翻自|翻唱|原唱|cover|伴奏|instrumental|纯音乐|karaoke|remix|dj版|beat', caseSensitive: false);
 
-  static Song? _pick(
-    Song s,
-    List<Song> candidates,
-    String title,
-    List<String> artists, {
-    required bool guessed,
-    bool needArtist = false,
-  }) {
+  static Song? _pick(Song s, List<Song> candidates, String title, List<String> artists, {required bool guessed, bool needArtist = false}) {
     Song? best;
     var bestScore = 0;
     final localVariant = _variant.hasMatch(s.name);
@@ -114,25 +75,15 @@ abstract final class SongMatcher {
       if (!localVariant && _variant.hasMatch(c.name)) continue;
       final t = _core(c.name);
       // 结果带括号说明（女声版、深情版、Live…）而本地歌名没有时，只算部分吻合，必须歌手一致。
-      final exact =
-          t == title &&
-          (!_brackets.hasMatch(c.name) || _brackets.hasMatch(s.name));
-      final partial =
-          !exact && t.isNotEmpty && (t.contains(title) || title.contains(t));
+      final exact = t == title && (!_brackets.hasMatch(c.name) || _brackets.hasMatch(s.name));
+      final partial = !exact && t.isNotEmpty && (t.contains(title) || title.contains(t));
       if (!exact && !partial) continue;
       var score = exact ? 4 : 2;
       final names = [for (final a in c.artists) ..._artistsOf(a.name)];
-      final artistHit =
-          artists.isNotEmpty &&
-          names.any(
-            (a) => artists.any((x) => a == x || a.contains(x) || x.contains(a)),
-          );
+      final artistHit = artists.isNotEmpty && names.any((a) => artists.any((x) => a == x || a.contains(x) || x.contains(a)));
       if (artistHit) score += 3;
-      final hasDuration =
-          s.duration > Duration.zero && c.duration > Duration.zero;
-      final diff = hasDuration
-          ? (s.duration - c.duration).abs()
-          : Duration.zero;
+      final hasDuration = s.duration > Duration.zero && c.duration > Duration.zero;
+      final diff = hasDuration ? (s.duration - c.duration).abs() : Duration.zero;
       final durationOk = hasDuration && diff <= const Duration(seconds: 3);
       if (durationOk) score += 2;
       if (hasDuration && diff > const Duration(seconds: 20)) score -= 3;

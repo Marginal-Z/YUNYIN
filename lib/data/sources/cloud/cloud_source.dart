@@ -48,22 +48,13 @@ class CloudSource extends MusicSource {
       ];
       title = title.substring(sep + 3).trim();
     }
-    return Song(
-      id: '${d.id}|${e.href}',
-      sourceId: sourceId,
-      name: title.isEmpty ? e.name : title,
-      artists: artists,
-      album: AlbumRef('', d.name),
-    );
+    return Song(id: '${d.id}|${e.href}', sourceId: sourceId, name: title.isEmpty ? e.name : title, artists: artists, album: AlbumRef('', d.name));
   }
 
   ({CloudDrive? drive, String href}) _locate(Song song) {
     final i = song.id.indexOf('|');
     if (i < 0) return (drive: null, href: '');
-    return (
-      drive: drives.byId(song.id.substring(0, i)),
-      href: song.id.substring(i + 1),
-    );
+    return (drive: drives.byId(song.id.substring(0, i)), href: song.id.substring(i + 1));
   }
 
   @override
@@ -72,9 +63,7 @@ class CloudSource extends MusicSource {
     final d = f.drive;
     if (d == null) throw Exception('这首歌所在的网盘已移除');
     final direct = await drives.resolveDirect(d, f.href);
-    return direct != null
-        ? StreamInfo(url: direct)
-        : StreamInfo(url: d.fileUrl(f.href), headers: d.headers);
+    return direct != null ? StreamInfo(url: direct) : StreamInfo(url: d.fileUrl(f.href), headers: d.headers);
   }
 
   @override
@@ -83,9 +72,7 @@ class CloudSource extends MusicSource {
     final d = f.drive;
     if (d != null) {
       final dot = f.href.lastIndexOf('.');
-      final text = dot > 0
-          ? await drives.readText(d, '${f.href.substring(0, dot)}.lrc')
-          : null;
+      final text = dot > 0 ? await drives.readText(d, '${f.href.substring(0, dot)}.lrc') : null;
       if (text != null && text.contains('[')) {
         final ly = parseLrc(text);
         if (ly.lines.isNotEmpty) return ly;
@@ -93,9 +80,7 @@ class CloudSource extends MusicSource {
     }
     final src = fallback;
     if (src == null) return Lyrics.empty;
-    final m = _matches.containsKey(song.id)
-        ? _matches[song.id]
-        : _matches[song.id] = await SongMatcher.match(src, song);
+    final m = _matches.containsKey(song.id) ? _matches[song.id] : _matches[song.id] = await SongMatcher.match(src, song);
     return m == null ? Lyrics.empty : src.lyrics(m);
   }
 }

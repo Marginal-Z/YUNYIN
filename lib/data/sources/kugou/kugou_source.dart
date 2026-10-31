@@ -17,14 +17,7 @@ import '../netease/netease_source.dart' show parseLrc;
 class KugouSource extends MusicSource {
   KugouSource(this.fallback, {Dio? dio})
     : _dio =
-          dio ??
-          Dio(
-            BaseOptions(
-              connectTimeout: const Duration(seconds: 10),
-              receiveTimeout: const Duration(seconds: 15),
-              responseType: ResponseType.plain,
-            ),
-          );
+          dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15), responseType: ResponseType.plain));
 
   static const sourceId = 'kugou';
   static const _api = 'https://mobiles.kugou.com/api/v3';
@@ -64,25 +57,15 @@ class KugouSource extends MusicSource {
   ];
 
   Future<Map<String, dynamic>> _get(String url) async {
-    final res = await _dio.get<String>(
-      url,
-      options: Options(
-        headers: {'User-Agent': 'Mozilla/5.0 (Linux; Android 14) YunYin'},
-      ),
-    );
+    final res = await _dio.get<String>(url, options: Options(headers: {'User-Agent': 'Mozilla/5.0 (Linux; Android 14) YunYin'}));
     // 部分接口返回的文字里有未转义的控制字符，宽松解析。
-    final body = (res.data ?? '').replaceAll(
-      RegExp(r'[\u0000-\u0008\u000b\u000c\u000e-\u001f]'),
-      ' ',
-    );
+    final body = (res.data ?? '').replaceAll(RegExp(r'[\u0000-\u0008\u000b\u000c\u000e-\u001f]'), ' ');
     return jsonDecode(body) as Map<String, dynamic>;
   }
 
   static String? _cover(String? template, [int size = 400]) {
     if (template == null || template.isEmpty) return null;
-    return template
-        .replaceAll('{size}', '$size')
-        .replaceFirst('http://', 'https://');
+    return template.replaceAll('{size}', '$size').replaceFirst('http://', 'https://');
   }
 
   /// 酷狗歌曲：id 编码为“hash:album_audio_id:album_id”，播放与歌词都需要。
@@ -98,12 +81,7 @@ class KugouSource extends MusicSource {
       singer = singer.isEmpty ? filename.substring(0, i).trim() : singer;
       name = name.isEmpty ? filename.substring(i + 3).trim() : name;
     }
-    final cover = _cover(
-      j['album_sizable_cover'] as String? ??
-          (j['trans_param'] is Map
-              ? j['trans_param']['union_cover'] as String?
-              : null),
-    );
+    final cover = _cover(j['album_sizable_cover'] as String? ?? (j['trans_param'] is Map ? j['trans_param']['union_cover'] as String? : null));
     final albumName = '${j['album_name'] ?? j['AlbumName'] ?? ''}';
     final seconds = int.tryParse('${j['duration'] ?? j['Duration'] ?? 0}') ?? 0;
     return Song(
@@ -114,9 +92,7 @@ class KugouSource extends MusicSource {
         for (final a in singer.split(RegExp(r'\s*[、/]\s*')))
           if (a.isNotEmpty) ArtistRef('kugou:$a', a),
       ],
-      album: albumName.isEmpty && cover == null
-          ? null
-          : AlbumRef(albumId, albumName, cover: cover),
+      album: albumName.isEmpty && cover == null ? null : AlbumRef(albumId, albumName, cover: cover),
       duration: Duration(seconds: seconds),
       cover: cover,
     );
@@ -124,30 +100,17 @@ class KugouSource extends MusicSource {
 
   ({String hash, String audio, String album}) _ids(Song s) {
     final p = s.id.split(':');
-    return (
-      hash: p.first,
-      audio: p.length > 1 ? p[1] : '',
-      album: p.length > 2 ? p[2] : '',
-    );
+    return (hash: p.first, audio: p.length > 1 ? p[1] : '', album: p.length > 2 ? p[2] : '');
   }
 
   // ── 搜索 ──────────────────────────────────────────
 
   @override
-  Future<SearchResult> search(
-    String keyword, {
-    SearchType type = SearchType.all,
-    int offset = 0,
-    int limit = 30,
-  }) async {
-    if (type != SearchType.all && type != SearchType.song)
-      return const SearchResult();
+  Future<SearchResult> search(String keyword, {SearchType type = SearchType.all, int offset = 0, int limit = 30}) async {
+    if (type != SearchType.all && type != SearchType.song) return const SearchResult();
     final page = offset ~/ limit + 1;
-    final j = await _get(
-      '$_api/search/song?format=json&keyword=${Uri.encodeQueryComponent(keyword)}&page=$page&pagesize=$limit&showtype=1',
-    );
-    final info = ((j['data'] as Map?)?['info'] as List? ?? const [])
-        .cast<Map<String, dynamic>>();
+    final j = await _get('$_api/search/song?format=json&keyword=${Uri.encodeQueryComponent(keyword)}&page=$page&pagesize=$limit&showtype=1');
+    final info = ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map<String, dynamic>>();
     final songs = [for (final x in info) _song(x)];
     return SearchResult(songs: songs, bestSong: songs.firstOrNull);
   }
@@ -155,19 +118,15 @@ class KugouSource extends MusicSource {
   @override
   Future<List<HotSearch>> hotSearches() async {
     final j = await _get('$_api/search/hot?format=json&plat=0&count=20');
-    final info = ((j['data'] as Map?)?['info'] as List? ?? const [])
-        .cast<Map<String, dynamic>>();
+    final info = ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map<String, dynamic>>();
     return [for (final x in info) HotSearch('${x['keyword']}')];
   }
 
   // ── 排行榜与首页 ──────────────────────────────────────
 
   Future<List<Song>> _rank(String rankId, {int size = 100}) async {
-    final j = await _get(
-      '$_api/rank/song?rankid=$rankId&page=1&pagesize=$size&area_code=1&plat=2&version=9108',
-    );
-    final info = ((j['data'] as Map?)?['info'] as List? ?? const [])
-        .cast<Map<String, dynamic>>();
+    final j = await _get('$_api/rank/song?rankid=$rankId&page=1&pagesize=$size&area_code=1&plat=2&version=9108');
+    final info = ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map<String, dynamic>>();
     return [for (final x in info) _song(x)];
   }
 
@@ -193,10 +152,7 @@ class KugouSource extends MusicSource {
 
   @override
   Future<List<ChartInfo>> charts() async {
-    final previews = await Future.wait([
-      for (final c in charts_)
-        _rank(c.$1, size: 3).catchError((Object _) => <Song>[]),
-    ]);
+    final previews = await Future.wait([for (final c in charts_) _rank(c.$1, size: 3).catchError((Object _) => <Song>[])]);
     return [
       for (var i = 0; i < charts_.length; i++)
         ChartInfo(
@@ -212,28 +168,14 @@ class KugouSource extends MusicSource {
   Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) async {
     final list = await charts();
     return [
-      for (final c in list.take(limit))
-        PlaylistInfo(
-          id: c.id,
-          sourceId: sourceId,
-          name: c.name,
-          cover: c.cover,
-          creator: '酷狗音乐',
-          kind: PlaylistKind.chart,
-        ),
+      for (final c in list.take(limit)) PlaylistInfo(id: c.id, sourceId: sourceId, name: c.name, cover: c.cover, creator: '酷狗音乐', kind: PlaylistKind.chart),
     ];
   }
 
   @override
   Future<HomeFeed> homeFeed() async {
-    final results = await Future.wait([
-      _rank('6666', size: 30),
-      recommendPlaylists(limit: 6),
-    ]);
-    return HomeFeed(
-      daily: results[0] as List<Song>,
-      playlists: results[1] as List<PlaylistInfo>,
-    );
+    final results = await Future.wait([_rank('6666', size: 30), recommendPlaylists(limit: 6)]);
+    return HomeFeed(daily: results[0] as List<Song>, playlists: results[1] as List<PlaylistInfo>);
   }
 
   // ── 播放 ──────────────────────────────────────────
@@ -241,8 +183,7 @@ class KugouSource extends MusicSource {
   @override
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
     final direct = await _webPlayUrl(song);
-    if (direct != null)
-      return StreamInfo(url: direct, quality: AudioQuality.standard);
+    if (direct != null) return StreamInfo(url: direct, quality: AudioQuality.standard);
     final match = await _match(song);
     if (match == null || fallback == null) {
       throw Exception('酷狗暂时无法播放这首歌（需要验证或会员），网易云音乐中也没有找到同一首歌');
@@ -256,13 +197,7 @@ class KugouSource extends MusicSource {
     final ids = _ids(song);
     if (ids.hash.isEmpty) return null;
     try {
-      final mid = md5
-          .convert(
-            utf8.encode(
-              'yunyin-${DateTime.now().millisecondsSinceEpoch ~/ 86400000}',
-            ),
-          )
-          .toString();
+      final mid = md5.convert(utf8.encode('yunyin-${DateTime.now().millisecondsSinceEpoch ~/ 86400000}')).toString();
       final params = <String, String>{
         'srcappid': '2919',
         'clientver': '20000',
@@ -279,26 +214,17 @@ class KugouSource extends MusicSource {
         'userid': '0',
       };
       final keys = params.keys.toList()..sort();
-      params['signature'] = md5
-          .convert(
-            utf8.encode('$key${keys.map((k) => '$k=${params[k]}').join()}$key'),
-          )
-          .toString();
+      params['signature'] = md5.convert(utf8.encode('$key${keys.map((k) => '$k=${params[k]}').join()}$key')).toString();
       final res = await _dio.get<String>(
         'https://wwwapi.kugou.com/play/songinfo',
         queryParameters: params,
-        options: Options(
-          headers: {'Cookie': 'kg_mid=$mid', 'User-Agent': 'Mozilla/5.0'},
-          receiveTimeout: const Duration(seconds: 6),
-        ),
+        options: Options(headers: {'Cookie': 'kg_mid=$mid', 'User-Agent': 'Mozilla/5.0'}, receiveTimeout: const Duration(seconds: 6)),
       );
       final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
       final data = j['data'];
       if (data is! Map) return null;
       final url = '${data['play_url'] ?? data['play_backup_url'] ?? ''}';
-      return url.startsWith('http')
-          ? url.replaceFirst('http://', 'https://')
-          : null;
+      return url.startsWith('http') ? url.replaceFirst('http://', 'https://') : null;
     } catch (e) {
       debugPrint('kugou play url: $e');
       return null;
@@ -322,19 +248,13 @@ class KugouSource extends MusicSource {
       final c = await _get(
         'https://krcs.kugou.com/search?ver=1&man=yes&client=mobi&keyword=&duration=${song.duration.inMilliseconds}&hash=${ids.hash}&album_audio_id=${ids.audio}',
       );
-      final candidates = (c['candidates'] as List? ?? const [])
-          .cast<Map<String, dynamic>>();
+      final candidates = (c['candidates'] as List? ?? const []).cast<Map<String, dynamic>>();
       if (candidates.isNotEmpty) {
         final first = candidates.first;
-        final d = await _get(
-          'https://lyrics.kugou.com/download?ver=1&client=pc&id=${first['id']}&accesskey=${first['accesskey']}&fmt=lrc&charset=utf8',
-        );
+        final d = await _get('https://lyrics.kugou.com/download?ver=1&client=pc&id=${first['id']}&accesskey=${first['accesskey']}&fmt=lrc&charset=utf8');
         final content = d['content'] as String?;
         if (content != null && content.isNotEmpty) {
-          final text = utf8.decode(
-            base64.decode(content),
-            allowMalformed: true,
-          );
+          final text = utf8.decode(base64.decode(content), allowMalformed: true);
           final ly = parseLrc(text);
           if (ly.lines.isNotEmpty) return ly;
         }

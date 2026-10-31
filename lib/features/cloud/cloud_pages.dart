@@ -15,12 +15,7 @@ import '../shell/nav.dart';
 
 /// 二级页面外框：移动端左上角返回按钮 + 标题。
 class _Frame extends StatelessWidget {
-  const _Frame({
-    required this.title,
-    required this.children,
-    this.subtitle,
-    this.chrome = Chrome.full,
-  });
+  const _Frame({required this.title, required this.children, this.subtitle, this.chrome = Chrome.full});
 
   final String title;
   final String? subtitle;
@@ -37,11 +32,7 @@ class _Frame extends StatelessWidget {
         Positioned(
           left: 16,
           top: 20,
-          child: GlassButton(
-            YIcons.back,
-            label: '返回',
-            onTap: () => context.read<AppNav>().pop(),
-          ),
+          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
         ),
       ],
       children: [
@@ -60,11 +51,7 @@ class CloudDrivesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _Frame(
-      title: '网盘',
-      subtitle: '挂载网盘，直接播放其中的音乐',
-      children: [CloudDriveList()],
-    );
+    return const _Frame(title: '网盘', subtitle: '挂载网盘，直接播放其中的音乐', children: [CloudDriveList()]);
   }
 }
 
@@ -99,8 +86,7 @@ class CloudDriveList extends StatelessWidget {
                   tile: TileColor.blue,
                   title: d.name,
                   height: 58,
-                  onTap: () =>
-                      go(context, CloudBrowseRoute(d.id, title: d.name)),
+                  onTap: () => go(context, CloudBrowseRoute(d.id, title: d.name)),
                   trailing: Pressable(
                     onTap: () => go(context, CloudEditRoute(d.id)),
                     pressedOpacity: 0.6,
@@ -114,14 +100,7 @@ class CloudDriveList extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          SecondaryButton(
-            label: '添加网盘',
-            icon: YIcons.plus,
-            iconSize: 18,
-            height: 46,
-            fontSize: 15,
-            onTap: () => go(context, CloudEditRoute()),
-          ),
+          SecondaryButton(label: '添加网盘', icon: YIcons.plus, iconSize: 18, height: 46, fontSize: 15, onTap: () => go(context, CloudEditRoute())),
         ],
         const SizedBox(height: 22),
         Text(
@@ -159,9 +138,7 @@ class _CloudEditPageState extends State<CloudEditPage> {
   @override
   void initState() {
     super.initState();
-    final d = widget.driveId == null
-        ? null
-        : context.read<CloudDrives>().byId(widget.driveId!);
+    final d = widget.driveId == null ? null : context.read<CloudDrives>().byId(widget.driveId!);
     _kind = d?.kind ?? CloudKind.alist;
     _name = TextEditingController(text: d?.name ?? '');
     _url = TextEditingController(text: d?.url ?? _kind.defaultUrl);
@@ -180,8 +157,7 @@ class _CloudEditPageState extends State<CloudEditPage> {
   void _pickKind(CloudKind k) {
     setState(() {
       // 地址还是上一个类型的默认地址（或为空）时换成新类型的默认地址。
-      if (_url.text.trim().isEmpty || _url.text == _kind.defaultUrl)
-        _url.text = k.defaultUrl;
+      if (_url.text.trim().isEmpty || _url.text == _kind.defaultUrl) _url.text = k.defaultUrl;
       _kind = k;
     });
   }
@@ -199,13 +175,9 @@ class _CloudEditPageState extends State<CloudEditPage> {
     }
     final name = _name.text.trim();
     return CloudDrive(
-      id:
-          widget.driveId ??
-          DateTime.now().microsecondsSinceEpoch.toRadixString(36),
+      id: widget.driveId ?? DateTime.now().microsecondsSinceEpoch.toRadixString(36),
       kind: _kind,
-      name: name.isEmpty
-          ? (_kind == CloudKind.webdav ? Uri.parse(url).host : _kind.label)
-          : name,
+      name: name.isEmpty ? (_kind == CloudKind.webdav ? Uri.parse(url).host : _kind.label) : name,
       url: url,
       username: _user.text.trim(),
       password: _pass.text,
@@ -220,8 +192,7 @@ class _CloudEditPageState extends State<CloudEditPage> {
       final items = await context.read<CloudDrives>().list(d);
       if (mounted) Toast.show(context, '连接成功，根目录有 ${items.length} 项');
     } catch (e) {
-      if (mounted)
-        Toast.show(context, '连接失败：${errorText(e)}', icon: YIcons.info);
+      if (mounted) Toast.show(context, '连接失败：${errorText(e)}', icon: YIcons.info);
     } finally {
       if (mounted) setState(() => _testing = false);
     }
@@ -237,12 +208,7 @@ class _CloudEditPageState extends State<CloudEditPage> {
 
   Future<void> _delete() async {
     final drives = context.read<CloudDrives>();
-    final ok = await showConfirm(
-      context,
-      title: '移除网盘？',
-      message: '只会移除云音中的挂载信息，不会删除网盘中的文件。',
-      confirm: '移除',
-    );
+    final ok = await showConfirm(context, title: '移除网盘？', message: '只会移除云音中的挂载信息，不会删除网盘中的文件。', confirm: '移除');
     if (!ok || !mounted) return;
     drives.remove(widget.driveId!);
     context.read<AppNav>().pop();
@@ -258,18 +224,10 @@ class _CloudEditPageState extends State<CloudEditPage> {
         style: ts(13, weight: w600, color: p.text2),
       ),
     );
-    Widget field(
-      TextEditingController c,
-      String hint, {
-      bool password = false,
-      TextInputType? type,
-    }) => Container(
+    Widget field(TextEditingController c, String hint, {bool password = false, TextInputType? type}) => Container(
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: p.field,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
           Expanded(
@@ -306,12 +264,7 @@ class _CloudEditPageState extends State<CloudEditPage> {
       subtitle: '通过 WebDAV 挂载',
       chrome: Chrome.navOnly,
       children: [
-        ChipBar(
-          labels: [for (final k in CloudKind.values) k.label],
-          index: _kind.index,
-          scroll: true,
-          onChanged: (i) => _pickKind(CloudKind.values[i]),
-        ),
+        ChipBar(labels: [for (final k in CloudKind.values) k.label], index: _kind.index, scroll: true, onChanged: (i) => _pickKind(CloudKind.values[i])),
         const SizedBox(height: 12),
         Text(_kind.hint, style: ts(14, height: 1.5, color: p.text2)),
         YCard(
@@ -347,15 +300,7 @@ class _CloudEditPageState extends State<CloudEditPage> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: PrimaryButton(
-                label: '保存',
-                icon: YIcons.check,
-                iconSize: 18,
-                height: 48,
-                fontSize: 15,
-                expand: true,
-                onTap: _save,
-              ),
+              child: PrimaryButton(label: '保存', icon: YIcons.check, iconSize: 18, height: 48, fontSize: 15, expand: true, onTap: _save),
             ),
           ],
         ),
@@ -402,11 +347,7 @@ class CloudBrowsePage extends StatelessWidget {
         title: route.title ?? '网盘',
         children: [
           YCard(
-            child: StateView.empty(
-              title: '网盘已移除',
-              message: '这个网盘已经从云音中移除。',
-              icon: YIcons.folder,
-            ),
+            child: StateView.empty(title: '网盘已移除', message: '这个网盘已经从云音中移除。', icon: YIcons.folder),
           ),
         ],
       );
@@ -418,8 +359,7 @@ class CloudBrowsePage extends StatelessWidget {
         AsyncView<List<CloudEntry>>(
           keyValue: '${d.url}|${route.href}',
           load: () => drives.list(d, route.href),
-          builder: (context, items, reload) =>
-              _Listing(drive: d, items: items, title: route.title ?? d.name),
+          builder: (context, items, reload) => _Listing(drive: d, items: items, title: route.title ?? d.name),
         ),
       ],
     );
@@ -427,11 +367,7 @@ class CloudBrowsePage extends StatelessWidget {
 }
 
 class _Listing extends StatelessWidget {
-  const _Listing({
-    required this.drive,
-    required this.items,
-    required this.title,
-  });
+  const _Listing({required this.drive, required this.items, required this.title});
 
   final CloudDrive drive;
   final List<CloudEntry> items;
@@ -449,11 +385,7 @@ class _Listing extends StatelessWidget {
     ];
     if (folders.isEmpty && songs.isEmpty) {
       return YCard(
-        child: StateView.empty(
-          title: '这里没有音乐',
-          message: '这个文件夹中没有子文件夹或音乐文件。',
-          icon: YIcons.folder,
-        ),
+        child: StateView.empty(title: '这里没有音乐', message: '这个文件夹中没有子文件夹或音乐文件。', icon: YIcons.folder),
       );
     }
     return Column(
@@ -469,10 +401,7 @@ class _Listing extends StatelessWidget {
                   icon: YIcons.folder,
                   tile: TileColor.orange,
                   title: f.name,
-                  onTap: () => go(
-                    context,
-                    CloudBrowseRoute(drive.id, href: f.href, title: f.name),
-                  ),
+                  onTap: () => go(context, CloudBrowseRoute(drive.id, href: f.href, title: f.name)),
                 ),
             ],
           ),

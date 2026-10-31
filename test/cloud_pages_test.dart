@@ -7,12 +7,7 @@ import 'package:yunyin/data/cloud/cloud_drives.dart';
 import 'package:yunyin/features/cloud/cloud_pages.dart';
 import 'package:yunyin/features/shell/nav.dart';
 
-Future<void> _pump(
-  WidgetTester tester,
-  CloudDrives drives,
-  AppNav nav,
-  Widget page,
-) async {
+Future<void> _pump(WidgetTester tester, CloudDrives drives, AppNav nav, Widget page) async {
   tester.view.physicalSize = const Size(390 * 3, 844 * 3);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -40,14 +35,7 @@ void main() {
     expect(find.text('还没有挂载网盘'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    drives.upsert(
-      const CloudDrive(
-        id: 'a',
-        kind: CloudKind.jianguoyun,
-        name: '坚果云',
-        url: 'https://dav.jianguoyun.com/dav/',
-      ),
-    );
+    drives.upsert(const CloudDrive(id: 'a', kind: CloudKind.jianguoyun, name: '坚果云', url: 'https://dav.jianguoyun.com/dav/'));
     await tester.pumpAndSettle();
     expect(find.text('坚果云'), findsOneWidget);
     await tester.tap(find.text('坚果云'));

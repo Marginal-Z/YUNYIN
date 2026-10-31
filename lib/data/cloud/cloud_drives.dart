@@ -9,31 +9,11 @@ import 'package:xml/xml.dart';
 /// 网盘类型（预设地址与说明）。都通过 WebDAV 访问；阿里云盘、百度网盘、夸克、115、天翼云盘、OneDrive、
 /// Google Drive 等没有直接的 WebDAV 接口，可以用 Alist / OpenList 挂载后再添加。
 enum CloudKind {
-  alist(
-    'Alist / OpenList',
-    'http://192.168.1.2:5244/dav',
-    '挂载阿里云盘、百度网盘、夸克、115、天翼云盘、OneDrive、Google Drive 等后填写其 WebDAV 地址',
-  ),
-  jianguoyun(
-    '坚果云',
-    'https://dav.jianguoyun.com/dav/',
-    '账号为坚果云邮箱，密码使用“第三方应用管理”中生成的应用密码',
-  ),
-  nextcloud(
-    'Nextcloud / ownCloud',
-    'https://example.com/remote.php/dav/files/用户名/',
-    '把地址中的“用户名”换成你的账号',
-  ),
-  synology(
-    '群晖 NAS',
-    'https://nas.example.com:5006',
-    '在 WebDAV Server 套件中启用 HTTPS（默认端口 5006）',
-  ),
-  pcloud(
-    'pCloud',
-    'https://webdav.pcloud.com',
-    '欧洲数据中心的账号使用 https://ewebdav.pcloud.com',
-  ),
+  alist('Alist / OpenList', 'http://192.168.1.2:5244/dav', '挂载阿里云盘、百度网盘、夸克、115、天翼云盘、OneDrive、Google Drive 等后填写其 WebDAV 地址'),
+  jianguoyun('坚果云', 'https://dav.jianguoyun.com/dav/', '账号为坚果云邮箱，密码使用“第三方应用管理”中生成的应用密码'),
+  nextcloud('Nextcloud / ownCloud', 'https://example.com/remote.php/dav/files/用户名/', '把地址中的“用户名”换成你的账号'),
+  synology('群晖 NAS', 'https://nas.example.com:5006', '在 WebDAV Server 套件中启用 HTTPS（默认端口 5006）'),
+  pcloud('pCloud', 'https://webdav.pcloud.com', '欧洲数据中心的账号使用 https://ewebdav.pcloud.com'),
   webdav('其他 WebDAV', '', 'Box、Koofr、TeraCloud、自建服务器等任何支持 WebDAV 的网盘或 NAS');
 
   const CloudKind(this.label, this.defaultUrl, this.hint);
@@ -44,14 +24,7 @@ enum CloudKind {
 
 /// 一个挂载的网盘。
 class CloudDrive {
-  const CloudDrive({
-    required this.id,
-    required this.kind,
-    required this.name,
-    required this.url,
-    this.username = '',
-    this.password = '',
-  });
+  const CloudDrive({required this.id, required this.kind, required this.name, required this.url, this.username = '', this.password = ''});
 
   final String id;
   final CloudKind kind;
@@ -62,21 +35,10 @@ class CloudDrive {
   final String username;
   final String password;
 
-  Map<String, String> get headers => username.isEmpty && password.isEmpty
-      ? const {}
-      : {
-          'Authorization':
-              'Basic ${base64.encode(utf8.encode('$username:$password'))}',
-        };
+  Map<String, String> get headers =>
+      username.isEmpty && password.isEmpty ? const {} : {'Authorization': 'Basic ${base64.encode(utf8.encode('$username:$password'))}'};
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'kind': kind.name,
-    'name': name,
-    'url': url,
-    'username': username,
-    'password': password,
-  };
+  Map<String, dynamic> toJson() => {'id': id, 'kind': kind.name, 'name': name, 'url': url, 'username': username, 'password': password};
 
   factory CloudDrive.fromJson(Map<String, dynamic> j) => CloudDrive(
     id: '${j['id']}',
@@ -88,18 +50,12 @@ class CloudDrive {
   );
 
   /// 文件的完整地址：[href] 是 WebDAV 返回的（已编码的）路径或地址。
-  String fileUrl(String href) =>
-      Uri.parse(url.endsWith('/') ? url : '$url/').resolve(href).toString();
+  String fileUrl(String href) => Uri.parse(url.endsWith('/') ? url : '$url/').resolve(href).toString();
 }
 
 /// 目录中的一项。
 class CloudEntry {
-  const CloudEntry({
-    required this.name,
-    required this.href,
-    required this.isDir,
-    this.size = 0,
-  });
+  const CloudEntry({required this.name, required this.href, required this.isDir, this.size = 0});
 
   final String name;
 
@@ -108,24 +64,9 @@ class CloudEntry {
   final bool isDir;
   final int size;
 
-  static const audioExtensions = [
-    'mp3',
-    'flac',
-    'm4a',
-    'aac',
-    'ogg',
-    'opus',
-    'wav',
-    'ape',
-    'wma',
-    'aiff',
-    'alac',
-    'dsf',
-    'dff',
-  ];
+  static const audioExtensions = ['mp3', 'flac', 'm4a', 'aac', 'ogg', 'opus', 'wav', 'ape', 'wma', 'aiff', 'alac', 'dsf', 'dff'];
 
-  bool get isAudio =>
-      !isDir && audioExtensions.contains(name.split('.').last.toLowerCase());
+  bool get isAudio => !isDir && audioExtensions.contains(name.split('.').last.toLowerCase());
   bool get isLyrics => !isDir && name.toLowerCase().endsWith('.lrc');
 }
 
@@ -133,14 +74,7 @@ class CloudEntry {
 class CloudDrives extends ChangeNotifier {
   CloudDrives({Dio? dio})
     : _dio =
-          dio ??
-          Dio(
-            BaseOptions(
-              connectTimeout: const Duration(seconds: 12),
-              receiveTimeout: const Duration(seconds: 30),
-              responseType: ResponseType.plain,
-            ),
-          );
+          dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 12), receiveTimeout: const Duration(seconds: 30), responseType: ResponseType.plain));
 
   static const _key = 'cloud.drives';
   final Dio _dio;
@@ -193,19 +127,14 @@ class CloudDrives extends ChangeNotifier {
       data: '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/><d:getcontentlength/></d:prop></d:propfind>',
       options: Options(
         method: 'PROPFIND',
-        headers: {
-          ...d.headers,
-          'Depth': '1',
-          'Content-Type': 'application/xml; charset=utf-8',
-        },
+        headers: {...d.headers, 'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8'},
         validateStatus: (s) => s != null && s < 500,
       ),
     );
     final code = res.statusCode ?? 0;
     if (code == 401 || code == 403) throw Exception('账号或密码不正确（$code）');
     if (code == 404) throw Exception('路径不存在（404）');
-    if (code != 207 && code != 200)
-      throw Exception('服务器返回 $code，请确认地址是 WebDAV 地址');
+    if (code != 207 && code != 200) throw Exception('服务器返回 $code，请确认地址是 WebDAV 地址');
     return parseMultiStatus(res.data ?? '', Uri.parse(target).path);
   }
 
@@ -216,47 +145,17 @@ class CloudDrives extends ChangeNotifier {
     String norm(String p) => Uri.decodeFull(p).replaceAll(RegExp(r'/+$'), '');
     final out = <CloudEntry>[];
     for (final r in doc.findAllElements('response', namespaceUri: '*')) {
-      final href =
-          r
-              .findAllElements('href', namespaceUri: '*')
-              .firstOrNull
-              ?.innerText
-              .trim() ??
-          '';
+      final href = r.findAllElements('href', namespaceUri: '*').firstOrNull?.innerText.trim() ?? '';
       if (href.isEmpty) continue;
       final hrefPath = href.startsWith('http') ? Uri.parse(href).path : href;
       if (norm(hrefPath) == norm(self)) continue;
-      final isDir = r
-          .findAllElements('collection', namespaceUri: '*')
-          .isNotEmpty;
-      final size =
-          int.tryParse(
-            r
-                    .findAllElements('getcontentlength', namespaceUri: '*')
-                    .firstOrNull
-                    ?.innerText
-                    .trim() ??
-                '',
-          ) ??
-          0;
-      var name =
-          r
-              .findAllElements('displayname', namespaceUri: '*')
-              .firstOrNull
-              ?.innerText
-              .trim() ??
-          '';
-      if (name.isEmpty)
-        name = Uri.decodeFull(
-          hrefPath.replaceAll(RegExp(r'/+$'), '').split('/').last,
-        );
+      final isDir = r.findAllElements('collection', namespaceUri: '*').isNotEmpty;
+      final size = int.tryParse(r.findAllElements('getcontentlength', namespaceUri: '*').firstOrNull?.innerText.trim() ?? '') ?? 0;
+      var name = r.findAllElements('displayname', namespaceUri: '*').firstOrNull?.innerText.trim() ?? '';
+      if (name.isEmpty) name = Uri.decodeFull(hrefPath.replaceAll(RegExp(r'/+$'), '').split('/').last);
       out.add(CloudEntry(name: name, href: hrefPath, isDir: isDir, size: size));
     }
-    out.sort(
-      (a, b) => a.isDir != b.isDir
-          ? (a.isDir ? -1 : 1)
-          : a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-    );
+    out.sort((a, b) => a.isDir != b.isDir ? (a.isDir ? -1 : 1) : a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return out;
   }
 
@@ -292,11 +191,7 @@ class CloudDrives extends ChangeNotifier {
     try {
       final res = await _dio.get<List<int>>(
         d.fileUrl(href),
-        options: Options(
-          headers: d.headers,
-          responseType: ResponseType.bytes,
-          validateStatus: (s) => s != null && s < 500,
-        ),
+        options: Options(headers: d.headers, responseType: ResponseType.bytes, validateStatus: (s) => s != null && s < 500),
       );
       if (res.statusCode != 200 || res.data == null) return null;
       return utf8.decode(res.data!, allowMalformed: true);

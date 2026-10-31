@@ -12,18 +12,9 @@ void main() {
   testWidgets('歌词页可以上下拖动浏览', (tester) async {
     final settings = AppSettings();
     final player = PlayerController(SourceManager(const []), settings)
-      ..lyrics = Lyrics([
-        for (var i = 0; i < 40; i++)
-          LyricLine(Duration(seconds: i * 3), '第 $i 行'),
-      ])
+      ..lyrics = Lyrics([for (var i = 0; i < 40; i++) LyricLine(Duration(seconds: i * 3), '第 $i 行')])
       ..debugSetQueue([
-        const Song(
-          id: '1',
-          sourceId: 'test',
-          name: '测试歌曲',
-          artists: [ArtistRef('a', '歌手')],
-          duration: Duration(minutes: 3),
-        ),
+        const Song(id: '1', sourceId: 'test', name: '测试歌曲', artists: [ArtistRef('a', '歌手')], duration: Duration(minutes: 3)),
       ], 0);
     player.position.value = const Duration(seconds: 60); // 第 20 行
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
