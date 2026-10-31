@@ -30,6 +30,7 @@ uniform float uTint;       // 白色色调强度（清透 0，柔和 0.11）
 uniform float uRoundness;  // 圆角指数：2 为正圆弧（与普通圆角矩形一致）
 uniform vec2 uOrigin;      // 玻璃在画面中的左上角，物理像素
 uniform float uPad;        // 裁剪区域每边多出的物理像素
+uniform vec3 uTintColor;   // 色调颜色（浅色模式为白色；深色模式为深灰，使玻璃在深色背景上呈现为一整块面板）
 
 uniform sampler2D uTexture;
 
@@ -132,7 +133,7 @@ void main() {
 
   vec4 outColor;
   if (edgeFactor <= 0.0) {
-    outColor = mix(bg, vec4(white, 1.0), uTint * 0.8);
+    outColor = mix(bg, vec4(uTintColor, 1.0), uTint * 0.8);
   } else {
     // 外法线（y 向下）。
     vec2 e = vec2(1.0, 0.0);
@@ -145,7 +146,7 @@ void main() {
     float g = sampleBg(uv + offset * (1.0 - (N_G - 1.0) * uDispersion)).g;
     float b = sampleBg(uv + offset * (1.0 - (N_B - 1.0) * uDispersion)).b;
     vec4 refracted = vec4(r, g, b, 1.0);
-    outColor = mix(refracted, vec4(white, 1.0), uTint * 0.8);
+    outColor = mix(refracted, vec4(uTintColor, 1.0), uTint * 0.8);
 
     // 菲涅尔：边缘约 3 像素内提亮。
     float fresnel = clamp(pow(max(1.0 - depth / 1500.0 * pow(500.0 / 30.0, 2.0) + 0.2, 0.0), 5.0), 0.0, 1.0);
