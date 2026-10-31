@@ -134,6 +134,23 @@ class SongRow extends StatelessWidget {
                   SongTrailing.more => YIconButton(YIcons.more, color: p.muted, label: '更多', onTap: () => showSongMenu(context, song)),
                   SongTrailing.play => YIconButton(YIcons.playOutline, color: p.text, label: '播放', onTap: onTap),
                   SongTrailing.none => const SizedBox(width: 8),
+                  SongTrailing.likeMore => Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Builder(
+                        builder: (context) {
+                          final liked = context.select<PlayerController, bool>((c) => c.isLiked(song));
+                          return YIconButton(
+                            liked ? YIcons.heart : YIcons.heartOutline,
+                            color: liked ? p.accentText : p.muted,
+                            label: liked ? '取消喜欢' : '喜欢',
+                            onTap: () => context.read<PlayerController>().toggleLike(song),
+                          );
+                        },
+                      ),
+                      YIconButton(YIcons.more, color: p.muted, label: '更多', onTap: () => showSongMenu(context, song)),
+                    ],
+                  ),
                 },
               ],
             ),
@@ -144,7 +161,7 @@ class SongRow extends StatelessWidget {
   }
 }
 
-enum SongTrailing { more, play, none }
+enum SongTrailing { more, play, none, likeMore }
 
 void _unavailable(BuildContext context) => Toast.show(context, '暂无播放版权', icon: YIcons.lock);
 
