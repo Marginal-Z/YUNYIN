@@ -71,7 +71,7 @@ class ProfilePage extends StatelessWidget {
         const SizedBox(height: 16),
         _MembershipCard(key: ValueKey('${source.id}:${user?.id}:${sm.generation}'), source: source),
         SectionHeader('平台模式', top: 26),
-        Text('切换后首页、发现、搜索、排行榜与登录都使用该平台；歌曲无法直接播放时自动换用网易云的同一首歌。', style: ts(13, height: 1.5, color: p.text2)),
+        Text('三个平台彼此独立：切换后首页、发现、搜索、排行榜、账号、音源与界面样式都换成该平台。', style: ts(13, height: 1.5, color: p.text2)),
         const SizedBox(height: 12),
         Row(
           children: [

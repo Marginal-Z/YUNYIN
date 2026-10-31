@@ -8,12 +8,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yunyin/data/models.dart';
 import 'package:yunyin/data/sources/kugou/kugou_source.dart';
 import 'package:yunyin/data/sources/netease/netease_source.dart';
+import 'package:yunyin/data/sources/source_policy.dart';
 
 void main() {
   test(
     '酷狗：搜索、排行榜、歌词，换源播放',
     () async {
       SharedPreferences.setMockInitialValues({});
+      // 换源播放需要打开“其他平台补位”。
+      SourcePolicy.crossSource = true;
       final netease = NeteaseSource();
       await netease.init();
       final kg = KugouSource(netease);

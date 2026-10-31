@@ -359,7 +359,30 @@ class SourceGroup extends StatelessWidget {
     final sm = context.watch<SourceManager>();
     return CardList(
       indent: 56,
-      children: [SettingsRow(icon: YIcons.source, tile: TileColor.red, title: '播放源', value: sm.current.name, onTap: () => pickSource(context))],
+      children: [
+        SettingsRow(icon: YIcons.source, tile: TileColor.red, title: '平台模式', value: sm.current.name, onTap: () => pickSource(context)),
+        SettingsRow(
+          icon: YIcons.sparkle,
+          tile: TileColor.blue,
+          title: '切换平台时切换界面样式',
+          trailing: YSwitch(
+            value: context.watch<AppSettings>().platformStyle,
+            label: '切换平台时切换界面样式',
+            onChanged: (v) => context.read<AppSettings>().setFlag('platformStyle', v),
+          ),
+        ),
+        SettingsRow(
+          icon: YIcons.refresh,
+          tile: TileColor.graphite,
+          title: '其他平台补位播放',
+          value: context.watch<AppSettings>().crossSource ? '网易云' : null,
+          trailing: YSwitch(
+            value: context.watch<AppSettings>().crossSource,
+            label: '其他平台补位播放',
+            onChanged: (v) => context.read<AppSettings>().setFlag('crossSource', v),
+          ),
+        ),
+      ],
     );
   }
 }

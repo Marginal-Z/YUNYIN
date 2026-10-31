@@ -8,6 +8,7 @@ import '../../../core/text_decode.dart';
 import '../../models.dart';
 import '../../song_matcher.dart';
 import '../music_source.dart';
+import '../source_policy.dart';
 import '../netease/netease_source.dart' show parseLrc;
 
 /// 酷狗音乐播放源：搜索、热搜、排行榜、封面与歌词来自酷狗公开接口。
@@ -35,7 +36,7 @@ class KugouSource extends MusicSource {
   String get name => '酷狗音乐';
 
   @override
-  String get description => '酷狗的搜索、排行榜与歌词；无法直接播放的歌曲自动换用网易云的同一首歌播放';
+  String get description => '酷狗的搜索、排行榜与歌词';
 
   @override
   Set<SourceFeature> get features => const {
@@ -185,9 +186,9 @@ class KugouSource extends MusicSource {
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
     final direct = await _webPlayUrl(song);
     if (direct != null) return StreamInfo(url: direct, quality: AudioQuality.standard);
-    final match = await _match(song);
+    final match = SourcePolicy.crossSource ? await _match(song) : null;
     if (match == null || fallback == null) {
-      throw Exception('酷狗暂时无法播放这首歌（需要验证或会员），网易云音乐中也没有找到同一首歌');
+      throw Exception('酷狗暂时无法直接播放这首歌（需要验证或会员，可以在设置中导入洛雪音源）');
     }
     return fallback!.stream(match, quality);
   }
@@ -264,6 +265,7 @@ class KugouSource extends MusicSource {
       debugPrint('kugou lyrics: $e');
     }
     // 酷狗没有歌词时用网易云同一首歌的歌词（含翻译）。
+    if (!SourcePolicy.crossSource) return Lyrics.empty;
     final m = await _match(song);
     return m == null || fallback == null ? Lyrics.empty : fallback!.lyrics(m);
   }

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yunyin/data/models.dart';
 import 'package:yunyin/data/sources/netease/netease_source.dart';
+import 'package:yunyin/data/sources/source_policy.dart';
 import 'package:yunyin/data/sources/qq/qq_source.dart';
 
 void main() {
@@ -14,6 +15,8 @@ void main() {
     'QQ 音乐：搜索、热搜、排行榜、歌词、扫码二维码，未登录时换源播放',
     () async {
       SharedPreferences.setMockInitialValues({});
+      // 换源播放需要打开“其他平台补位”。
+      SourcePolicy.crossSource = true;
       final netease = NeteaseSource();
       await netease.init();
       final qq = QQMusicSource(netease);

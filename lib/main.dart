@@ -22,6 +22,7 @@ import 'debug/screenshots.dart';
 import 'data/downloads.dart';
 import 'data/cloud/cloud_drives.dart';
 import 'data/local_library.dart';
+import 'data/sources/source_policy.dart';
 import 'data/sources/source_manager.dart';
 import 'features/desktop/window_controls.dart';
 import 'player/player_controller.dart';
@@ -87,6 +88,11 @@ Future<void> main() async {
   // 本地歌曲联网补全封面与歌词使用网易云。
   local.online = sources.sources.where((s) => s.id == 'netease').firstOrNull;
   await sources.init();
+  // 平台模式彼此独立：切换平台时一并切换该平台的界面样式；是否允许其他平台补位播放由设置决定。
+  settings.initPlatform(sources.current.id);
+  SourcePolicy.crossSource = settings.crossSource;
+  settings.addListener(() => SourcePolicy.crossSource = settings.crossSource);
+  sources.addListener(() => settings.applyPlatform(sources.current.id));
   // 首页先显示上次的数据，随后在后台刷新。
   await DataCache.restoreHome(sources.current.id, sources.current.user?.id);
   final player = PlayerController(sources, settings);

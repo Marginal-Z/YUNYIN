@@ -8,12 +8,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models.dart';
 import '../../song_matcher.dart';
 import '../music_source.dart';
+import '../source_policy.dart';
 import '../netease/netease_source.dart' show parseLrc;
 
 /// QQ 音乐播放源：搜索、热搜、排行榜、歌词与 QQ 扫码登录。
 ///
 /// QQ 音乐的播放地址接口只对已登录账号开放：登录后按所选音质（Hi-Res / 无损 / 320k / 128k）依次获取，
-/// 会员歌曲需要账号有对应会员。未登录或取不到地址时，自动换用网易云音乐中的同一首歌播放。
+/// 会员歌曲需要账号有对应会员。打开“其他平台补位”后，取不到地址的歌曲换用网易云的同一首歌播放。
 class QQMusicSource extends MusicSource {
   QQMusicSource(this.fallback, {Dio? dio})
     : _dio =
@@ -51,7 +52,7 @@ class QQMusicSource extends MusicSource {
   String get name => 'QQ 音乐';
 
   @override
-  String get description => 'QQ 音乐的搜索、排行榜与歌词；登录后按所选音质播放，未登录时换用网易云的同一首歌';
+  String get description => 'QQ 音乐的搜索、排行榜、歌词与账号，登录后按所选音质播放';
 
   @override
   Set<SourceFeature> get features => {
@@ -319,9 +320,9 @@ class QQMusicSource extends MusicSource {
         debugPrint('qq vkey: $e');
       }
     }
-    final match = await _match(song);
+    final match = SourcePolicy.crossSource ? await _match(song) : null;
     if (match == null || fallback == null) {
-      throw Exception(_uin == null ? 'QQ 音乐需要登录后才能播放，网易云音乐中也没有找到同一首歌' : '这首歌需要 QQ 音乐会员或单独购买，网易云音乐中也没有找到同一首歌');
+      throw Exception(_uin == null ? '登录 QQ 音乐后才能播放（也可以在设置中导入洛雪音源）' : '这首歌需要 QQ 音乐会员或单独购买（也可以在设置中导入洛雪音源）');
     }
     return fallback!.stream(match, quality);
   }
@@ -380,6 +381,7 @@ class QQMusicSource extends MusicSource {
     } catch (e) {
       debugPrint('qq lyrics: $e');
     }
+    if (!SourcePolicy.crossSource) return Lyrics.empty;
     final m = await _match(song);
     return m == null || fallback == null ? Lyrics.empty : fallback!.lyrics(m);
   }

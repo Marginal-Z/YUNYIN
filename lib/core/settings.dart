@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -143,6 +145,22 @@ class AppSettings extends ChangeNotifier {
   /// Windows / macOS：独占音频设备，绕过系统混音，按音源原始采样率输出。
   bool exclusiveAudio = false;
 
+  /// 当前平台无法播放的歌曲换用网易云的同一首歌（默认关闭：各平台彼此独立）。
+  bool crossSource = false;
+
+  /// 切换平台时一并切换界面样式（主题色与播放样式），每个平台记住自己的样式。
+  bool platformStyle = true;
+
+  String _platform = 'netease';
+  final Map<String, (int, int)> _platformStyles = {};
+
+  /// 各平台第一次使用时的默认样式：网易云朱红 + 封面，QQ 音乐绿色 + 卡片流，酷狗蓝色 + 3D 封面流。
+  static const _platformDefaults = {
+    'netease': (AccentColor.red, PlayerStyle.cover),
+    'qq': (AccentColor.teal, PlayerStyle.cardFlow),
+    'kugou': (AccentColor.blue, PlayerStyle.coverFlow),
+  };
+
   /// 桌面歌词（Android 为悬浮窗，桌面端为置顶的歌词条窗口）。
   bool desktopLyrics = false;
 
@@ -201,6 +219,14 @@ class AppSettings extends ChangeNotifier {
     volumeBoost = _p.getInt('volumeBoost') ?? 0;
     hiResOutput = _p.getBool('hiResOutput') ?? false;
     exclusiveAudio = _p.getBool('exclusiveAudio') ?? false;
+    crossSource = _p.getBool('crossSource') ?? false;
+    platformStyle = _p.getBool('platformStyle') ?? true;
+    try {
+      final raw = _p.getString('platformStyles');
+      if (raw != null) {
+        (jsonDecode(raw) as Map).forEach((k, v) => _platformStyles['$k'] = ((v as List)[0] as int, v[1] as int));
+      }
+    } catch (_) {}
     desktopLyrics = _p.getBool('desktopLyrics') ?? false;
     statusBarLyrics = _p.getBool('statusBarLyrics') ?? false;
     lyricsLocked = _p.getBool('lyricsLocked') ?? false;
@@ -224,8 +250,36 @@ class AppSettings extends ChangeNotifier {
   void setAccent(AccentColor a) {
     accent = a;
     _p.setInt('accent', a.index);
+    _rememberPlatformStyle();
     notifyListeners();
   }
+
+  void _rememberPlatformStyle() {
+    _platformStyles[_platform] = (accent.index, playerStyle.index);
+    _p.setString('platformStyles', jsonEncode({for (final e in _platformStyles.entries) e.key: [e.value.$1, e.value.$2]}));
+  }
+
+  /// 切换平台：记下离开的平台的样式，换成新平台记住的样式（第一次使用该平台时用平台默认样式）。
+  void applyPlatform(String id) {
+    if (id == _platform) return;
+    if (!platformStyle) {
+      _platform = id;
+      return;
+    }
+    _rememberPlatformStyle();
+    _platform = id;
+    final saved = _platformStyles[id];
+    final def = _platformDefaults[id];
+    if (saved == null && def == null) return;
+    accent = saved != null ? AccentColor.values[saved.$1.clamp(0, AccentColor.values.length - 1)] : def!.$1;
+    playerStyle = saved != null ? PlayerStyle.values[saved.$2.clamp(0, PlayerStyle.values.length - 1)] : def!.$2;
+    _p.setInt('accent', accent.index);
+    _p.setInt('playerStyle', playerStyle.index);
+    notifyListeners();
+  }
+
+  /// 启动时对齐当前平台（不触发样式切换）。
+  void initPlatform(String id) => _platform = id;
 
   void setQuality(AudioQuality q) {
     quality = q;
@@ -275,6 +329,10 @@ class AppSettings extends ChangeNotifier {
         hiResOutput = v;
       case 'exclusiveAudio':
         exclusiveAudio = v;
+      case 'crossSource':
+        crossSource = v;
+      case 'platformStyle':
+        platformStyle = v;
       case 'desktopLyrics':
         desktopLyrics = v;
       case 'statusBarLyrics':
@@ -289,6 +347,7 @@ class AppSettings extends ChangeNotifier {
   void setPlayerStyle(PlayerStyle v) {
     playerStyle = v;
     _p.setInt('playerStyle', v.index);
+    _rememberPlatformStyle();
     notifyListeners();
   }
 
