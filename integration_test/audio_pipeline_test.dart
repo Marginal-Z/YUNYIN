@@ -167,14 +167,10 @@ void main() {
         'equalizer=f=2000:width_type=o:width=1:g=1.0,equalizer=f=4000:width_type=o:width=1:g=3.0,equalizer=f=8000:width_type=o:width=1:g=4.0,'
         'equalizer=f=16000:width_type=o:width=1:g=4.0';
     final cases = <(String, String, Map<String, String>)>[
-      ('int', 'equalizer=f=1000:width_type=o:width=1:g=3', {}),
-      ('dec', 'equalizer=f=1000:width_type=o:width=1:g=4.0', {}),
-      ('neg', 'equalizer=f=1000:width_type=o:width=1:g=-1.0', {}),
-      ('low', 'equalizer=f=31:width_type=o:width=1:g=3', {}),
-      ('high', 'equalizer=f=16000:width_type=o:width=1:g=3', {}),
-      ('two', 'equalizer=f=1000:width_type=o:width=1:g=3,equalizer=f=4000:width_type=o:width=1:g=3', {}),
-      ('rock', rock, {}),
-      ('rock+rg', rock, {'replaygain': 'track', 'volume-max': '200'}),
+      ('plain', 'lavfi=[equalizer=f=1000:width_type=o:width=1:g=3]', {}),
+      ('floatp', 'format=format=floatp,lavfi=[equalizer=f=1000:width_type=o:width=1:g=3]', {}),
+      ('doublep', 'format=format=doublep,lavfi=[equalizer=f=1000:width_type=o:width=1:g=3]', {}),
+      ('rock', 'format=format=floatp,lavfi=[$rock]', {'replaygain': 'track', 'volume-max': '200'}),
     ];
     final results = <String>[];
     for (final (name, graph, props) in cases) {
@@ -187,13 +183,14 @@ void main() {
       final logs = <String>[];
       final sub = player.stream.log.listen((l) => logs.add('${l.prefix}: ${l.text.trim()}'));
       final err = player.stream.error.listen((e) => logs.add('error: $e'));
-      await native.setProperty('af', 'lavfi=[$graph]');
+      await native.setProperty('af', graph);
       await player.open(Media(path));
       final sw = Stopwatch()..start();
       while (sw.elapsed < const Duration(seconds: 4) && player.state.position < const Duration(milliseconds: 800)) {
         await tester.pump(const Duration(milliseconds: 200));
       }
-      results.add('$name:${player.state.position > const Duration(milliseconds: 800) ? 'ok' : 'no'} ${logs.where((l) => l.contains('filter') || l.contains('lavfi') || l.contains('af') || l.contains('error')).take(3).join(' | ')}');
+      final failed = logs.any((l) => l.contains('Disabling filter') || l.contains('failed to configure'));
+      results.add('$name:${player.state.position > const Duration(milliseconds: 800) && !failed ? 'ok' : 'no'} ${logs.where((l) => l.contains('filter') || l.contains('lavfi') || l.contains('error')).take(3).join(' | ')}');
       await sub.cancel();
       await err.cancel();
       await player.dispose();

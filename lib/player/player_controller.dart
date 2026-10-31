@@ -144,7 +144,9 @@ class PlayerController extends ChangeNotifier {
       p.stream.log.listen((l) {
         if (l.text.contains('Could not open/initialize audio device')) _onAudioDeviceFailed();
         // 音频滤镜（均衡器）在个别设备上创建失败时关闭它，避免没有声音。
-        if (_eqApplied.isNotEmpty && (l.text.contains('Disabling filter') || l.text.contains('Could not create') || l.text.contains('Error parsing'))) _onEqFailed();
+        if (_eqApplied.isNotEmpty && (l.text.contains('Disabling filter') || l.text.contains('failed to configure the filter graph') || l.text.contains('Could not create') || l.text.contains('Error parsing'))) {
+          _onEqFailed();
+        }
       }),
     ]);
     if (!kIsWeb && Platform.isAndroid) await _configureAndroidAudio(p);
@@ -287,16 +289,19 @@ class PlayerController extends ChangeNotifier {
   /// 均衡器在当前设备上不可用（滤镜创建失败）。
   bool eqUnsupported = false;
 
-  /// 由 10 个频段的增益生成 mpv 的 lavfi 滤镜：每个频段一个倍频程宽的峰值均衡器。
-  /// 只使用 equalizer：Android / Windows / macOS 的精简版 FFmpeg 只带有它（没有 volume、bass 等滤镜，
-  /// 用了会导致音频链初始化失败）。所有频段为 0 时返回空字符串（不加滤镜）。
+  /// 由 10 个频段的增益生成 mpv 的音频滤镜：每个频段一个倍频程宽的峰值均衡器。
+  ///
+  /// Android / Windows / macOS 的精简版 FFmpeg 只带有 equalizer（没有 volume、bass、aresample 等）。
+  /// equalizer 只接受平面格式的采样，FFmpeg 平时会自动插入 aresample 转换格式，精简版里没有它，
+  /// 滤镜图就无法配置；所以先用 mpv 自带的 format 滤镜转成平面浮点（floatp），FFmpeg 无需再转换。
+  /// 所有频段为 0 时返回空字符串（不加滤镜）。
   static String eqFilter(List<double> gains) {
     if (gains.every((g) => g.abs() < 0.05)) return '';
     final parts = <String>[
       for (var i = 0; i < gains.length && i < kEqBands.length; i++)
         if (gains[i].abs() >= 0.05) 'equalizer=f=${kEqBands[i]}:width_type=o:width=1:g=${gains[i].toStringAsFixed(1)}',
     ];
-    return 'lavfi=[${parts.join(',')}]';
+    return 'format=format=floatp,lavfi=[${parts.join(',')}]';
   }
 
   /// 均衡器有提升时整体降低一部分电平（通过播放器音量，而不是 volume 滤镜），减少削波。
