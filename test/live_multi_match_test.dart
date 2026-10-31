@@ -17,7 +17,7 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final netease = NeteaseSource();
       await netease.init();
-      final sources = [netease, QQMusicSource(netease), KugouSource(netease)];
+      final sources = [netease, QQMusicSource(), KugouSource()];
       // 周杰伦的歌不在网易云上架：应在 QQ 音乐或酷狗中匹配到。
       const local = Song(id: 'x', sourceId: 'local', name: '晴天', artists: [ArtistRef('a', '周杰伦')], duration: Duration(seconds: 269));
       Lyrics? found;

@@ -33,9 +33,5 @@ void main() {
     again.initPlatform('qq');
     again.applyPlatform('netease');
     expect(again.playerStyle, PlayerStyle.vinyl);
-
-    s.setFlag('platformStyle', false);
-    s.applyPlatform('kugou');
-    expect(s.playerStyle, PlayerStyle.wall, reason: '关闭后切换平台不改样式');
   });
 }

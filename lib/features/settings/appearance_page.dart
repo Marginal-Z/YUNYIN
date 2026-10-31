@@ -367,7 +367,10 @@ class _StylePreview extends CustomPainter {
           for (var j = 0; j < 4; j++) {
             final r = Rect.fromLTWH(w * 0.08 + i * w * 0.29, h * 0.06 + j * w * 0.21, w * 0.26, w * 0.18);
             final cur = i == 1 && j == 1;
-            canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(2)), cur ? cover : (Paint()..color = accent.withValues(alpha: 0.28 + 0.08 * ((i + j) % 3))));
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(r, const Radius.circular(2)),
+              cur ? cover : (Paint()..color = accent.withValues(alpha: 0.28 + 0.08 * ((i + j) % 3))),
+            );
           }
         }
       case PlayerStyle.minimal:

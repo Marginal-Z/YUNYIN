@@ -17,8 +17,8 @@ import 'qq/qq_source.dart';
 abstract final class SourceRegistry {
   static List<MusicSource> create(LocalLibrary library, CloudDrives drives) {
     final netease = NeteaseSource();
-    // 酷狗无法直接播放的歌曲换用网易云的同一首歌播放；网盘歌曲没有歌词文件时用网易云的歌词。
-    return [netease, QQMusicSource(netease), KugouSource(netease), LocalSource(library), CloudSource(drives, fallback: netease)];
+    // 三个平台彼此独立；网盘歌曲没有歌词文件时用网易云的歌词。
+    return [netease, QQMusicSource(), KugouSource(), LocalSource(library), CloudSource(drives, fallback: netease)];
   }
 }
 

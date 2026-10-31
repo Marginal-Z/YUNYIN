@@ -6,9 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models.dart';
-import '../../song_matcher.dart';
 import '../music_source.dart';
-import '../source_policy.dart';
 import '../netease/netease_source.dart' show parseLrc;
 
 /// QQ 音乐播放源：搜索、热搜、排行榜、歌词与 QQ 扫码登录。
@@ -16,7 +14,7 @@ import '../netease/netease_source.dart' show parseLrc;
 /// QQ 音乐的播放地址接口只对已登录账号开放：登录后按所选音质（Hi-Res / 无损 / 320k / 128k）依次获取，
 /// 会员歌曲需要账号有对应会员。打开“其他平台补位”后，取不到地址的歌曲换用网易云的同一首歌播放。
 class QQMusicSource extends MusicSource {
-  QQMusicSource(this.fallback, {Dio? dio})
+  QQMusicSource({Dio? dio})
     : _dio =
           dio ??
           Dio(
@@ -33,10 +31,7 @@ class QQMusicSource extends MusicSource {
   static const _api = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
   static const _prefsKey = 'qq.account';
 
-  /// 换源播放用的播放源（网易云音乐）。
-  final MusicSource? fallback;
   final Dio _dio;
-  final Map<String, Song?> _matches = {};
 
   String? _uin;
   String? _key;
@@ -320,11 +315,7 @@ class QQMusicSource extends MusicSource {
         debugPrint('qq vkey: $e');
       }
     }
-    final match = SourcePolicy.crossSource ? await _match(song) : null;
-    if (match == null || fallback == null) {
-      throw Exception(_uin == null ? '登录 QQ 音乐后才能播放（也可以在设置中导入洛雪音源）' : '这首歌需要 QQ 音乐会员或单独购买（也可以在设置中导入洛雪音源）');
-    }
-    return fallback!.stream(match, quality);
+    throw Exception(_uin == null ? '登录 QQ 音乐后才能播放（也可以在设置中导入洛雪音源）' : '这首歌需要 QQ 音乐会员或单独购买（也可以在设置中导入洛雪音源）');
   }
 
   /// 按音质从高到低一次请求多个文件名，取第一个有地址的。
@@ -354,14 +345,6 @@ class QQMusicSource extends MusicSource {
     return null;
   }
 
-  Future<Song?> _match(Song song) async {
-    if (_matches.containsKey(song.id)) return _matches[song.id];
-    final src = fallback;
-    final m = src == null ? null : await SongMatcher.match(src, song);
-    _matches[song.id] = m;
-    return m;
-  }
-
   // ── 歌词 ──────────────────────────────────────────
 
   @override
@@ -381,9 +364,7 @@ class QQMusicSource extends MusicSource {
     } catch (e) {
       debugPrint('qq lyrics: $e');
     }
-    if (!SourcePolicy.crossSource) return Lyrics.empty;
-    final m = await _match(song);
-    return m == null || fallback == null ? Lyrics.empty : fallback!.lyrics(m);
+    return Lyrics.empty;
   }
 
   // ── 扫码登录（QQ 或 TIM 扫码，经 QQ 互联授权登录 QQ 音乐） ─────────────────

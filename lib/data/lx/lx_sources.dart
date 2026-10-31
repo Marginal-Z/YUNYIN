@@ -12,7 +12,7 @@ import 'lx_runtime.dart';
 
 /// 一个导入的洛雪音源脚本。
 class LxScript {
-  const LxScript({required this.id, required this.name, this.description = '', this.version = '', this.author = '', this.url});
+  const LxScript({required this.id, required this.name, this.description = '', this.version = '', this.author = '', this.url, this.enabled = true});
 
   final String id;
   final String name;
@@ -23,7 +23,13 @@ class LxScript {
   /// 从链接导入时的地址（用于显示与更新）。
   final String? url;
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'description': description, 'version': version, 'author': author, 'url': url};
+  /// 是否参与兜底（可以同时启用多个音源，按列表顺序依次尝试）。
+  final bool enabled;
+
+  LxScript copyWith({bool? enabled}) =>
+      LxScript(id: id, name: name, description: description, version: version, author: author, url: url, enabled: enabled ?? this.enabled);
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'description': description, 'version': version, 'author': author, 'url': url, 'enabled': enabled};
 
   factory LxScript.fromJson(Map<String, dynamic> j) => LxScript(
     id: '${j['id']}',
@@ -32,6 +38,7 @@ class LxScript {
     version: '${j['version'] ?? ''}',
     author: '${j['author'] ?? ''}',
     url: j['url'] as String?,
+    enabled: j['enabled'] as bool? ?? true,
   );
 
   /// 读取脚本开头注释中的 @name、@description、@version、@author。
@@ -48,26 +55,29 @@ class LxScript {
   }
 }
 
-/// 洛雪自定义音源：导入、启用与取播放地址。
+/// 洛雪自定义音源：导入、启用、排序与取播放地址。
 ///
-/// 网易云 / QQ 音乐 / 酷狗分别对应洛雪的 wy / tx / kg。当前平台自己取不到完整播放地址时，
-/// 用启用的音源脚本按同一平台的歌曲 id 获取地址（仍是该平台的同一首歌，不会换成其他平台的版本）。
+/// 网易云 / QQ 音乐 / 酷狗分别对应洛雪的 wy / tx / kg。当前平台未登录、没有会员或只有试听时，
+/// 按列表顺序依次用启用的音源获取同一首歌（同一平台的歌曲 id）的完整地址，第一个成功的音源生效。
 class LxSources extends ChangeNotifier {
   static const _prefsKey = 'lx.scripts';
   static const _prefsActive = 'lx.active';
 
   final List<LxScript> _scripts = [];
-  String? _active;
-  LxRuntime? _rt;
-  String? _rtId;
-  Future<LxRuntime>? _starting;
+  final Map<String, LxRuntime> _runtimes = {};
+  final Map<String, Future<LxRuntime>> _starting = {};
 
-  /// 启用中的脚本声明支持的平台与音质（启动后可用）。
-  Map<String, List<String>> get platforms => _rt?.sources ?? const {};
-  String? lastError;
+  /// 各音源最近一次启动失败的原因。
+  final Map<String, String> errors = {};
 
   List<LxScript> get scripts => List.unmodifiable(_scripts);
-  LxScript? get active => _scripts.where((s) => s.id == _active).firstOrNull;
+  List<LxScript> get enabled => [
+    for (final s in _scripts)
+      if (s.enabled) s,
+  ];
+
+  /// 已启动的音源声明支持的平台与音质。
+  Map<String, List<String>> platformsOf(String id) => _runtimes[id]?.sources ?? const {};
 
   static const platformKeys = {'netease': 'wy', 'qq': 'tx', 'kugou': 'kg'};
   static const platformNames = {'wy': '网易云', 'tx': 'QQ 音乐', 'kg': '酷狗', 'kw': '酷我', 'mg': '咪咕'};
@@ -84,7 +94,15 @@ class LxSources extends ChangeNotifier {
       for (final j in jsonDecode(prefs.getString(_prefsKey) ?? '[]') as List) {
         _scripts.add(LxScript.fromJson(Map<String, dynamic>.from(j as Map)));
       }
-      _active = prefs.getString(_prefsActive);
+      // 旧版本只能启用一个音源：迁移为只启用当时选中的那个。
+      final active = prefs.getString(_prefsActive);
+      if (active != null) {
+        for (var i = 0; i < _scripts.length; i++) {
+          _scripts[i] = _scripts[i].copyWith(enabled: _scripts[i].id == active);
+        }
+        await prefs.remove(_prefsActive);
+        await _save();
+      }
     } catch (e) {
       debugPrint('lx sources: $e');
     }
@@ -93,11 +111,6 @@ class LxSources extends ChangeNotifier {
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, jsonEncode([for (final s in _scripts) s.toJson()]));
-    if (_active == null) {
-      await prefs.remove(_prefsActive);
-    } else {
-      await prefs.setString(_prefsActive, _active!);
-    }
   }
 
   /// 从链接下载音源脚本并导入。
@@ -109,7 +122,7 @@ class LxSources extends ChangeNotifier {
     return importText(res.data ?? '', url: url.trim());
   }
 
-  /// 导入脚本内容：先在运行环境中试运行，能完成初始化才保存并启用。
+  /// 导入脚本内容：先在运行环境中试运行，能完成初始化才保存，并加到列表末尾（默认启用）。
   Future<LxScript> importText(String code, {String? url}) async {
     if (!code.contains('lx')) throw Exception('这不是洛雪音源脚本');
     final header = LxScript.parseHeader(code);
@@ -129,31 +142,37 @@ class LxSources extends ChangeNotifier {
       url: url,
     );
     _scripts.add(s);
-    _rt?.dispose();
-    _rt = rt;
-    _rtId = id;
-    _active = id;
-    lastError = null;
+    _runtimes[id] = rt;
+    errors.remove(id);
     await _save();
     notifyListeners();
     return s;
   }
 
-  Future<void> setActive(String? id) async {
-    if (id == _active) return;
-    _active = id;
-    _rt?.dispose();
-    _rt = null;
-    _rtId = null;
-    lastError = null;
+  Future<void> setEnabled(String id, bool on) async {
+    final i = _scripts.indexWhere((s) => s.id == id);
+    if (i < 0) return;
+    _scripts[i] = _scripts[i].copyWith(enabled: on);
+    if (!on) _runtimes.remove(id)?.dispose();
     await _save();
     notifyListeners();
-    if (id != null) unawaited(_runtime().then((_) => notifyListeners(), onError: (_) => notifyListeners()));
+    if (on) unawaited(_runtime(_scripts[i]).then((_) => notifyListeners(), onError: (_) => notifyListeners()));
+  }
+
+  /// 调整优先级：把音源上移一位（排在前面的先尝试）。
+  Future<void> moveUp(String id) async {
+    final i = _scripts.indexWhere((s) => s.id == id);
+    if (i <= 0) return;
+    final s = _scripts.removeAt(i);
+    _scripts.insert(i - 1, s);
+    await _save();
+    notifyListeners();
   }
 
   Future<void> remove(String id) async {
     _scripts.removeWhere((s) => s.id == id);
-    if (_active == id) await setActive(null);
+    _runtimes.remove(id)?.dispose();
+    errors.remove(id);
     try {
       await File('${(await _dir()).path}/$id.js').delete();
     } catch (_) {}
@@ -161,23 +180,21 @@ class LxSources extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<LxRuntime> _runtime() {
-    final s = active;
-    if (s == null) return Future.error(Exception('没有启用的洛雪音源'));
-    if (_rt != null && _rtId == s.id) return Future.value(_rt!);
-    return _starting ??= () async {
+  Future<LxRuntime> _runtime(LxScript s) {
+    final rt = _runtimes[s.id];
+    if (rt != null) return Future.value(rt);
+    return _starting[s.id] ??= () async {
       try {
         final code = await File('${(await _dir()).path}/${s.id}.js').readAsString();
         final rt = await LxRuntime.start(code, info: {'name': s.name, 'description': s.description, 'version': s.version, 'author': s.author});
-        _rt = rt;
-        _rtId = s.id;
-        lastError = null;
+        _runtimes[s.id] = rt;
+        errors.remove(s.id);
         return rt;
       } catch (e) {
-        lastError = '$e';
+        errors[s.id] = '$e';
         rethrow;
       } finally {
-        _starting = null;
+        _starting.remove(s.id);
       }
     }();
   }
@@ -192,25 +209,36 @@ class LxSources extends ChangeNotifier {
     _ => '128k',
   };
 
-  /// 当前平台取不到完整地址时调用：用启用的音源脚本获取 [song] 的播放地址。不支持该平台时返回 null。
+  /// 当前平台取不到完整地址时调用：按顺序用启用的音源获取 [song] 的播放地址，第一个成功的生效。
+  /// 没有启用的音源或都不支持该平台时返回 null；都失败时抛出最后一个错误。
   Future<StreamInfo?> resolve(Song song, AudioQuality quality) async {
     final key = platformKeys[song.sourceId];
-    if (key == null || active == null) return null;
-    final rt = await _runtime();
-    final declared = rt.sources[key];
-    if (declared == null) return null;
-    final start = _qualities.indexOf(_wanted(quality));
-    final type = _qualities.skip(start).firstWhere(declared.contains, orElse: () => declared.isEmpty ? '128k' : declared.last);
-    final url = await rt.musicUrl(key, type, musicInfo(song, key));
-    return StreamInfo(
-      url: url,
-      quality: switch (type) {
-        'flac24bit' => AudioQuality.hires,
-        'flac' => AudioQuality.lossless,
-        '320k' => AudioQuality.exhigh,
-        _ => AudioQuality.standard,
-      },
-    );
+    if (key == null) return null;
+    Object? lastError;
+    for (final s in enabled) {
+      try {
+        final rt = await _runtime(s);
+        final declared = rt.sources[key];
+        if (declared == null) continue;
+        final start = _qualities.indexOf(_wanted(quality));
+        final type = _qualities.skip(start).firstWhere(declared.contains, orElse: () => declared.isEmpty ? '128k' : declared.last);
+        final url = await rt.musicUrl(key, type, musicInfo(song, key), timeout: const Duration(seconds: 15));
+        return StreamInfo(
+          url: url,
+          quality: switch (type) {
+            'flac24bit' => AudioQuality.hires,
+            'flac' => AudioQuality.lossless,
+            '320k' => AudioQuality.exhigh,
+            _ => AudioQuality.standard,
+          },
+        );
+      } catch (e) {
+        debugPrint('lx ${s.name}: $e');
+        lastError = Exception('${s.name}：${e.toString().replaceFirst('Exception: ', '')}');
+      }
+    }
+    if (lastError != null) throw lastError;
+    return null;
   }
 
   /// 洛雪的 musicInfo：同时提供旧版（顶层字段）与新版（meta）格式。

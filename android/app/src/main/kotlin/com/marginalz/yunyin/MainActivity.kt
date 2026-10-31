@@ -22,6 +22,7 @@ import java.io.File
 class MainActivity : AudioServiceActivity() {
     companion object {
         private const val SCAN_REQUEST = 4201
+        private const val NOTIFY_REQUEST = 4202
     }
 
     private val themes = listOf("red", "blue", "teal", "orange", "graphite")
@@ -113,6 +114,15 @@ class MainActivity : AudioServiceActivity() {
         }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/system").setMethodCallHandler { call, result ->
             when (call.method) {
+                // 用户同意使用声明后申请通知权限（Android 13 起需要），用于在通知栏显示播放控制。
+                "requestNotifications" -> {
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFY_REQUEST)
+                    }
+                    result.success(null)
+                }
                 "permissionStatus" -> result.success(
                     mapOf(
                         "network" to true,

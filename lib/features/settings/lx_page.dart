@@ -61,7 +61,6 @@ class _LxSourcesPageState extends State<LxSourcesPage> {
     final p = Palette.of(context);
     final lx = context.watch<LxSources>();
     final desktop = LayoutScope.isDesktop(context);
-    final platforms = lx.platforms;
     return AdaptivePage(
       chrome: Chrome.none,
       mobileTop: 78,
@@ -76,7 +75,7 @@ class _LxSourcesPageState extends State<LxSourcesPage> {
         PageTitle('洛雪音源', subtitle: '导入洛雪音乐格式的自定义音源', size: desktop ? 40 : 36),
         const SizedBox(height: 10),
         Text(
-          '当前平台取不到完整播放地址（需要登录、会员或只有试听）时，用启用的音源获取同一首歌的地址。'
+          '网易云、QQ 音乐、酷狗是彼此独立的平台；未登录、没有会员或只有试听时，按顺序用启用的音源获取同一首歌的完整地址（可同时启用多个）。'
           '支持网易云（wy）、QQ 音乐（tx）、酷狗（kg）。音源脚本由你自行导入，请只使用可信来源的脚本。',
           style: ts(13, height: 1.55, color: p.text2),
         ),
@@ -124,47 +123,93 @@ class _LxSourcesPageState extends State<LxSourcesPage> {
         const SizedBox(height: 22),
         if (lx.scripts.isEmpty)
           YCard(
-            child: StateView.empty(title: '还没有导入音源', message: '导入后在这里选择启用的音源。', icon: YIcons.source),
+            child: StateView.empty(title: '还没有导入音源', message: '可以导入多个音源，按顺序依次尝试，第一个成功的生效。', icon: YIcons.source),
           )
-        else
+        else ...[
           CardList(
-            indent: 56,
-            children: [
-              for (final s in lx.scripts)
-                SettingsRow(
-                  icon: YIcons.source,
-                  tile: s.id == lx.active?.id ? TileColor.red : TileColor.graphite,
-                  title: '${s.name}${s.version.isEmpty ? '' : '  v${s.version}'}',
-                  value: s.id == lx.active?.id ? '已启用' : null,
-                  height: 58,
-                  onTap: () => lx.setActive(s.id == lx.active?.id ? null : s.id),
-                  trailing: YIconButton(
-                    YIcons.trash,
-                    color: p.text2,
-                    label: '删除${s.name}',
-                    onTap: () async {
-                      final ok = await showConfirm(context, title: '删除音源？', message: '删除“${s.name}”。', confirm: '删除');
-                      if (ok) await lx.remove(s.id);
-                    },
-                  ),
-                ),
-            ],
+            indent: 14,
+            children: [for (var i = 0; i < lx.scripts.length; i++) _ScriptRow(script: lx.scripts[i], index: i, lx: lx)],
           ),
-        if (lx.active != null) ...[
-          const SizedBox(height: 14),
-          Text(
-            lx.lastError != null
-                ? '音源启动失败：${lx.lastError}'
-                : platforms.isEmpty
-                ? '音源会在第一次需要时启动。'
-                : '支持：${platforms.entries.map((e) => '${LxSources.platformNames[e.key] ?? e.key}（${e.value.join(' / ')}）').join('、')}',
-            style: ts(13, height: 1.5, color: lx.lastError != null ? p.danger : p.text2),
-          ),
+          const SizedBox(height: 10),
+          Text('启用的音源按列表顺序依次尝试；点按“↑”调整优先级。', style: ts(13, height: 1.5, color: p.text2)),
         ],
       ],
     );
   }
 }
 
+class _ScriptRow extends StatelessWidget {
+  const _ScriptRow({required this.script, required this.index, required this.lx});
+
+  final LxScript script;
+  final int index;
+  final LxSources lx;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final platforms = lx.platformsOf(script.id);
+    final error = lx.errors[script.id];
+    final detail = error != null
+        ? '启动失败：${error.replaceFirst('Exception: ', '')}'
+        : platforms.isEmpty
+        ? (script.enabled ? '第一次需要时启动' : '未启用')
+        : platforms.entries.map((e) => '${LxSources.platformNames[e.key] ?? e.key}（${e.value.join('/')}）').join('、');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            child: Text(
+              '${index + 1}',
+              style: ts(15, weight: w700, color: script.enabled ? p.accentText : p.text3, tabular: true),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${script.name}${script.version.isEmpty ? '' : '  v${script.version}'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ts(16, weight: w600, color: p.text),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: ts(12, color: error != null ? p.danger : p.text2),
+                ),
+              ],
+            ),
+          ),
+          if (index > 0)
+            YIconButton(YIcons.chevronDown, size: 34, iconSize: 18, color: p.text2, label: '上移${script.name}', onTap: () => lx.moveUp(script.id)).flipped(),
+          YIconButton(
+            YIcons.trash,
+            size: 34,
+            iconSize: 18,
+            color: p.text2,
+            label: '删除${script.name}',
+            onTap: () async {
+              final ok = await showConfirm(context, title: '删除音源？', message: '删除“${script.name}”。', confirm: '删除');
+              if (ok) await lx.remove(script.id);
+            },
+          ),
+          YSwitch(value: script.enabled, label: '启用${script.name}', onChanged: (v) => lx.setEnabled(script.id, v)),
+        ],
+      ),
+    );
+  }
+}
+
+extension on Widget {
+  /// 向下箭头翻转为向上箭头。
+  Widget flipped() => Transform.flip(flipY: true, child: this);
+}
+
 /// 设置页中的入口值：启用的音源名称。
-String lxSummary(LxSources lx) => lx.active?.name ?? (lx.scripts.isEmpty ? '未导入' : '未启用');
+String lxSummary(LxSources lx) => lx.scripts.isEmpty ? '未导入' : (lx.enabled.isEmpty ? '未启用' : '已启用 ${lx.enabled.length} 个');

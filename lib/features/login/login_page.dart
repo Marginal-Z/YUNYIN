@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +19,7 @@ import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
+import '../settings/about_pages.dart';
 import '../shell/nav.dart';
 
 class LoginPage extends StatefulWidget {
@@ -32,6 +34,9 @@ class _LoginPageState extends State<LoginPage> {
   final _code = TextEditingController();
   String _cc = '86';
   bool _agree = true;
+  // 点按协议名称查看全文。
+  late final _agreementTap = TapGestureRecognizer()..onTap = () => showDocument(context, AboutPage.agreement);
+  late final _privacyTap = TapGestureRecognizer()..onTap = () => showDocument(context, AboutPage.privacy);
   int _countdown = 0;
   Timer? _timer;
   bool _busy = false;
@@ -40,6 +45,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    _agreementTap.dispose();
+    _privacyTap.dispose();
     _timer?.cancel();
     _phone.dispose();
     _code.dispose();
@@ -283,11 +290,13 @@ class _LoginPageState extends State<LoginPage> {
                               TextSpan(
                                 text: '《用户协议》',
                                 style: TextStyle(color: p.accentText),
+                                recognizer: _agreementTap,
                               ),
                               const TextSpan(text: '与'),
                               TextSpan(
                                 text: '《隐私政策》',
                                 style: TextStyle(color: p.accentText),
+                                recognizer: _privacyTap,
                               ),
                             ],
                           ),

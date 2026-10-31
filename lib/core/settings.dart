@@ -126,6 +126,17 @@ class AppSettings extends ChangeNotifier {
 
   /// 已播放过完整的启动动画；之后冷启动只播缩短版。
   bool splashSeen = false;
+
+  /// 已同意的使用声明版本（首次启动时阅读并同意后才能进入应用；条款更新时提高 [kConsentVersion] 会重新询问）。
+  int consentVersion = 0;
+  static const kConsentVersion = 1;
+  bool get consentAccepted => consentVersion >= kConsentVersion;
+
+  void acceptConsent() {
+    consentVersion = kConsentVersion;
+    _p.setInt('consentVersion', consentVersion);
+    notifyListeners();
+  }
   bool wifiOnlyDownload = true;
   bool autoClean = true;
   bool glass = true;
@@ -174,12 +185,7 @@ class AppSettings extends ChangeNotifier {
   /// Windows / macOS：独占音频设备，绕过系统混音，按音源原始采样率输出。
   bool exclusiveAudio = false;
 
-  /// 当前平台无法播放的歌曲换用网易云的同一首歌（默认关闭：各平台彼此独立）。
-  bool crossSource = false;
-
   /// 切换平台时一并切换界面样式（主题色与播放样式），每个平台记住自己的样式。
-  bool platformStyle = true;
-
   String _platform = 'netease';
   final Map<String, (int, int)> _platformStyles = {};
 
@@ -240,6 +246,7 @@ class AppSettings extends ChangeNotifier {
     normalize = _p.getBool('normalize') ?? true;
     openSles = _p.getBool('openSles') ?? false;
     splashSeen = _p.getBool('splashSeen') ?? false;
+    consentVersion = _p.getInt('consentVersion') ?? 0;
     wifiOnlyDownload = _p.getBool('wifiOnlyDownload') ?? true;
     autoClean = _p.getBool('autoClean') ?? true;
     glass = _p.getBool('glass') ?? true;
@@ -262,8 +269,6 @@ class AppSettings extends ChangeNotifier {
     normalizeStrength = _p.getDouble('normalizeStrength') ?? 1;
     hiResOutput = _p.getBool('hiResOutput') ?? false;
     exclusiveAudio = _p.getBool('exclusiveAudio') ?? false;
-    crossSource = _p.getBool('crossSource') ?? false;
-    platformStyle = _p.getBool('platformStyle') ?? true;
     try {
       final raw = _p.getString('platformStyles');
       if (raw != null) {
@@ -308,10 +313,6 @@ class AppSettings extends ChangeNotifier {
   /// 切换平台：记下离开的平台的样式，换成新平台记住的样式（第一次使用该平台时用平台默认样式）。
   void applyPlatform(String id) {
     if (id == _platform) return;
-    if (!platformStyle) {
-      _platform = id;
-      return;
-    }
     _rememberPlatformStyle();
     _platform = id;
     final saved = _platformStyles[id];
@@ -377,10 +378,6 @@ class AppSettings extends ChangeNotifier {
         hiResOutput = v;
       case 'exclusiveAudio':
         exclusiveAudio = v;
-      case 'crossSource':
-        crossSource = v;
-      case 'platformStyle':
-        platformStyle = v;
       case 'desktopLyrics':
         desktopLyrics = v;
       case 'statusBarLyrics':

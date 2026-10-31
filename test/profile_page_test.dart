@@ -16,7 +16,7 @@ void main() {
   testWidgets('个人中心：会员卡片随平台切换，可切换平台模式', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final netease = NeteaseSource();
-    final sm = SourceManager([netease, QQMusicSource(netease), KugouSource(netease)]);
+    final sm = SourceManager([netease, QQMusicSource(), KugouSource()]);
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);

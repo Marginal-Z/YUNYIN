@@ -17,7 +17,6 @@ import '../common/actions.dart';
 import 'about_pages.dart';
 import 'update_dialog.dart';
 
-
 /// 账号与关于。
 class SettingsMorePage extends StatelessWidget {
   const SettingsMorePage({super.key});

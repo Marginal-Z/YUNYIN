@@ -31,6 +31,7 @@ import 'core/lyrics_overlay.dart';
 import 'data/cloud/cloud_drives.dart';
 import 'data/lx/lx_sources.dart';
 import 'data/listen_stats.dart';
+import 'features/consent/consent_page.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -236,10 +237,14 @@ class _Root extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final desktop = LayoutScope.isDesktop(context);
-    return ScrollConfiguration(
+    // 首次启动：阅读并同意使用声明后才能使用（截图与性能测试模式跳过）。
+    final consent = context.select<AppSettings, bool>((s) => s.consentAccepted) || benchmarkRequested || screenshotsRequested;
+    final shell = ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: desktop),
       child: desktop ? const DesktopShell() : const MobileShell(),
     );
+    if (consent) return shell;
+    return Stack(children: [shell, const Positioned.fill(child: ConsentPage())]);
   }
 }
 

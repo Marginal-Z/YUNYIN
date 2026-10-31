@@ -6,28 +6,21 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/text_decode.dart';
 import '../../models.dart';
-import '../../song_matcher.dart';
 import '../music_source.dart';
-import '../source_policy.dart';
 import '../netease/netease_source.dart' show parseLrc;
 
-/// 酷狗音乐播放源：搜索、热搜、排行榜、封面与歌词来自酷狗公开接口。
+/// 酷狗音乐播放源：搜索、热搜、排行榜、歌单、专辑、歌手、评论、封面与歌词来自酷狗公开接口。
 ///
-/// 酷狗的播放地址接口现在要求设备验证（游客请求返回“本次请求需要验证”），且多数歌曲需要会员。
-/// 因此播放时先尝试酷狗网页播放接口，取不到地址时自动在 [fallback]（网易云音乐）中匹配同一首歌
-/// （歌名、歌手、时长，排除翻唱与伴奏）并播放其音频；都找不到时提示无法播放。
+/// 酷狗的播放地址接口要求设备验证与会员；取不到完整地址时由洛雪音源（[SourcePolicy.custom]）兜底。
 class KugouSource extends MusicSource {
-  KugouSource(this.fallback, {Dio? dio})
+  KugouSource({Dio? dio})
     : _dio =
           dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15), responseType: ResponseType.plain));
 
   static const sourceId = 'kugou';
   static const _api = 'https://mobiles.kugou.com/api/v3';
 
-  /// 换源播放用的播放源（网易云音乐）。
-  final MusicSource? fallback;
   final Dio _dio;
-  final Map<String, Song?> _matches = {};
 
   @override
   String get id => sourceId;
@@ -186,11 +179,7 @@ class KugouSource extends MusicSource {
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
     final direct = await _webPlayUrl(song);
     if (direct != null) return StreamInfo(url: direct, quality: AudioQuality.standard);
-    final match = SourcePolicy.crossSource ? await _match(song) : null;
-    if (match == null || fallback == null) {
-      throw Exception('酷狗暂时无法直接播放这首歌（需要验证或会员，可以在设置中导入洛雪音源）');
-    }
-    return fallback!.stream(match, quality);
+    throw Exception('酷狗暂时无法直接播放这首歌（需要验证或会员，可以在设置中导入洛雪音源）');
   }
 
   /// 酷狗网页播放接口（签名参数）。目前游客请求通常返回需要验证，取不到时返回 null。
@@ -233,14 +222,6 @@ class KugouSource extends MusicSource {
     }
   }
 
-  Future<Song?> _match(Song song) async {
-    if (_matches.containsKey(song.id)) return _matches[song.id];
-    final src = fallback;
-    final m = src == null ? null : await SongMatcher.match(src, song);
-    _matches[song.id] = m;
-    return m;
-  }
-
   // ── 歌词 ──────────────────────────────────────────
 
   @override
@@ -265,8 +246,6 @@ class KugouSource extends MusicSource {
       debugPrint('kugou lyrics: $e');
     }
     // 酷狗没有歌词时用网易云同一首歌的歌词（含翻译）。
-    if (!SourcePolicy.crossSource) return Lyrics.empty;
-    final m = await _match(song);
-    return m == null || fallback == null ? Lyrics.empty : fallback!.lyrics(m);
+    return Lyrics.empty;
   }
 }

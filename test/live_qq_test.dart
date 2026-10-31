@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yunyin/data/models.dart';
 import 'package:yunyin/data/sources/netease/netease_source.dart';
-import 'package:yunyin/data/sources/source_policy.dart';
 import 'package:yunyin/data/sources/qq/qq_source.dart';
 
 void main() {
@@ -15,11 +14,9 @@ void main() {
     'QQ 音乐：搜索、热搜、排行榜、歌词、扫码二维码，未登录时换源播放',
     () async {
       SharedPreferences.setMockInitialValues({});
-      // 换源播放需要打开“其他平台补位”。
-      SourcePolicy.crossSource = true;
       final netease = NeteaseSource();
       await netease.init();
-      final qq = QQMusicSource(netease);
+      final qq = QQMusicSource();
       await qq.init();
 
       final r = await qq.search('晴天 周杰伦', type: SearchType.song, limit: 10);
@@ -46,20 +43,14 @@ void main() {
       print('歌词: ${ly.lines.length} 行，${ly.lines.skip(6).first.text}');
       expect(ly.lines.length, greaterThan(10));
 
-      // 周杰伦的歌只在 QQ 音乐上架；换一批两边都有的歌测试换源播放（游客能播放其中免费的歌）。
-      var playable = 0;
-      for (final s in [
-        for (final k in ['晚风 说唱版', '童话 光良', '小幸运 田馥甄']) ...(await qq.search(k, type: SearchType.song, limit: 4)).songs,
-      ]) {
-        try {
-          final st = await qq.stream(s, AudioQuality.standard);
-          print('换源播放 ${s.name}: ${st.url == null ? '无地址' : st.url!.substring(0, 40)}');
-          if (st.url != null) playable++;
-        } catch (e) {
-          print('换源播放 ${s.name}: $e');
-        }
+      // 平台彼此独立：游客取不到完整地址时给出指向洛雪音源的说明，而不是换用其他平台的歌曲。
+      try {
+        final st = await qq.stream(r.songs.first, AudioQuality.standard);
+        print('直接播放: ${st.url}');
+      } catch (e) {
+        print('游客播放: $e');
+        expect('$e', contains('洛雪'));
       }
-      expect(playable, greaterThan(0));
 
       final ticket = await qq.createQrLogin();
       expect(ticket.image, isNotNull);

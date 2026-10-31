@@ -8,18 +8,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yunyin/data/models.dart';
 import 'package:yunyin/data/sources/kugou/kugou_source.dart';
 import 'package:yunyin/data/sources/netease/netease_source.dart';
-import 'package:yunyin/data/sources/source_policy.dart';
 
 void main() {
   test(
     '酷狗：搜索、排行榜、歌词，换源播放',
     () async {
       SharedPreferences.setMockInitialValues({});
-      // 换源播放需要打开“其他平台补位”。
-      SourcePolicy.crossSource = true;
       final netease = NeteaseSource();
       await netease.init();
-      final kg = KugouSource(netease);
+      final kg = KugouSource();
 
       final r = await kg.search('起风了 买辣椒也用券', type: SearchType.song, limit: 10);
       expect(r.songs, isNotEmpty);
@@ -43,19 +40,14 @@ void main() {
       print('歌词 ${ly.lines.length} 行，同步 ${ly.synced}: ${ly.lines.take(3).map((l) => l.text).join(' / ')}');
       expect(ly.lines.length, greaterThan(10));
 
-      // 换源播放：酷狗搜索结果在网易云中匹配到同一首歌后取得播放地址（新歌多为会员专享，游客没有地址，属正常）。
-      var playable = 0;
-      final candidates = (await kg.search('晚风', type: SearchType.song, limit: 8)).songs;
-      for (final s in candidates) {
-        try {
-          final st = await kg.stream(s, AudioQuality.standard);
-          print('播放 ${s.name}: ${st.url == null ? '无地址' : st.url!.substring(0, 40)} 试听 ${st.trial}');
-          if (st.url != null) playable++;
-        } catch (e) {
-          print('播放 ${s.name}: $e');
-        }
+      // 平台彼此独立：游客取不到完整地址时给出指向洛雪音源的说明，而不是换用其他平台的歌曲。
+      try {
+        final st = await kg.stream(r.songs.first, AudioQuality.standard);
+        print('直接播放: ${st.url}');
+      } catch (e) {
+        print('游客播放: $e');
+        expect('$e', contains('洛雪'));
       }
-      expect(playable, greaterThan(0));
     },
     skip: '联网测试：flutter test --run-skipped --tags live',
     timeout: const Timeout(Duration(minutes: 2)),

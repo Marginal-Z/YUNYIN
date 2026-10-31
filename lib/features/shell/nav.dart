@@ -198,6 +198,24 @@ class LyricsOverlayRoute extends AppRoute {
   String get sideKey => 'settings';
 }
 
+/// 播放设置（设置的二级页面）。
+class PlaybackSettingsRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
+/// 下载与缓存（设置的二级页面）。
+class StorageSettingsRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
 /// 个人中心。
 class ProfileRoute extends AppRoute {
   @override

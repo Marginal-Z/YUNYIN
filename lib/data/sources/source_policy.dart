@@ -5,11 +5,9 @@ import 'music_source.dart';
 
 /// 播放源之间的协作策略。
 ///
-/// 网易云、QQ 音乐、酷狗是彼此独立的平台模式：默认只使用当前平台自己的音源与歌词。
-/// 用户在设置中打开“其他平台补位”后，当前平台无法播放的歌曲才会在网易云中匹配同一首歌播放。
+/// 网易云、QQ 音乐、酷狗是彼此独立的平台模式，只使用当前平台自己的音源与歌词；
+/// 未登录、没有会员或只有试听时，由洛雪音源按同一平台的歌曲 id 兜底获取完整地址。
 abstract final class SourcePolicy {
-  static bool crossSource = false;
-
   /// 洛雪音源：当前平台取不到完整播放地址时使用（未导入音源时为 null）。
   static Future<StreamInfo?> Function(Song song, AudioQuality quality)? custom;
 }

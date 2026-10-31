@@ -39,21 +39,7 @@ class SettingsPage extends StatelessWidget {
           child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
         ),
       ],
-      children: const [
-        PageTitle('设置'),
-        GroupLabel('播放'),
-        PlaybackGroup(),
-        GroupLabel('外观'),
-        AppearanceEntry(),
-        GroupLabel('播放源'),
-        SourceGroup(),
-        GroupLabel('下载与缓存'),
-        StorageGroup(),
-        GroupLabel('账号与关于'),
-        AccountCard(),
-        SizedBox(height: 12),
-        AboutEntry(),
-      ],
+      children: const [PageTitle('设置'), SizedBox(height: 16), SettingsEntries(), GroupLabel('账号与关于'), AccountCard(), SizedBox(height: 12), AboutEntry()],
     );
   }
 }
@@ -112,9 +98,7 @@ class AboutEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return CardList(
       indent: 56,
-      children: [
-        SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '账号与关于', value: '隐私、协议、反馈与版本', onTap: () => go(context, SettingsMoreRoute())),
-      ],
+      children: [SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '账号与关于', value: '隐私、协议、反馈与版本', onTap: () => go(context, SettingsMoreRoute()))],
     );
   }
 }
@@ -158,13 +142,6 @@ class PlaybackGroup extends StatelessWidget {
           title: '淡入淡出',
           trailing: YSwitch(value: s.crossfade, label: '淡入淡出', onChanged: (v) => s.setFlag('crossfade', v)),
         ),
-        SettingsRow(
-          icon: YIcons.sliders,
-          tile: TileColor.graphite,
-          title: '音效',
-          value: [if (s.eqEnabled) '均衡器 · ${s.eqPreset.label}', if (s.normalize) '音量均衡', if (s.volumeBoost > 0) '+${s.volumeBoost} dB'].join(' · ').ifEmpty('关闭'),
-          onTap: () => go(context, AudioEffectsRoute()),
-        ),
         if (!kIsWeb && Platform.isAndroid)
           SettingsRow(
             icon: YIcons.equalizer,
@@ -191,13 +168,6 @@ class PlaybackGroup extends StatelessWidget {
             trailing: YSwitch(value: s.openSles, label: '兼容音频输出', onChanged: (v) => s.setFlag('openSles', v)),
           ),
         SettingsRow(
-          icon: YIcons.lyrics,
-          tile: TileColor.red,
-          title: !kIsWeb && Platform.isAndroid ? '桌面与状态栏歌词' : '桌面歌词',
-          value: [if (s.desktopLyrics) '桌面', if (s.statusBarLyrics) '状态栏'].join(' · ').ifEmpty('关闭'),
-          onTap: () => go(context, LyricsOverlayRoute()),
-        ),
-        SettingsRow(
           icon: desktop ? YIcons.clock : YIcons.timer,
           tile: TileColor.orange,
           title: '睡眠定时',
@@ -211,33 +181,6 @@ class PlaybackGroup extends StatelessWidget {
             if (v == null) return;
             player.setSleepTimer(v == 0 ? null : Duration(minutes: v));
           },
-        ),
-      ],
-    );
-  }
-}
-
-/// 设置首页里的“外观”入口，进入二级页面。
-class AppearanceEntry extends StatelessWidget {
-  const AppearanceEntry({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final s = context.watch<AppSettings>();
-    final mode = switch (s.themeMode) {
-      ThemeMode.light => '浅色',
-      ThemeMode.dark => '深色',
-      ThemeMode.system => '跟随系统',
-    };
-    return CardList(
-      indent: 56,
-      children: [
-        SettingsRow(
-          icon: YIcons.sparkle,
-          tile: TileColor.values[s.accent.index],
-          title: '外观',
-          value: '$mode · ${s.accent.label}',
-          onTap: () => go(context, AppearanceRoute()),
         ),
       ],
     );
@@ -339,54 +282,111 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(_RingPainter old) => old.inner != inner || old.outer != outer;
 }
 
-class SourceGroup extends StatelessWidget {
-  const SourceGroup({super.key});
+/// 设置首页的入口列表：每一项进入一个二级页面。
+class SettingsEntries extends StatelessWidget {
+  const SettingsEntries({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final sm = context.watch<SourceManager>();
+    final s = context.watch<AppSettings>();
+    final lx = context.watch<LxSources>();
+    final android = !kIsWeb && Platform.isAndroid;
+    final mode = switch (s.themeMode) {
+      ThemeMode.light => '浅色',
+      ThemeMode.dark => '深色',
+      ThemeMode.system => '跟随系统',
+    };
     return CardList(
       indent: 56,
       children: [
-        SettingsRow(icon: YIcons.source, tile: TileColor.red, title: '平台模式', value: sm.current.name, onTap: () => pickSource(context)),
-        SettingsRow(icon: YIcons.code, tile: TileColor.orange, title: '洛雪音源', value: lxSummary(context.watch<LxSources>()), onTap: () => go(context, LxSourcesRoute())),
+        SettingsRow(
+          icon: YIcons.play,
+          tile: TileColor.red,
+          title: '播放',
+          value: '${s.quality.label} · ${s.crossfade ? '淡入淡出' : '直接切换'}',
+          onTap: () => go(context, PlaybackSettingsRoute()),
+        ),
+        SettingsRow(
+          icon: YIcons.sliders,
+          tile: TileColor.graphite,
+          title: '音效',
+          value: [
+            if (s.eqEnabled) '均衡器 · ${s.eqPreset.label}',
+            if (s.normalize) '音量均衡',
+            if (s.volumeBoost > 0) '+${s.volumeBoost} dB',
+          ].join(' · ').ifEmpty('关闭'),
+          onTap: () => go(context, AudioEffectsRoute()),
+        ),
+        SettingsRow(
+          icon: YIcons.lyrics,
+          tile: TileColor.orange,
+          title: android ? '桌面与状态栏歌词' : '桌面歌词',
+          value: [if (s.desktopLyrics) '桌面', if (s.statusBarLyrics) '状态栏'].join(' · ').ifEmpty('关闭'),
+          onTap: () => go(context, LyricsOverlayRoute()),
+        ),
         SettingsRow(
           icon: YIcons.sparkle,
-          tile: TileColor.blue,
-          title: '切换平台时切换界面样式',
-          trailing: YSwitch(
-            value: context.watch<AppSettings>().platformStyle,
-            label: '切换平台时切换界面样式',
-            onChanged: (v) => context.read<AppSettings>().setFlag('platformStyle', v),
-          ),
+          tile: TileColor.values[s.accent.index],
+          title: '外观',
+          value: '$mode · ${s.accent.label}',
+          onTap: () => go(context, AppearanceRoute()),
         ),
-        SettingsRow(
-          icon: YIcons.refresh,
-          tile: TileColor.graphite,
-          title: '其他平台补位播放',
-          value: context.watch<AppSettings>().crossSource ? '网易云' : null,
-          trailing: YSwitch(
-            value: context.watch<AppSettings>().crossSource,
-            label: '其他平台补位播放',
-            onChanged: (v) => context.read<AppSettings>().setFlag('crossSource', v),
-          ),
-        ),
+        SettingsRow(icon: YIcons.code, tile: TileColor.teal, title: '洛雪音源', value: lxSummary(lx), onTap: () => go(context, LxSourcesRoute())),
+        SettingsRow(icon: YIcons.download, tile: TileColor.blue, title: '下载与缓存', onTap: () => go(context, StorageSettingsRoute())),
       ],
     );
   }
 }
 
-Future<void> pickSource(BuildContext context) async {
-  final sm = context.read<SourceManager>();
-  final id = await showOptions<String>(
-    context,
-    title: '选择播放源',
-    selected: sm.current.id,
-    options: [for (final s in sm.selectable) (s.id, '${s.name}  ·  ${s.description}')],
+/// 设置的二级页面外框：返回按钮 + 标题。
+class SettingsSubPage extends StatelessWidget {
+  const SettingsSubPage({super.key, required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final desktop = LayoutScope.isDesktop(context);
+    return AdaptivePage(
+      chrome: Chrome.navOnly,
+      mobileTop: 78,
+      overlay: [
+        Positioned(
+          left: 16,
+          top: 20,
+          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
+        ),
+      ],
+      children: [
+        PageTitle(title, size: desktop ? 40 : 36),
+        const SizedBox(height: 16),
+        ...children,
+      ],
+    );
+  }
+}
+
+/// 播放设置（二级页面）。
+class PlaybackSettingsPage extends StatelessWidget {
+  const PlaybackSettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) => SettingsSubPage(
+    title: '播放',
+    children: [PlaybackGroup(desktop: LayoutScope.isDesktop(context))],
   );
-  if (id == null || !context.mounted) return;
-  await sm.select(id);
-  if (context.mounted) Toast.show(context, '已切换到${sm.current.name}');
+}
+
+/// 下载与缓存（二级页面）。
+class StorageSettingsPage extends StatelessWidget {
+  const StorageSettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) => SettingsSubPage(
+    title: '下载与缓存',
+    children: [StorageGroup(desktop: LayoutScope.isDesktop(context))],
+  );
 }
 
 class StorageGroup extends StatefulWidget {
@@ -553,30 +553,18 @@ class _DesktopSettings extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const GroupLabel('播放', top: 14),
-                  const PlaybackGroup(desktop: true),
-                  const GroupLabel('外观'),
-                  const AppearanceEntry(),
-                  const GroupLabel('播放源'),
-                  const SourceGroup(),
+                  const GroupLabel('设置', top: 14),
+                  const SettingsEntries(),
+                  const GroupLabel('账号与关于'),
+                  const AccountCard(),
+                  const SizedBox(height: 12),
+                  const AboutEntry(),
                 ],
               ),
             ),
             const SizedBox(width: 24),
             const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  GroupLabel('快捷键', top: 14),
-                  _ShortcutsGroup(),
-                  GroupLabel('下载与缓存'),
-                  StorageGroup(desktop: true),
-                  GroupLabel('账号与关于'),
-                  AccountCard(),
-                  SizedBox(height: 12),
-                  AboutEntry(),
-                ],
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [GroupLabel('快捷键', top: 14), _ShortcutsGroup()]),
             ),
           ],
         ),
@@ -584,7 +572,6 @@ class _DesktopSettings extends StatelessWidget {
     );
   }
 }
-
 
 extension on String {
   String ifEmpty(String other) => isEmpty ? other : this;

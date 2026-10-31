@@ -96,14 +96,12 @@ Future<void> main() async {
     for (final id in const ['netease', 'qq', 'kugou']) ...sources.sources.where((s) => s.id == id),
   ];
   await sources.init();
-  // 平台模式彼此独立：切换平台时一并切换该平台的界面样式；是否允许其他平台补位播放由设置决定。
+  // 平台模式彼此独立：切换平台时一并切换该平台的界面样式；取不到完整播放地址时由洛雪音源兜底。
   settings.initPlatform(sources.current.id);
-  SourcePolicy.crossSource = settings.crossSource;
   // 洛雪音源：当前平台取不到完整播放地址时使用。
   final lx = LxSources();
   await lx.init();
   SourcePolicy.custom = lx.resolve;
-  settings.addListener(() => SourcePolicy.crossSource = settings.crossSource);
   sources.addListener(() => settings.applyPlatform(sources.current.id));
   // 首页先显示上次的数据，随后在后台刷新。
   await DataCache.restoreHome(sources.current.id, sources.current.user?.id);
