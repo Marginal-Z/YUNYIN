@@ -55,6 +55,7 @@ dependencies:
   flutter_displaymode: ^0.7.0
   file_picker: ^13.2.0
   audio_metadata_reader: ^1.8.1
+  fast_gbk: ^1.0.0
 
 dev_dependencies:
   flutter_test:

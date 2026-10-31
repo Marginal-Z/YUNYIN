@@ -14,7 +14,7 @@ import '../../data/models.dart';
 import '../common/actions.dart';
 import '../common/song_row.dart';
 
-/// 瀑布流与照片墙中的一张卡片：歌单或歌曲。
+/// 照片墙中的一张封面：歌单或歌曲。
 class FeedItem {
   const FeedItem.playlist(PlaylistInfo this.playlist) : song = null;
   const FeedItem.song(Song this.song) : playlist = null;
@@ -25,9 +25,6 @@ class FeedItem {
   String? get cover => playlist?.cover ?? song?.coverUrl;
   String get title => playlist?.name ?? song!.name;
   String get subtitle => playlist != null ? playlistSubtitle(playlist!) : song!.artistText;
-
-  /// 按名称取一个稳定的高宽比，让瀑布流的列错落有致。
-  double get aspect => const [1.0, 1.28, 0.82, 1.14, 1.0, 1.4][title.hashCode.abs() % 6];
 }
 
 /// 歌单与每日推荐歌曲交错排列。
@@ -53,124 +50,6 @@ void _open(BuildContext context, FeedItem item, List<FeedItem> all) {
       if (x.song != null) x.song!,
   ];
   playAll(context, songs, start: songs.indexOf(item.song!), title: '每日推荐');
-}
-
-/// 瀑布流：卡片按列交错排列，每张卡片放进当前最短的一列。列数随宽度变化（横屏、桌面端更多列）。
-class WaterfallFeed extends StatelessWidget {
-  const WaterfallFeed({super.key, required this.feed, this.minColumnWidth = 160, this.gap = 14});
-
-  final HomeFeed feed;
-  final double minColumnWidth;
-  final double gap;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = feedItems(feed);
-    return LayoutBuilder(
-      builder: (context, c) {
-        final n = math.max(2, ((c.maxWidth + gap) / (minColumnWidth + gap)).floor());
-        final w = (c.maxWidth - gap * (n - 1)) / n;
-        final columns = List.generate(n, (_) => <Widget>[]);
-        final heights = List.filled(n, 0.0);
-        for (final item in items) {
-          var k = 0;
-          for (var j = 1; j < n; j++) {
-            if (heights[j] < heights[k] - 1) k = j;
-          }
-          final h = w * item.aspect;
-          heights[k] += h + 56 + gap;
-          columns[k].add(
-            Padding(
-              padding: EdgeInsets.only(bottom: gap),
-              child: _WaterfallCard(item: item, width: w, height: h, onTap: () => _open(context, item, items)),
-            ),
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var j = 0; j < n; j++) ...[
-              if (j > 0) SizedBox(width: gap),
-              SizedBox(
-                width: w,
-                child: Column(children: columns[j]),
-              ),
-            ],
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _WaterfallCard extends StatelessWidget {
-  const _WaterfallCard({required this.item, required this.width, required this.height, required this.onTap});
-
-  final FeedItem item;
-  final double width;
-  final double height;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = Palette.of(context);
-    final dpr = MediaQuery.devicePixelRatioOf(context);
-    return Pressable(
-      onTap: onTap,
-      scale: 0.97,
-      semanticLabel: item.title,
-      child: YCard(
-        radius: 20,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              height: height,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CoverImage(item.cover, imageSize: (math.max(width, height) * dpr).round()),
-                  if (item.song != null)
-                    Positioned(
-                      right: 8,
-                      bottom: 8,
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: const BoxDecoration(color: Color(0x66000000), shape: BoxShape.circle),
-                        alignment: Alignment.center,
-                        child: const YIcon(YIcons.play, size: 14, color: Colors.white),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 9, 12, 11),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: ts(14, weight: w600, color: p.text),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: ts(12, color: p.text3),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// 无限照片墙：封面铺满整个区域，可以向任意方向拖动（松手后惯性滑动），静止时缓慢漂移。

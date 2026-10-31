@@ -130,12 +130,20 @@ class AppearancePage extends StatelessWidget {
         YCard(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-            child: Row(
+            // 每行 4 个样式。
+            child: Column(
               children: [
-                for (final st in PlayerStyle.values)
-                  Expanded(
-                    child: _StyleTile(style: st, selected: s.playerStyle == st, onTap: () => s.setPlayerStyle(st)),
+                for (var r = 0; r < PlayerStyle.values.length; r += 4) ...[
+                  if (r > 0) const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      for (final st in PlayerStyle.values.skip(r).take(4))
+                        Expanded(
+                          child: _StyleTile(style: st, selected: s.playerStyle == st, onTap: () => s.setPlayerStyle(st)),
+                        ),
+                    ],
                   ),
+                ],
               ],
             ),
           ),
@@ -329,6 +337,42 @@ class _StylePreview extends CustomPainter {
               stops: const [0.55, 1],
             ).createShader(top),
         );
+      case PlayerStyle.cardFlow:
+        // 中间大卡片，两侧倾斜的小卡片。
+        for (final dx in [-1.0, 1.0]) {
+          final r = Rect.fromCenter(center: Offset(w / 2 + dx * w * 0.36, h * 0.36), width: w * 0.3, height: w * 0.44);
+          canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(4)), Paint()..color = accent.withValues(alpha: 0.45));
+        }
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(w / 2, h * 0.36), width: w * 0.56, height: w * 0.62), const Radius.circular(6)),
+          cover,
+        );
+      case PlayerStyle.coverFlow:
+        // 两侧翻转的封面（梯形）与中心封面，下方倒影。
+        for (final dx in [-1.0, 1.0]) {
+          final x0 = w / 2 + dx * w * 0.24, x1 = w / 2 + dx * w * 0.46;
+          final path = Path()
+            ..moveTo(x0, h * 0.2)
+            ..lineTo(x1, h * 0.25)
+            ..lineTo(x1, h * 0.47)
+            ..lineTo(x0, h * 0.52)
+            ..close();
+          canvas.drawPath(path, Paint()..color = accent.withValues(alpha: 0.5));
+        }
+        final c = Rect.fromCenter(center: Offset(w / 2, h * 0.36), width: w * 0.46, height: w * 0.46);
+        canvas.drawRect(c, cover);
+        canvas.drawRect(Rect.fromLTWH(c.left, c.bottom + 2, c.width, c.height * 0.3), Paint()..color = accent.withValues(alpha: 0.18));
+      case PlayerStyle.wall:
+        for (var i = 0; i < 3; i++) {
+          for (var j = 0; j < 4; j++) {
+            final r = Rect.fromLTWH(w * 0.08 + i * w * 0.29, h * 0.06 + j * w * 0.21, w * 0.26, w * 0.18);
+            final cur = i == 1 && j == 1;
+            canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(2)), cur ? cover : (Paint()..color = accent.withValues(alpha: 0.28 + 0.08 * ((i + j) % 3))));
+          }
+        }
+      case PlayerStyle.minimal:
+        canvas.drawCircle(Offset(w / 2, h * 0.36), w * 0.2, Paint()..color = accent.withValues(alpha: 0.22));
+        canvas.drawCircle(Offset(w / 2, h * 0.36), w * 0.16, cover);
     }
     // 歌名与进度条示意。
     final line = Paint()..color = dark ? const Color(0x66FFFFFF) : const Color(0x33000000);

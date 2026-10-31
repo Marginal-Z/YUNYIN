@@ -28,10 +28,25 @@ enum PlayerStyle {
   disc('光盘'),
 
   /// 沉浸：封面铺满上半屏并与模糊的封面背景融为一体。
-  immersive('沉浸');
+  immersive('沉浸'),
+
+  /// 卡片流：播放队列的封面横向排开，当前歌曲大卡片居中，两侧卡片立体倾斜，左右滑动切歌。
+  cardFlow('卡片流'),
+
+  /// 3D 封面流：两侧封面大角度翻转叠放，带倒影，左右滑动切歌。
+  coverFlow('3D 封面流'),
+
+  /// 照片墙：播放队列铺成封面墙，自动聚焦当前歌曲，点按播放。
+  wall('照片墙'),
+
+  /// 极简：小圆形封面，只保留歌名、进度与播放控件。
+  minimal('极简');
 
   const PlayerStyle(this.label);
   final String label;
+
+  /// 横向铺满整个宽度的样式（以播放队列为内容）。
+  bool get wide => this == cardFlow || this == coverFlow || this == wall;
 }
 
 /// 界面背景。
@@ -63,9 +78,6 @@ enum ScreenOrientation {
 enum HomeLayout {
   /// 推荐、歌单、最近播放分区。
   standard('标准', '推荐、歌单与最近播放分区'),
-
-  /// 歌单与歌曲卡片按列交错排列（横屏时列数更多）。
-  waterfall('瀑布流', '卡片按列交错排列，横屏时自动增加列数'),
 
   /// 封面铺满的无限照片墙，可以向任意方向拖动。
   photoWall('照片墙', '封面铺满屏幕，向任意方向无限拖动');

@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xml/xml.dart';
 
+import '../../core/text_decode.dart';
+
 /// 网盘类型（预设地址与说明）。都通过 WebDAV 访问；阿里云盘、百度网盘、夸克、115、天翼云盘、OneDrive、
 /// Google Drive 等没有直接的 WebDAV 接口，可以用 Alist / OpenList 挂载后再添加。
 enum CloudKind {
@@ -194,7 +196,7 @@ class CloudDrives extends ChangeNotifier {
         options: Options(headers: d.headers, responseType: ResponseType.bytes, validateStatus: (s) => s != null && s < 500),
       );
       if (res.statusCode != 200 || res.data == null) return null;
-      return utf8.decode(res.data!, allowMalformed: true);
+      return decodeText(res.data!);
     } catch (_) {
       return null;
     }

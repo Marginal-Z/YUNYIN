@@ -36,43 +36,23 @@ class DesktopHomePage extends StatelessWidget {
       return feed;
     }
 
-    if (layout != HomeLayout.standard) {
-      final wall = layout == HomeLayout.photoWall;
-      final view = AsyncView<HomeFeed>(
+    if (layout == HomeLayout.photoWall) {
+      return AsyncView<HomeFeed>(
         keyValue: sources.generation,
         cacheKey: DataCache.homeKey(source.id),
         load: load,
-        loading: wall ? const SizedBox.expand() : const SkeletonHome(desktop: true),
-        builder: (context, feed, _) => wall
-            ? Stack(
-                children: [
-                  // 照片墙铺满整个窗口，侧边栏与播放条的玻璃折射其后的封面。
-                  Positioned.fill(child: PhotoWall(feed: feed, tile: 156)),
-                  Positioned(
-                    left: DesktopPage.left,
-                    top: 74,
-                    child: PhotoWallHeader(title: greeting(), subtitle: todayText(), feed: feed),
-                  ),
-                ],
-              )
-            : WaterfallFeed(feed: feed, minColumnWidth: 190, gap: 18),
-      );
-      if (wall) return view;
-      return DesktopPage(
-        top: 74,
-        children: [
-          Text(
-            todayText(),
-            style: ts(13, weight: w600, color: p.text2),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            greeting(),
-            style: ts(40, weight: w700, em: -0.02, height: 1.1, color: p.text),
-          ),
-          const SizedBox(height: 18),
-          view,
-        ],
+        loading: const SizedBox.expand(),
+        builder: (context, feed, _) => Stack(
+          children: [
+            // 照片墙铺满整个窗口，侧边栏与播放条的玻璃折射其后的封面。
+            Positioned.fill(child: PhotoWall(feed: feed, tile: 156)),
+            Positioned(
+              left: DesktopPage.left,
+              top: 74,
+              child: PhotoWallHeader(title: greeting(), subtitle: todayText(), feed: feed),
+            ),
+          ],
+        ),
       );
     }
     return DesktopPage(

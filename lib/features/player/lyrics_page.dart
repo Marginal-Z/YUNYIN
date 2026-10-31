@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/settings.dart';
+import '../../core/system_bars.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/glow_background.dart';
@@ -33,14 +33,14 @@ class _LyricsPageState extends State<LyricsPage> {
   @override
   void initState() {
     super.initState();
-    if (_immersive) SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    if (_immersive) SystemBars.immersive(this, true);
     _poke();
   }
 
   @override
   void dispose() {
     _hide?.cancel();
-    if (_immersive) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    if (_immersive) SystemBars.immersive(this, false);
     super.dispose();
   }
 

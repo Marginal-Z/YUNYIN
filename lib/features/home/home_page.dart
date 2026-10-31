@@ -94,7 +94,6 @@ class HomePage extends StatelessWidget {
     }
     return MobilePage(
       top: 22,
-      wide: layout == HomeLayout.waterfall,
       children: [
         // 日期与问候语和头像同一行，头像与文字块垂直居中。
         Row(
@@ -133,12 +132,7 @@ class HomePage extends StatelessWidget {
           cacheKey: DataCache.homeKey(source.id),
           load: load,
           loading: const SkeletonHome(),
-          builder: (context, feed, _) => layout == HomeLayout.waterfall
-              ? Padding(
-                  padding: const EdgeInsets.only(top: 20),
-                  child: WaterfallFeed(feed: feed),
-                )
-              : _HomeBody(feed: feed),
+          builder: (context, feed, _) => _HomeBody(feed: feed),
         ),
       ],
     );

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/settings.dart';
+import '../../core/system_bars.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
@@ -15,6 +16,7 @@ import '../../data/models.dart';
 import '../../player/player_controller.dart';
 import '../common/actions.dart';
 import 'artwork.dart';
+import 'queue_art.dart';
 
 /// 移动端“正在播放”。
 class PlayerPage extends StatelessWidget {
@@ -57,58 +59,158 @@ class PlayerPage extends StatelessWidget {
       ),
     );
     final style = context.select<AppSettings, PlayerStyle>((s) => s.playerStyle);
-    // 下拉收起由 SheetRoute 处理（页面跟随手指）。
-    return GlowBackground.player(
-      context,
-      child: LayoutBuilder(
-        builder: (context, c) {
-          if (c.maxWidth > c.maxHeight * 1.3) return _landscape(context, c, header);
-          if (style == PlayerStyle.immersive) return _immersive(context, c, header);
-          final h = c.maxHeight - pad.top - pad.bottom;
-          final extra = h - 844;
-          final double topGap = 28 + math.max(0.0, extra * 0.25);
-          // 封面以外的内容约占 500 高度；矮屏缩小封面（不小于 120），仍放不下（横屏）时整页可滚动。
-          const fixed = 500.0;
-          final double coverSize = math.max(120.0, math.min(math.min(c.maxWidth - 80, 310.0), h - fixed - (topGap - 28)));
-          final scroll = h < fixed + 120;
-          final page = Padding(
-            padding: EdgeInsets.only(top: pad.top),
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                header,
-                SizedBox(height: topGap),
-                PlayerArtwork(song: song, size: coverSize, style: style),
-                const SizedBox(height: 22),
-                // 封面下方两行歌词；歌名、进度与播放控件放在下方，靠近功能卡片。
-                const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
+    // 下拉收起由 SheetRoute 处理（页面跟随手指）。横屏时隐藏状态栏与导航栏（沉浸）。
+    return _LandscapeImmersive(
+      child: GlowBackground.player(
+        context,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final land = c.maxWidth > c.maxHeight * 1.3;
+            if (style == PlayerStyle.minimal) return _minimal(context, c, header, land: land);
+            if (land) return style.wide ? _landscapeWide(context, c, header, style) : _landscape(context, c, header);
+            if (style == PlayerStyle.immersive) return _immersive(context, c, header);
+            final h = c.maxHeight - pad.top - pad.bottom;
+            final extra = h - 844;
+            final double topGap = 28 + math.max(0.0, extra * 0.25);
+            // 封面以外的内容约占 500 高度；矮屏缩小封面（不小于 120），仍放不下（横屏）时整页可滚动。
+            const fixed = 500.0;
+            final double coverSize = math.max(120.0, math.min(math.min(c.maxWidth - 80, 310.0), h - fixed - (topGap - 28)));
+            final scroll = h < fixed + 120;
+            final page = Padding(
+              padding: EdgeInsets.only(top: pad.top),
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
+                  header,
+                  SizedBox(height: topGap),
+                  art(song, coverSize, style),
+                  const SizedBox(height: 22),
+                  // 封面下方两行歌词；歌名、进度与播放控件放在下方，靠近功能卡片。
+                  const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: Column(
+                      children: [
+                        _TitleRow(song: song),
+                        const SizedBox(height: 20),
+                        const _Progress(),
+                        const SizedBox(height: 18),
+                        const _Controls(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, math.max(22, pad.bottom + 8) - pad.bottom),
+                    child: _PlayerTabs(song: song),
+                  ),
+                  SizedBox(height: pad.bottom),
+                ],
+              ),
+            );
+            if (!scroll) return page;
+            return SingleChildScrollView(
+              child: SizedBox(height: fixed + coverSize + pad.top + pad.bottom, child: page),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// 卡片流、3D 封面流与照片墙的内容区（铺满宽度）；其余样式为封面。
+  static Widget art(Song song, double size, PlayerStyle style, {double? height}) => switch (style) {
+    PlayerStyle.cardFlow ||
+    PlayerStyle.coverFlow => QueueFlow(style: style, height: height ?? size + 24, cardSize: size * (style == PlayerStyle.coverFlow ? 0.8 : 0.92)),
+    PlayerStyle.wall => QueueWall(height: height ?? size + 24),
+    _ => PlayerArtwork(song: song, size: size, style: style),
+  };
+
+  /// 横屏的卡片流 / 3D 封面流 / 照片墙：上方铺满宽度的封面区，下方进度与播放控件。
+  Widget _landscapeWide(BuildContext context, BoxConstraints c, Widget header, PlayerStyle style) {
+    final pad = MediaQuery.paddingOf(context);
+    final song = context.read<PlayerController>().current!;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(pad.left, pad.top + 8, pad.right, pad.bottom + 10),
+      child: Column(
+        children: [
+          header,
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, a) => Padding(
+                padding: EdgeInsets.symmetric(horizontal: style == PlayerStyle.wall ? 28 : 0),
+                child: art(song, a.maxHeight * 0.9, style, height: a.maxHeight),
+              ),
+            ),
+          ),
+          Center(
+            child: SizedBox(
+              width: math.min(560, c.maxWidth - 56),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _TitleRow(song: song),
+                  const SizedBox(height: 6),
+                  const _Progress(),
+                  const _Controls(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 极简：小圆形封面、歌名、进度与播放控件，没有歌词预览与功能卡片。
+  Widget _minimal(BuildContext context, BoxConstraints c, Widget header, {required bool land}) {
+    final p = Palette.of(context);
+    final pad = MediaQuery.paddingOf(context);
+    final song = context.read<PlayerController>().current!;
+    final size = (math.min(c.maxWidth, c.maxHeight) * (land ? 0.34 : 0.46)).clamp(110.0, 220.0);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(pad.left, pad.top + (land ? 8 : 20), pad.right, pad.bottom + 16),
+      child: Column(
+        children: [
+          header,
+          Expanded(
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SizedBox(
+                  width: math.min(480, c.maxWidth - 56),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _TitleRow(song: song),
-                      const SizedBox(height: 20),
+                      MinimalArt(song: song, size: size),
+                      SizedBox(height: land ? 18 : 34),
+                      Text(
+                        song.name,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: ts(24, weight: w700, em: -0.02, color: p.text),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        song.artistText,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: ts(15, color: p.playerText2),
+                      ),
+                      SizedBox(height: land ? 14 : 30),
                       const _Progress(),
-                      const SizedBox(height: 18),
+                      SizedBox(height: land ? 4 : 14),
                       const _Controls(),
                     ],
                   ),
                 ),
-                const SizedBox(height: 22),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, math.max(22, pad.bottom + 8) - pad.bottom),
-                  child: _PlayerTabs(song: song),
-                ),
-                SizedBox(height: pad.bottom),
-              ],
+              ),
             ),
-          );
-          if (!scroll) return page;
-          return SingleChildScrollView(
-            child: SizedBox(height: fixed + coverSize + pad.top + pad.bottom, child: page),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -523,4 +625,32 @@ class _PlayerTabs extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 横屏时隐藏状态栏与导航栏，竖屏或离开播放页时恢复。
+class _LandscapeImmersive extends StatefulWidget {
+  const _LandscapeImmersive({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_LandscapeImmersive> createState() => _LandscapeImmersiveState();
+}
+
+class _LandscapeImmersiveState extends State<_LandscapeImmersive> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final size = MediaQuery.sizeOf(context);
+    SystemBars.immersive(this, size.width > size.height * 1.3);
+  }
+
+  @override
+  void dispose() {
+    SystemBars.immersive(this, false);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

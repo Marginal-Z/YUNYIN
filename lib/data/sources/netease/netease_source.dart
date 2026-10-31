@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/text_decode.dart';
 import '../../models.dart';
 import '../music_source.dart';
 import 'netease_crypto.dart';
@@ -816,6 +817,8 @@ final _lrcTime = RegExp(r'\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]');
 
 /// 解析 LRC 歌词，可选合并翻译歌词。
 Lyrics parseLrc(String lrc, {String translation = ''}) {
+  lrc = cleanLyricText(lrc);
+  translation = cleanLyricText(translation);
   Map<int, String> parse(String text) {
     final out = <int, String>{};
     for (final raw in const LineSplitter().convert(text)) {

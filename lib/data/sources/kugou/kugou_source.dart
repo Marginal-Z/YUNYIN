@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/text_decode.dart';
 import '../../models.dart';
 import '../../song_matcher.dart';
 import '../music_source.dart';
@@ -254,7 +255,7 @@ class KugouSource extends MusicSource {
         final d = await _get('https://lyrics.kugou.com/download?ver=1&client=pc&id=${first['id']}&accesskey=${first['accesskey']}&fmt=lrc&charset=utf8');
         final content = d['content'] as String?;
         if (content != null && content.isNotEmpty) {
-          final text = utf8.decode(base64.decode(content), allowMalformed: true);
+          final text = decodeText(base64.decode(content));
           final ly = parseLrc(text);
           if (ly.lines.isNotEmpty) return ly;
         }

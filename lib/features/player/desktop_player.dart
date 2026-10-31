@@ -13,6 +13,8 @@ import '../desktop/player_bar.dart';
 import '../desktop/window_controls.dart';
 import 'artwork.dart';
 import 'lyrics_view.dart';
+import 'player_page.dart';
+import 'queue_art.dart';
 
 /// 桌面端“正在播放”：左侧封面，右侧滚动歌词。
 class DesktopPlayerPage extends StatelessWidget {
@@ -88,7 +90,38 @@ class DesktopPlayerPage extends StatelessWidget {
                 ),
               ),
             ),
-            if (song != null)
+            if (song != null && (style.wide || style == PlayerStyle.minimal))
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 64,
+                bottom: 112,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, c) => style == PlayerStyle.minimal
+                            ? Center(child: MinimalArt(song: song, size: (c.maxHeight * 0.62).clamp(140.0, 260.0)))
+                            : Padding(
+                                padding: EdgeInsets.symmetric(horizontal: style == PlayerStyle.wall ? 72 : 0),
+                                child: PlayerPage.art(song, (c.maxHeight * 0.92).clamp(160.0, 420.0), style, height: c.maxHeight),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      song.name,
+                      style: ts(26, weight: w700, em: -0.02, color: p.text),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(song.subtitle, style: ts(16, color: p.playerText2), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              )
+            else if (song != null)
               Positioned(
                 left: 0,
                 right: 0,

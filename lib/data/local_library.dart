@@ -11,6 +11,7 @@ import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../core/text_decode.dart';
 import 'models.dart';
 import 'sources/local/local_source.dart';
 import 'song_matcher.dart';
@@ -54,7 +55,7 @@ class LocalLibrary extends ChangeNotifier {
       final f = await _index();
       if (await f.exists()) {
         for (final j in jsonDecode(await f.readAsString()) as List) {
-          final s = Song.fromJson(Map<String, dynamic>.from(j as Map));
+          final s = _repaired(Song.fromJson(Map<String, dynamic>.from(j as Map)));
           if (s.localPath != null && File(s.localPath!).existsSync()) _songs.add(s);
         }
       }
@@ -308,7 +309,7 @@ class LocalLibrary extends ChangeNotifier {
   /// 联网获取的歌词翻译。
   Future<String?> translationFor(Song song) async {
     final f = await _lyricsFile(song, translation: true);
-    return await f.exists() ? f.readAsString() : null;
+    return await f.exists() ? decodeText(await f.readAsBytes()) : null;
   }
 
   /// 得到可直接读取的本地路径；移动端把内容复制到应用目录。
@@ -334,9 +335,10 @@ class LocalLibrary extends ChangeNotifier {
     var duration = Duration.zero;
     try {
       final m = readMetadata(file, getImage: true);
-      title = m.title;
-      artist = m.artist ?? m.albumArtist;
-      album = m.album;
+      // 旧版播放器写入的 GBK 标签会被当作 Latin-1 读出，按原始字节重新解码。
+      title = _fix(m.title);
+      artist = _fix(m.artist ?? m.albumArtist);
+      album = _fix(m.album);
       duration = m.duration ?? Duration.zero;
       if (minDuration != null && duration > Duration.zero && duration < minDuration) return false;
       if (m.pictures.isNotEmpty) {
@@ -347,7 +349,7 @@ class LocalLibrary extends ChangeNotifier {
         cover = c.path;
       }
       if ((m.lyrics ?? '').trim().isNotEmpty) {
-        await File('${(await _dir('lyrics')).path}/$id.lrc').writeAsString(m.lyrics!);
+        await File('${(await _dir('lyrics')).path}/$id.lrc').writeAsString(repairMojibake(m.lyrics!));
       }
     } catch (e) {
       debugPrint('metadata $path: $e');
@@ -378,14 +380,37 @@ class LocalLibrary extends ChangeNotifier {
     return true;
   }
 
-  /// 歌词：内嵌歌词（导入时提取）或同名 .lrc 文件。
+  static String? _fix(String? s) => s == null ? null : repairMojibake(s);
+
+  /// 修复早先导入时乱码的歌名、歌手与专辑名。
+  static Song _repaired(Song s) {
+    final name = repairMojibake(s.name);
+    final artists = [for (final a in s.artists) ArtistRef(a.id, repairMojibake(a.name))];
+    final album = s.album == null ? null : AlbumRef(s.album!.id, repairMojibake(s.album!.name), cover: s.album!.cover);
+    if (name == s.name && artists.every((a) => s.artists.any((b) => b.name == a.name)) && album?.name == s.album?.name) return s;
+    return Song(
+      id: s.id,
+      sourceId: s.sourceId,
+      name: name,
+      artists: artists,
+      album: album,
+      duration: s.duration,
+      cover: s.cover,
+      playable: s.playable,
+      alias: s.alias,
+      localPath: s.localPath,
+      playCount: s.playCount,
+    );
+  }
+
+  /// 歌词：内嵌歌词（导入时提取）或同名 .lrc 文件（UTF-8、UTF-16 或 GBK 编码）。
   Future<String?> lyricsFor(Song song) async {
     final embedded = File('${(await _dir('lyrics')).path}/${song.id}.lrc');
-    if (await embedded.exists()) return embedded.readAsString();
+    if (await embedded.exists()) return repairMojibake(decodeText(await embedded.readAsBytes()));
     final p = song.localPath;
     if (p == null) return null;
     final sidecar = File(p.replaceFirst(RegExp(r'\.[^.]+$'), '.lrc'));
-    if (await sidecar.exists()) return sidecar.readAsString();
+    if (await sidecar.exists()) return decodeText(await sidecar.readAsBytes());
     return null;
   }
 
