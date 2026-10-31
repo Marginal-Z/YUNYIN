@@ -158,46 +158,4 @@ void main() {
     expect(await native.getProperty('af'), isNot(contains('equalizer')));
     player.dispose();
   });
-
-  testWidgets('探测均衡器滤镜链（只输出结果）', (tester) async {
-    MediaKit.ensureInitialized(libmpv: PlayerController.bundledLibmpv());
-    final path = await _writeTone();
-    const rock = 'equalizer=f=31:width_type=o:width=1:g=4.0,equalizer=f=62:width_type=o:width=1:g=3.0,equalizer=f=125:width_type=o:width=1:g=1.0,'
-        'equalizer=f=250:width_type=o:width=1:g=-1.0,equalizer=f=500:width_type=o:width=1:g=-2.0,equalizer=f=1000:width_type=o:width=1:g=-1.0,'
-        'equalizer=f=2000:width_type=o:width=1:g=1.0,equalizer=f=4000:width_type=o:width=1:g=3.0,equalizer=f=8000:width_type=o:width=1:g=4.0,'
-        'equalizer=f=16000:width_type=o:width=1:g=4.0';
-    final cases = <(String, String, Map<String, String>)>[
-      ('plain', 'lavfi=[equalizer=f=1000:width_type=o:width=1:g=3]', {}),
-      ('floatp', 'format=format=floatp,lavfi=[equalizer=f=1000:width_type=o:width=1:g=3]', {}),
-      ('doublep', 'format=format=doublep,lavfi=[equalizer=f=1000:width_type=o:width=1:g=3]', {}),
-      ('rock', 'format=format=floatp,lavfi=[$rock]', {'replaygain': 'track', 'volume-max': '200'}),
-    ];
-    final results = <String>[];
-    for (final (name, graph, props) in cases) {
-      final player = Player(configuration: const PlayerConfiguration(logLevel: MPVLogLevel.warn));
-      final native = player.platform as NativePlayer;
-      if (_ao.isNotEmpty) await native.setProperty('ao', _ao);
-      for (final e in props.entries) {
-        await native.setProperty(e.key, e.value);
-      }
-      final logs = <String>[];
-      final sub = player.stream.log.listen((l) => logs.add('${l.prefix}: ${l.text.trim()}'));
-      final err = player.stream.error.listen((e) => logs.add('error: $e'));
-      await native.setProperty('af', graph);
-      await player.open(Media(path));
-      final sw = Stopwatch()..start();
-      while (sw.elapsed < const Duration(seconds: 4) && player.state.position < const Duration(milliseconds: 800)) {
-        await tester.pump(const Duration(milliseconds: 200));
-      }
-      final failed = logs.any((l) => l.contains('Disabling filter') || l.contains('failed to configure'));
-      results.add('$name:${player.state.position > const Duration(milliseconds: 800) && !failed ? 'ok' : 'no'} ${logs.where((l) => l.contains('filter') || l.contains('lavfi') || l.contains('error')).take(3).join(' | ')}');
-      await sub.cancel();
-      await err.cancel();
-      await player.dispose();
-    }
-    for (final r in results) {
-      // ignore: avoid_print
-      print('eq probe $r');
-    }
-  });
 }
