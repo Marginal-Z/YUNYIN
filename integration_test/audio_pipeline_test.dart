@@ -121,4 +121,40 @@ void main() {
     }
     player.dispose();
   });
+
+  testWidgets('均衡器滤镜在各平台的播放引擎中可用，打开后仍正常输出音频', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final path = await _writeTone();
+    final settings = AppSettings();
+    await settings.init();
+    settings.setFlag('eqEnabled', true);
+    settings.setEqPreset(EqPreset.rock);
+
+    final sources = SourceManager([_ToneSource(path)]);
+    await sources.init();
+    final player = PlayerController(sources, settings);
+    await player.init();
+    final native = player.engine!.platform as NativePlayer;
+    if (_ao.isNotEmpty) await native.setProperty('ao', _ao);
+
+    await player.playSongs([const Song(id: '2', sourceId: 'tone', name: '测试音', duration: Duration(seconds: 6))]);
+    final sw = Stopwatch()..start();
+    while (player.position.value < const Duration(milliseconds: 2000) && sw.elapsed < const Duration(seconds: 25)) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    final af = await native.getProperty('af');
+    final rate = await native.getProperty('audio-params/samplerate');
+    // ignore: avoid_print
+    print('eq position=${player.position.value} samplerate=$rate af=$af unsupported=${player.eqUnsupported}');
+    expect(player.eqUnsupported, isFalse, reason: '均衡器滤镜创建失败');
+    expect(af, contains('equalizer'));
+    expect(player.position.value, greaterThan(const Duration(milliseconds: 2000)), reason: '打开均衡器后播放进度没有推进');
+    expect(int.tryParse(rate) ?? 0, greaterThan(0), reason: '打开均衡器后没有解码出音频');
+
+    // 关闭后滤镜被移除。
+    settings.setFlag('eqEnabled', false);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(await native.getProperty('af'), isNot(contains('equalizer')));
+    player.dispose();
+  });
 }

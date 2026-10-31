@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/lyrics_overlay.dart';
 import '../../data/lx/lx_sources.dart';
 import 'lx_page.dart';
 import '../../core/settings.dart';
@@ -42,8 +41,6 @@ class SettingsPage extends StatelessWidget {
       ],
       children: const [
         PageTitle('设置'),
-        SizedBox(height: 16),
-        AccountCard(),
         GroupLabel('播放'),
         PlaybackGroup(),
         GroupLabel('外观'),
@@ -52,6 +49,10 @@ class SettingsPage extends StatelessWidget {
         SourceGroup(),
         GroupLabel('下载与缓存'),
         StorageGroup(),
+        GroupLabel('账号与关于'),
+        AccountCard(),
+        SizedBox(height: 12),
+        AboutEntry(),
       ],
     );
   }
@@ -103,6 +104,21 @@ class AccountCard extends StatelessWidget {
   }
 }
 
+/// “账号与关于”入口：隐私政策、用户协议、权限管理、开源许可、意见反馈与版本信息（未登录也可以进入）。
+class AboutEntry extends StatelessWidget {
+  const AboutEntry({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CardList(
+      indent: 56,
+      children: [
+        SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '账号与关于', value: '隐私、协议、反馈与版本', onTap: () => go(context, SettingsMoreRoute())),
+      ],
+    );
+  }
+}
+
 String sleepText(DateTime? at) {
   if (at == null) return '关闭';
   final m = at.difference(DateTime.now()).inMinutes + 1;
@@ -143,25 +159,11 @@ class PlaybackGroup extends StatelessWidget {
           trailing: YSwitch(value: s.crossfade, label: '淡入淡出', onChanged: (v) => s.setFlag('crossfade', v)),
         ),
         SettingsRow(
-          icon: YIcons.volume,
+          icon: YIcons.sliders,
           tile: TileColor.graphite,
-          title: '音量均衡',
-          trailing: YSwitch(value: s.normalize, label: '音量均衡', onChanged: (v) => s.setFlag('normalize', v)),
-        ),
-        SettingsRow(
-          icon: YIcons.volume,
-          tile: TileColor.orange,
-          title: '音量增强',
-          value: s.volumeBoost == 0 ? '关闭' : '+${s.volumeBoost} dB',
-          onTap: () async {
-            final v = await showOptions<int>(
-              context,
-              title: '音量增强',
-              selected: s.volumeBoost,
-              options: const [(0, '关闭'), (3, '+3 dB（约 1.4 倍）'), (6, '+6 dB（约 2 倍，响亮的歌曲可能失真）')],
-            );
-            if (v != null) s.setVolumeBoost(v);
-          },
+          title: '音效',
+          value: [if (s.eqEnabled) '均衡器 · ${s.eqPreset.label}', if (s.normalize) '音量均衡', if (s.volumeBoost > 0) '+${s.volumeBoost} dB'].join(' · ').ifEmpty('关闭'),
+          onTap: () => go(context, AudioEffectsRoute()),
         ),
         if (!kIsWeb && Platform.isAndroid)
           SettingsRow(
@@ -191,26 +193,10 @@ class PlaybackGroup extends StatelessWidget {
         SettingsRow(
           icon: YIcons.lyrics,
           tile: TileColor.red,
-          title: '桌面歌词',
-          value: desktop ? 'Ctrl+L' : null,
-          trailing: YSwitch(value: s.desktopLyrics, label: '桌面歌词', onChanged: (v) => _overlayFlag(context, 'desktopLyrics', v)),
+          title: !kIsWeb && Platform.isAndroid ? '桌面与状态栏歌词' : '桌面歌词',
+          value: [if (s.desktopLyrics) '桌面', if (s.statusBarLyrics) '状态栏'].join(' · ').ifEmpty('关闭'),
+          onTap: () => go(context, LyricsOverlayRoute()),
         ),
-        if (!kIsWeb && Platform.isAndroid) ...[
-          if (s.desktopLyrics)
-            SettingsRow(
-              icon: YIcons.lock,
-              tile: TileColor.graphite,
-              title: '锁定桌面歌词',
-              value: s.lyricsLocked ? '点按穿透' : '可拖动位置',
-              trailing: YSwitch(value: s.lyricsLocked, label: '锁定桌面歌词', onChanged: (v) => s.setFlag('lyricsLocked', v)),
-            ),
-          SettingsRow(
-            icon: YIcons.lyrics,
-            tile: TileColor.orange,
-            title: '状态栏歌词',
-            trailing: YSwitch(value: s.statusBarLyrics, label: '状态栏歌词', onChanged: (v) => _overlayFlag(context, 'statusBarLyrics', v)),
-          ),
-        ],
         SettingsRow(
           icon: desktop ? YIcons.clock : YIcons.timer,
           tile: TileColor.orange,
@@ -571,10 +557,8 @@ class _DesktopSettings extends StatelessWidget {
                   const PlaybackGroup(desktop: true),
                   const GroupLabel('外观'),
                   const AppearanceEntry(),
-                  const GroupLabel('账号与播放源'),
+                  const GroupLabel('播放源'),
                   const SourceGroup(),
-                  const SizedBox(height: 12),
-                  const AccountCard(),
                 ],
               ),
             ),
@@ -582,7 +566,16 @@ class _DesktopSettings extends StatelessWidget {
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [GroupLabel('快捷键', top: 14), _ShortcutsGroup(), GroupLabel('下载与缓存'), StorageGroup(desktop: true)],
+                children: [
+                  GroupLabel('快捷键', top: 14),
+                  _ShortcutsGroup(),
+                  GroupLabel('下载与缓存'),
+                  StorageGroup(desktop: true),
+                  GroupLabel('账号与关于'),
+                  AccountCard(),
+                  SizedBox(height: 12),
+                  AboutEntry(),
+                ],
               ),
             ),
           ],
@@ -592,20 +585,7 @@ class _DesktopSettings extends StatelessWidget {
   }
 }
 
-/// 开启桌面歌词 / 状态栏歌词：Android 需要“显示在其他应用上层”权限，没有时先打开系统设置。
-Future<void> _overlayFlag(BuildContext context, String key, bool v) async {
-  final s = context.read<AppSettings>();
-  if (v && !await LyricsOverlay.canDraw()) {
-    if (!context.mounted) return;
-    final ok = await showConfirm(
-      context,
-      title: '需要悬浮窗权限',
-      message: '桌面歌词与状态栏歌词需要“显示在其他应用上层”权限。在系统设置中允许后，回到云音再打开开关。',
-      confirm: '去设置',
-      destructive: false,
-    );
-    if (ok) await LyricsOverlay.requestPermission();
-    return;
-  }
-  s.setFlag(key, v);
+
+extension on String {
+  String ifEmpty(String other) => isEmpty ? other : this;
 }

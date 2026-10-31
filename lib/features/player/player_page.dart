@@ -127,35 +127,49 @@ class PlayerPage extends StatelessWidget {
     _ => PlayerArtwork(song: song, size: size, style: style),
   };
 
-  /// 横屏的卡片流 / 3D 封面流 / 照片墙：上方铺满宽度的封面区，下方进度与播放控件。
+  /// 横屏的卡片流 / 3D 封面流 / 照片墙：封面区占满上方，底部一行放歌名、进度与播放控制，
+  /// 让卡片在矮屏上也足够大。
   Widget _landscapeWide(BuildContext context, BoxConstraints c, Widget header, PlayerStyle style) {
+    final p = Palette.of(context);
     final pad = MediaQuery.paddingOf(context);
-    final song = context.read<PlayerController>().current!;
+    final player = context.read<PlayerController>();
+    final song = player.current!;
     return Padding(
-      padding: EdgeInsets.fromLTRB(pad.left, pad.top + 8, pad.right, pad.bottom + 10),
+      padding: EdgeInsets.fromLTRB(pad.left, pad.top + 4, pad.right, pad.bottom + 8),
       child: Column(
         children: [
-          header,
+          SizedBox(height: 46, child: FittedBox(fit: BoxFit.scaleDown, child: SizedBox(width: c.maxWidth, child: header))),
           Expanded(
             child: LayoutBuilder(
               builder: (context, a) => Padding(
                 padding: EdgeInsets.symmetric(horizontal: style == PlayerStyle.wall ? 28 : 0),
-                child: art(song, a.maxHeight * 0.9, style, height: a.maxHeight),
+                child: art(song, a.maxHeight * 0.92, style, height: a.maxHeight),
               ),
             ),
           ),
-          Center(
-            child: SizedBox(
-              width: math.min(560, c.maxWidth - 56),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _TitleRow(song: song),
-                  const SizedBox(height: 6),
-                  const _Progress(),
-                  const _Controls(),
-                ],
-              ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: ts(17, weight: w700, color: p.text)),
+                      Text(song.artistText, maxLines: 1, overflow: TextOverflow.ellipsis, style: ts(13, color: p.playerText2)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 20),
+                const Expanded(flex: 5, child: _Progress()),
+                const SizedBox(width: 16),
+                YIconButton(YIcons.prev, size: 44, iconSize: 24, color: p.text, label: '上一首', onTap: player.previous),
+                const PlayButton(size: 50, iconSize: 22),
+                YIconButton(YIcons.next, size: 44, iconSize: 24, color: p.text, label: '下一首', onTap: player.next),
+              ],
             ),
           ),
         ],

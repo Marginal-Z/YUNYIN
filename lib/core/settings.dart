@@ -89,6 +89,27 @@ enum HomeLayout {
   final String description;
 }
 
+/// 均衡器的 10 个频段（Hz）。
+const kEqBands = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
+/// 均衡器预设（每个频段的增益，dB）。
+enum EqPreset {
+  flat('平直', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+  pop('流行', [-1, 1, 3, 4, 2, 0, -1, -1, 1, 2]),
+  rock('摇滚', [4, 3, 1, -1, -2, -1, 1, 3, 4, 4]),
+  classical('古典', [3, 2, 1, 0, 0, 0, -1, -1, 2, 3]),
+  jazz('爵士', [3, 2, 1, 2, -1, -1, 0, 1, 2, 3]),
+  electronic('电子', [5, 4, 1, 0, -2, 1, 0, 1, 4, 5]),
+  vocal('人声', [-2, -2, -1, 1, 3, 4, 3, 1, 0, -1]),
+  bass('低音增强', [6, 5, 4, 2, 0, 0, 0, 0, 0, 0]),
+  treble('高音增强', [0, 0, 0, 0, 0, 1, 2, 4, 5, 6]),
+  custom('自定义', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+  const EqPreset(this.label, this.gains);
+  final String label;
+  final List<int> gains;
+}
+
 /// 用户设置，持久化在 SharedPreferences。
 class AppSettings extends ChangeNotifier {
   late SharedPreferences _p;
@@ -136,8 +157,16 @@ class AppSettings extends ChangeNotifier {
   /// 播放进度条的波浪动画。
   bool waveProgress = true;
 
-  /// 音量增强（dB）：0 / 3 / 6。
+  /// 音量增强（dB）：0–6。
   int volumeBoost = 0;
+
+  /// 均衡器。
+  bool eqEnabled = false;
+  EqPreset eqPreset = EqPreset.flat;
+  List<double> eqGains = List.filled(kEqBands.length, 0);
+
+  /// 音量均衡强度（0–1）：1 为完全按平台响度增益调整，0 等同关闭。
+  double normalizeStrength = 1;
 
   /// Android：以 32 位浮点 PCM 输出，保留完整动态范围（个别平板的音频驱动不支持，默认关闭）。
   bool hiResOutput = false;
@@ -169,6 +198,15 @@ class AppSettings extends ChangeNotifier {
 
   /// 桌面歌词锁定：不接收触摸，点按穿透到下方应用。
   bool lyricsLocked = false;
+
+  /// 桌面歌词颜色（ARGB）；0 表示跟随主题色。
+  int lyricsColor = 0;
+
+  /// 桌面歌词不透明度（0.3–1）。
+  double lyricsOpacity = 1;
+
+  /// 状态栏歌词水平位置（相对屏幕宽度的偏移，-0.4–0.4）。
+  double statusLyricsOffset = 0;
 
   /// 自定义背景图片（应用数据目录中的副本）。
   String? backgroundImage;
@@ -217,6 +255,11 @@ class AppSettings extends ChangeNotifier {
     orientation = ScreenOrientation.values[(_p.getInt('orientation') ?? ScreenOrientation.auto.index).clamp(0, ScreenOrientation.values.length - 1)];
     waveProgress = _p.getBool('waveProgress') ?? true;
     volumeBoost = _p.getInt('volumeBoost') ?? 0;
+    eqEnabled = _p.getBool('eqEnabled') ?? false;
+    eqPreset = EqPreset.values[(_p.getInt('eqPreset') ?? 0).clamp(0, EqPreset.values.length - 1)];
+    final gains = _p.getStringList('eqGains');
+    if (gains != null && gains.length == kEqBands.length) eqGains = [for (final g in gains) double.tryParse(g) ?? 0];
+    normalizeStrength = _p.getDouble('normalizeStrength') ?? 1;
     hiResOutput = _p.getBool('hiResOutput') ?? false;
     exclusiveAudio = _p.getBool('exclusiveAudio') ?? false;
     crossSource = _p.getBool('crossSource') ?? false;
@@ -230,6 +273,9 @@ class AppSettings extends ChangeNotifier {
     desktopLyrics = _p.getBool('desktopLyrics') ?? false;
     statusBarLyrics = _p.getBool('statusBarLyrics') ?? false;
     lyricsLocked = _p.getBool('lyricsLocked') ?? false;
+    lyricsColor = _p.getInt('lyricsColor') ?? 0;
+    lyricsOpacity = _p.getDouble('lyricsOpacity') ?? 1;
+    statusLyricsOffset = _p.getDouble('statusLyricsOffset') ?? 0;
     background = BackgroundMode.values[(_p.getInt('background') ?? 0).clamp(0, BackgroundMode.values.length - 1)];
     backgroundImage = _p.getString('backgroundImage');
     backgroundBlur = _p.getBool('backgroundBlur') ?? false;
@@ -325,6 +371,8 @@ class AppSettings extends ChangeNotifier {
         backgroundBlur = v;
       case 'waveProgress':
         waveProgress = v;
+      case 'eqEnabled':
+        eqEnabled = v;
       case 'hiResOutput':
         hiResOutput = v;
       case 'exclusiveAudio':
@@ -350,6 +398,48 @@ class AppSettings extends ChangeNotifier {
     _rememberPlatformStyle();
     notifyListeners();
   }
+
+  void setEqPreset(EqPreset p) {
+    eqPreset = p;
+    if (p != EqPreset.custom) eqGains = [for (final g in p.gains) g.toDouble()];
+    _p.setInt('eqPreset', p.index);
+    _p.setStringList('eqGains', [for (final g in eqGains) '$g']);
+    notifyListeners();
+  }
+
+  /// 调整单个频段：自动切换为“自定义”预设。
+  void setEqGain(int band, double db) {
+    eqGains = List.of(eqGains)..[band] = db.clamp(-12, 12).toDouble();
+    eqPreset = EqPreset.custom;
+    _p.setInt('eqPreset', eqPreset.index);
+    _p.setStringList('eqGains', [for (final g in eqGains) '$g']);
+    notifyListeners();
+  }
+
+  void setNormalizeStrength(double v) {
+    normalizeStrength = v.clamp(0, 1).toDouble();
+    _p.setDouble('normalizeStrength', normalizeStrength);
+    notifyListeners();
+  }
+
+  void setLyricsStyle({int? color, double? opacity, double? statusOffset}) {
+    if (color != null) {
+      lyricsColor = color;
+      _p.setInt('lyricsColor', color);
+    }
+    if (opacity != null) {
+      lyricsOpacity = opacity.clamp(0.3, 1).toDouble();
+      _p.setDouble('lyricsOpacity', lyricsOpacity);
+    }
+    if (statusOffset != null) {
+      statusLyricsOffset = statusOffset.clamp(-0.4, 0.4).toDouble();
+      _p.setDouble('statusLyricsOffset', statusLyricsOffset);
+    }
+    notifyListeners();
+  }
+
+  /// 桌面歌词实际使用的颜色。
+  Color get lyricsDisplayColor => lyricsColor == 0 ? accent.base : Color(lyricsColor);
 
   void setVolumeBoost(int db) {
     volumeBoost = db;

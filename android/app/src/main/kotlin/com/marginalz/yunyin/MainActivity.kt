@@ -99,6 +99,8 @@ class MainActivity : AudioServiceActivity() {
                         call.argument<Boolean>("status") ?: false,
                         call.argument<Boolean>("locked") ?: false,
                         call.argument<Number>("accent")?.toInt(),
+                        call.argument<Number>("opacity")?.toFloat() ?: 1f,
+                        call.argument<Number>("statusOffset")?.toFloat() ?: 0f,
                     )
                     result.success(null)
                 }

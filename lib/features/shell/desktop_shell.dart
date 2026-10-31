@@ -518,9 +518,9 @@ class _LyricsWindowState extends State<_LyricsWindow> {
 
   @override
   Widget build(BuildContext context) {
-    final p = Palette.of(context);
     final lyrics = context.watch<LyricsOverlay>();
     final player = context.watch<PlayerController>();
+    final style = context.watch<AppSettings>();
     const shadow = [Shadow(color: Color(0xCC000000), blurRadius: 6, offset: Offset(0, 1))];
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -548,7 +548,7 @@ class _LyricsWindowState extends State<_LyricsWindow> {
                         key: ValueKey(lyrics.line),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: ts(30, weight: w700, color: p.accent.base).copyWith(shadows: shadow),
+                        style: ts(30, weight: w700, color: style.lyricsDisplayColor.withValues(alpha: style.lyricsOpacity)).copyWith(shadows: shadow),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -556,7 +556,7 @@ class _LyricsWindowState extends State<_LyricsWindow> {
                       lyrics.next,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: ts(17, weight: w500, color: const Color(0xE6FFFFFF)).copyWith(shadows: shadow),
+                      style: ts(17, weight: w500, color: Colors.white.withValues(alpha: 0.9 * style.lyricsOpacity)).copyWith(shadows: shadow),
                     ),
                   ],
                 ),

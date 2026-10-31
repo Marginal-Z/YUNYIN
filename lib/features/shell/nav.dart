@@ -180,6 +180,24 @@ class LxSourcesRoute extends AppRoute {
   String get sideKey => 'settings';
 }
 
+/// 音效（均衡器与音量）。
+class AudioEffectsRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
+/// 桌面歌词与状态栏歌词设置。
+class LyricsOverlayRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
 /// 个人中心。
 class ProfileRoute extends AppRoute {
   @override

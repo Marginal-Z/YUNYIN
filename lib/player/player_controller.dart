@@ -90,6 +90,7 @@ class PlayerController extends ChangeNotifier {
     }
     settings.addListener(_applyVolume);
     settings.addListener(_applyOutput);
+    settings.addListener(_scheduleEq);
     sources.addListener(_refreshLikes);
     await _restore();
     _refreshLikes();
@@ -139,10 +140,13 @@ class PlayerController extends ChangeNotifier {
       }),
       p.stream.log.listen((l) {
         if (l.text.contains('Could not open/initialize audio device')) _onAudioDeviceFailed();
+        // 音频滤镜（均衡器）在个别设备上创建失败时关闭它，避免没有声音。
+        if (_eqApplied.isNotEmpty && (l.text.contains('Disabling filter') || l.text.contains('Could not create') || l.text.contains('Error parsing'))) _onEqFailed();
       }),
     ]);
     if (!kIsWeb && Platform.isAndroid) await _configureAndroidAudio(p);
     await _configureOutput(p);
+    await _applyEq();
     await _applyVolume();
   }
 
@@ -266,7 +270,57 @@ class PlayerController extends ChangeNotifier {
   double get _effectiveVolume {
     final base = _systemVolumeOnly ? 1.0 : settings.volume;
     final boost = math.pow(10, settings.volumeBoost / 20).toDouble();
-    return (base * _fade * (settings.normalize ? _gain : 1) * boost * 100).clamp(0, 200).toDouble();
+    // 音量均衡强度：按比例应用响度增益（强度 0.5 时衰减量减半）。
+    final norm = settings.normalize ? math.pow(_gain, settings.normalizeStrength).toDouble() : 1.0;
+    return (base * _fade * norm * boost * 100).clamp(0, 200).toDouble();
+  }
+
+  // ── 均衡器 ──────────────────────────────────────────
+
+  /// 当前生效的 mpv 音频滤镜（空字符串表示没有）。
+  String _eqApplied = '';
+  Timer? _eqTimer;
+
+  /// 均衡器在当前设备上不可用（滤镜创建失败）。
+  bool eqUnsupported = false;
+
+  /// 由 10 个频段的增益生成 mpv 的 lavfi 滤镜：每个频段一个倍频程宽的峰值均衡器，
+  /// 有提升时先整体降低一部分电平，减少削波。所有频段为 0 时返回空字符串（不加滤镜）。
+  static String eqFilter(List<double> gains) {
+    if (gains.every((g) => g.abs() < 0.05)) return '';
+    final peak = gains.reduce(math.max);
+    final parts = <String>[
+      if (peak > 0) 'volume=${(-peak * 0.6).toStringAsFixed(1)}dB',
+      for (var i = 0; i < gains.length && i < kEqBands.length; i++)
+        if (gains[i].abs() >= 0.05) 'equalizer=f=${kEqBands[i]}:width_type=o:width=1:g=${gains[i].toStringAsFixed(1)}',
+    ];
+    return 'lavfi=[${parts.join(',')}]';
+  }
+
+  /// 拖动滑块时连续变化：合并为每 120ms 最多更新一次滤镜。
+  void _scheduleEq() {
+    final want = settings.eqEnabled && !eqUnsupported ? eqFilter(settings.eqGains) : '';
+    if (want == _eqApplied) return;
+    _eqTimer?.cancel();
+    _eqTimer = Timer(const Duration(milliseconds: 120), _applyEq);
+  }
+
+  Future<void> _applyEq() async {
+    final p = _player;
+    if (p == null || kIsWeb) return;
+    final want = settings.eqEnabled && !eqUnsupported ? eqFilter(settings.eqGains) : '';
+    if (want == _eqApplied) return;
+    if (await setMpvProperty(p, 'af', want)) _eqApplied = want;
+  }
+
+  Future<void> _onEqFailed() async {
+    if (eqUnsupported) return;
+    eqUnsupported = true;
+    final p = _player;
+    if (p != null) await setMpvProperty(p, 'af', '');
+    _eqApplied = '';
+    notifyListeners();
+    _notices.add(const PlayerNotice('均衡器不可用', message: '当前设备的播放引擎不支持均衡器，已自动关闭。'));
   }
 
   Future<void> _applyVolume() async {

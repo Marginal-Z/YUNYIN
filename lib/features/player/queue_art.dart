@@ -39,6 +39,9 @@ class _QueueFlowState extends State<QueueFlow> {
 
   bool get _cover => widget.style == PlayerStyle.coverFlow;
 
+  /// 中心卡片最多占宽度的比例：手机竖屏留出更多空间给两侧的卡片。
+  double _maxRatio(double width) => _cover ? (width < 520 ? 0.5 : 0.56) : (width < 520 ? 0.58 : 0.66);
+
   double get _card => widget.cardSize ?? (_cover ? widget.height * 0.62 : widget.height * 0.86);
 
   @override
@@ -48,7 +51,11 @@ class _QueueFlowState extends State<QueueFlow> {
   }
 
   PageController _controller(double width) {
-    final f = (_card * (_cover ? 0.42 : 0.62) / width).clamp(0.12, 0.9);
+    // 拖动一页的距离等于相邻两张卡片的间距，卡片跟手移动。
+    final card = math.min(_card, width * _maxRatio(width));
+    final room = math.max(0.0, (width - card) / 2);
+    final near = card * 0.5 + (_cover ? (room * 0.3).clamp(card * 0.12, card * 0.32) : (room * 0.42).clamp(card * 0.2, card * 0.46));
+    final f = (near / width).clamp(0.12, 0.9);
     if (_pc == null || (f - _fraction).abs() > 0.001) {
       final page = _pc?.hasClients == true ? _pc!.page?.round() ?? _index : _index;
       _pc?.dispose();
@@ -134,8 +141,9 @@ class _QueueFlowState extends State<QueueFlow> {
   }
 
   Widget _cards(BuildContext context, Size box, List<Song> queue, double page, PlayerController player) {
-    final card = _card;
-    final step = box.width * _fraction;
+    final card = math.min(_card, box.width * _maxRatio(box.width));
+    // 两侧可用的空间：宽屏（横屏、桌面）上卡片间距更大，不再挤在中心卡片周围。
+    final room = math.max(0.0, (box.width - card) / 2);
     final first = math.max(0, (page - 4).floor());
     final last = math.min(queue.length - 1, (page + 4).ceil());
     final items = <(double, Widget)>[];
@@ -143,27 +151,31 @@ class _QueueFlowState extends State<QueueFlow> {
       final d = i - page;
       final a = d.abs();
       final Matrix4 m;
-      double x = d * step;
+      double x;
       if (_cover) {
-        // 3D 封面流：中心正对，两侧翻转约 55° 后退并紧密叠放。透视强度按卡片大小换算，
-        // 大屏上两侧封面不会因为离镜头太近而被放得过大（Flutter 中 z 为正表示远离观察者）。
+        // 3D 封面流：中心正对，两侧翻转约 55° 后退。第一张与中心留出明显间隔，之后依次叠放。
+        // 透视强度按卡片大小换算（Flutter 中 z 为正表示远离观察者）。
         final t = d.clamp(-1.0, 1.0);
-        x = t * card * 0.6 + (d - t) * card * 0.22;
-        final s = 1 - math.min(a, 1) * 0.14;
+        final near = card * 0.5 + (room * 0.3).clamp(card * 0.12, card * 0.32);
+        final step = ((room - (near - card * 0.5)) / 3.2).clamp(card * 0.14, card * 0.3);
+        x = t * near + (d - t) * step;
+        final sc = 1 - math.min(a, 1) * 0.12;
         m = Matrix4.identity()
           ..setEntry(3, 2, 0.5 / card)
-          ..translateByDouble(x, 0, math.min(a, 1) * card * 0.32 + math.max(0, a - 1) * card * 0.04, 1)
+          ..translateByDouble(x, 0, math.min(a, 1) * card * 0.3 + math.max(0, a - 1) * card * 0.04, 1)
           ..rotateY(-t * 0.96)
-          ..scaleByDouble(s, s, 1, 1);
+          ..scaleByDouble(sc, sc, 1, 1);
       } else {
-        // 卡片流：两侧卡片缩小、向内倾斜并部分被中心卡片遮住。
-        final s = math.max(0.58, 1 - a * 0.16);
-        x = d.sign * (math.min(a, 1) * card * 0.66 + math.max(0, a - 1) * card * 0.42);
+        // 卡片流：两侧卡片缩小、向内倾斜，与中心卡片之间按可用宽度留出间隔。
+        final sc = math.max(0.58, 1 - a * 0.2);
+        final near = card * 0.5 + (room * 0.42).clamp(card * 0.2, card * 0.46);
+        final step = ((room - (near - card * 0.5)) / 2.2).clamp(card * 0.16, card * 0.48);
+        x = d.sign * (math.min(a, 1) * near + math.max(0, a - 1) * step);
         m = Matrix4.identity()
           ..setEntry(3, 2, 0.0011)
           ..translateByDouble(x, 0, 0, 1)
-          ..rotateY(-d.clamp(-2.0, 2.0) * 0.34)
-          ..scaleByDouble(s, s, 1, 1);
+          ..rotateY(-d.clamp(-2.0, 2.0) * 0.38)
+          ..scaleByDouble(sc, sc, 1, 1);
       }
       final opacity = (1 - math.max(0, a - 2.2) * 0.6).clamp(0.0, 1.0);
       if (opacity <= 0) continue;

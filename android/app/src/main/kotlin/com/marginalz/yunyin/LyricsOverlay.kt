@@ -34,6 +34,8 @@ object LyricsOverlay {
     private var line = ""
     private var next = ""
     private var accent = Color.parseColor("#FF5A73")
+    private var opacity = 1f
+    private var statusOffset = 0f
 
     private var desktopView: LinearLayout? = null
     private var desktopLine: TextView? = null
@@ -42,13 +44,18 @@ object LyricsOverlay {
 
     fun canDraw(context: Context): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
 
-    fun configure(context: Context, desktop: Boolean, status: Boolean, lock: Boolean, accentColor: Int?) {
+    fun configure(context: Context, desktop: Boolean, status: Boolean, lock: Boolean, accentColor: Int?, alpha: Float, offset: Float) {
         desktopEnabled = desktop
         statusEnabled = status
+        // 颜色、不透明度、锁定或位置变化时重建悬浮窗，使用新的样式。
+        val restyle = lock != locked || (accentColor != null && accentColor != accent) || alpha != opacity
         if (accentColor != null) accent = accentColor
-        if (lock != locked) {
-            locked = lock
-            removeDesktop(context)
+        opacity = alpha.coerceIn(0.3f, 1f)
+        locked = lock
+        if (restyle) removeDesktop(context)
+        if (offset != statusOffset) {
+            statusOffset = offset
+            removeStatus(context)
         }
         refresh(context)
     }
@@ -117,6 +124,7 @@ object LyricsOverlay {
         }
         root.addView(current)
         root.addView(upcoming)
+        root.alpha = opacity
         val width = (context.resources.displayMetrics.widthPixels * 0.92).toInt()
         var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         if (locked) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
@@ -124,7 +132,7 @@ object LyricsOverlay {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             y = prefs.getInt("y", (context.resources.displayMetrics.heightPixels * 0.62).toInt())
             // Android 12 起，穿透触摸的悬浮窗不透明度不能超过 0.8，否则下方应用收不到点按。
-            if (locked) alpha = 0.8f
+            if (locked) alpha = minOf(0.8f, opacity)
         }
         if (!locked) {
             var startY = 0
@@ -181,6 +189,10 @@ object LyricsOverlay {
             if (rect != null && rect.centerX() in (screen / 4)..(screen * 3 / 4)) right = rect.left - dp(context, 8f)
             if (rect != null && rect.centerX() < screen / 4) left = maxOf(left, rect.right + dp(context, 8f))
         }
+        // 用户在设置中左右调整的位置。
+        val shift = (screen * statusOffset).toInt()
+        left = (left + shift).coerceIn(0, screen - dp(context, 80f))
+        right = (right + shift).coerceIn(left + dp(context, 80f), screen)
         val view = TextView(context).apply {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setTextColor(Color.WHITE)

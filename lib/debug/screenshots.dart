@@ -336,6 +336,15 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   nav.push(SettingsRoute());
   await shot('mobile-settings', settle: 1500);
   home();
+  nav.push(AudioEffectsRoute());
+  await shot('mobile-audio', settle: 1500);
+  home();
+  nav.push(LyricsOverlayRoute());
+  await shot('mobile-lyrics-overlay', settle: 1500);
+  home();
+  nav.switchTab(2);
+  await shot('mobile-library', settle: 2000);
+  home();
   nav.push(LxSourcesRoute());
   await shot('mobile-lx', settle: 1500);
   settings.setHomeLayout(HomeLayout.photoWall);

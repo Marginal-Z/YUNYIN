@@ -1,168 +1,215 @@
+<div align="center">
+
+<img src="website/icon.png" width="112" alt="云音">
+
 # 云音 YunYin
 
-第三方网易云音乐客户端，按《云音 音乐客户端设计稿》实现：浅色优先的光晕背景、弥散阴影与 Liquid Glass 导航，附完整深色模式。
-一套 Flutter 代码同时产出 **Android / Windows / Linux / macOS**（并保留 iOS、Web 工程），播放源做成可插拔接口，后续可以接入其他平台。
+**一款开源、跨平台的第三方音乐客户端**
+网易云音乐 · QQ 音乐 · 酷狗音乐 · 本地音乐 · 网盘，一个应用全部搞定
 
-官网与下载：<https://marginal-z.github.io/YUNYIN/>
+[![最新版本](https://img.shields.io/github/v/release/Marginal-Z/YUNYIN?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=e8304a)](https://github.com/Marginal-Z/YUNYIN/releases/latest)
+[![构建](https://img.shields.io/github/actions/workflow/status/Marginal-Z/YUNYIN/build.yml?branch=main&label=%E6%9E%84%E5%BB%BA)](https://github.com/Marginal-Z/YUNYIN/actions/workflows/build.yml)
+[![下载量](https://img.shields.io/github/downloads/Marginal-Z/YUNYIN/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=2f7de1)](https://github.com/Marginal-Z/YUNYIN/releases)
+![平台](https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Android%20%7C%20Windows%20%7C%20Linux%20%7C%20macOS-555)
+![Flutter](https://img.shields.io/badge/Flutter-3.47-02569B?logo=flutter)
 
-## 功能
+[官网](https://marginal-z.github.io/YUNYIN/) · [下载](https://github.com/Marginal-Z/YUNYIN/releases/latest) · [更新日志](CHANGELOG.md) · [问题反馈](https://github.com/Marginal-Z/YUNYIN/issues)
 
-| 模块 | 内容 |
-| --- | --- |
-| 首页 | 每日推荐（登录后为个性化日推，未登录为飙升榜精选）、歌单精选、最近播放；桌面端附私人雷达 |
-| 发现 | 推荐（新碟横幅 + 飙升榜）、排行榜、电台、新碟 |
-| 乐库 | 我喜欢 / 最近播放 / 已下载 / 收藏的歌单，我创建的歌单，收藏的专辑、关注的歌手 |
-| 本地音乐 | 扫描本机歌曲（Android 系统媒体库，桌面端“音乐”“下载”目录）或手动导入 MP3 / FLAC / M4A / OGG / WAV 等文件与文件夹，读取标签、封面与内嵌歌词，缺少的封面与歌词自动联网补全（按歌名 + 歌手或时长匹配网易云），可与在线歌曲混合播放 |
-| 网盘 | 通过 WebDAV 挂载坚果云、Nextcloud / ownCloud、群晖等 NAS、pCloud；阿里云盘、百度网盘、夸克、115、天翼云盘、OneDrive、Google Drive 等经 Alist / OpenList 挂载后添加。浏览文件夹、在线播放，歌词读取同名 .lrc 或匹配网易云 |
-| 平台模式 | 网易云音乐、QQ 音乐（QQ 扫码登录）、酷狗音乐彼此独立，切换平台时界面样式与音源一起切换 |
-| 洛雪音源 | 导入洛雪格式的自定义音源脚本（QuickJS / JavaScriptCore 运行），平台取不到完整地址时获取同一首歌的地址 |
-| 个人中心 | 当前平台的会员名称、等级、到期时间与权益，平台模式切换 |
-| 听歌统计 | 只统计实际播放的时长：今日 / 本周 / 累计、最近 7 天、最常听的歌曲与歌手，数据只保存在本机 |
-| 歌单 / 专辑 / 电台 | 播放全部、随机播放、批量下载、加入队列 |
-| 正在播放 | 背景按封面动态取色；八种播放样式（封面、黑胶、光盘、沉浸、卡片流、3D 封面流、照片墙、极简）；波浪进度条、随机 / 单曲循环、喜欢、歌词预览；横屏沉浸 |
-| 桌面歌词 | Android 悬浮窗歌词（可锁定）与状态栏歌词；桌面端置顶透明歌词条（Ctrl+L） |
-| 歌词 | Apple Music 风格：逐行弹簧滚动、非当前行按距离模糊；网易云逐字歌词按字填色并上浮，长间奏显示呼吸圆点；背景随音乐流动；支持翻译、点击跳转、拖动 / 滚轮浏览；Android 全屏沉浸显示，控件闲置后自动隐藏 |
-| 播放队列 | 顺序 / 随机 / 单曲循环，拖动排序，左滑移除，清空 |
-| 评论 | 推荐 / 最热 / 最新，点赞，发表评论 |
-| 搜索 | 搜索历史、热搜榜；综合 / 歌曲 / 歌手 / 专辑 / 歌单，关键字高亮 |
-| 歌手页 | 关注、播放热门、热门歌曲 / 专辑 / 相似歌手 |
-| 登录 | 手机验证码、扫码、邮箱 / 手机密码 |
-| 设置 | 音质、淡入淡出、音量均衡、睡眠定时、播放源切换、仅 Wi-Fi 下载、下载音质、清除缓存；外观二级页面：浅色 / 深色 / 跟随系统、五种主题色、液态玻璃（清透 / 柔和）、界面背景（默认 / 封面取色 / 自定义图片）、应用图标跟随主题色、播放页封面取色、歌词字号 |
-| 更新 | 启动时检查 GitHub Releases，下载与当前平台、架构、安装方式匹配的安装包并覆盖安装（见下文） |
-| 桌面端 | 玻璃侧边栏、前进 / 后退、窗口按钮（Windows 为系统风格，Linux / macOS 为红黄绿）、窗口毛玻璃开关、快捷键、迷你模式 |
+</div>
 
-桌面快捷键：空格 播放/暂停 · Ctrl+← / → 上一首 / 下一首 · Ctrl+↑ / ↓ 音量 · Ctrl+F 搜索 · Ctrl+M 迷你模式。
+---
 
-窗口宽度 ≥ 860 时使用桌面布局（侧边栏 + 底部播放条），否则使用移动布局（悬浮玻璃导航 + 迷你播放条），所以平板横屏、窄窗口都能自动切换。
+## 截图
 
-## 技术架构
+| 首页 | 正在播放 | 歌词 | 歌单 |
+| :---: | :---: | :---: | :---: |
+| <img src="website/shots/mobile-home.webp" width="200"> | <img src="website/shots/mobile-player.webp" width="200"> | <img src="website/shots/mobile-lyrics.webp" width="200"> | <img src="website/shots/mobile-playlist.webp" width="200"> |
 
-- **Flutter 3.47**：Android / Windows / Linux / macOS / iOS / Web 共用一套界面代码。
-- **media_kit**（libmpv）：全平台音频播放；音量均衡按网易云提供的响度增益调整音量。
-- **provider**：`AppSettings`、`SourceManager`、`PlayerController`、`DownloadManager`、`LocalLibrary`、`UpdateManager`、`AppNav` 等状态对象。
-- **window_manager**：桌面端无边框窗口与自绘窗口按钮。
-- 设计 token 集中在 `lib/core/theme/palette.dart`（浅色 / 深色两套，均取自设计稿）；
-  玻璃、CSS 风格外阴影 / 内阴影、`linear-gradient` 角度、三团 `radial-gradient` 光晕在 `lib/core/ui/` 中按 CSS 语义实现，以便一比一还原。
+| 桌面端首页 | 桌面端播放页 |
+| :---: | :---: |
+| <img src="website/shots/desktop-home.webp" width="420"> | <img src="website/shots/desktop-player.webp" width="420"> |
 
-```
-lib/
-├── core/            主题 token、设置、通用组件（玻璃、卡片、按钮、开关、分段控件、图标、封面）
-├── data/
-│   ├── models.dart  与平台无关的数据模型
-│   ├── downloads.dart
-│   └── sources/
-│       ├── music_source.dart     播放源接口
-│       ├── source_manager.dart   注册与切换
-│       ├── local/                本地音乐
-│       ├── cloud/                网盘（WebDAV，客户端在 data/cloud/）
-│       ├── kugou/                酷狗音乐
-│       ├── qq/                   QQ 音乐
-│   ├── lx/                       洛雪音源运行环境
-│       └── netease/              网易云音乐（weapi / eapi 加密，直连官方接口）
-├── player/          播放队列、播放模式、淡入淡出、睡眠定时、历史
-└── features/        各页面（移动端与桌面端）
-```
+> 截图均为应用的真实渲染画面（截图模式 `YUNYIN_SHOTS` 自动生成）。
 
-## 接入新的播放源
+## 特性
 
-1. 新建 `lib/data/sources/<平台>/<平台>_source.dart`，继承 `MusicSource`。
-2. 在 `features` 中声明支持的能力（`SourceFeature`），只实现这些方法即可；未实现的入口会自动隐藏或提示不支持。
-3. 在 `SourceRegistry.create()` 中加入实例。设置 → 播放源 里即可切换。
+**三大平台，各自独立**
+- 网易云音乐、QQ 音乐、酷狗音乐三种平台模式，切换平台时首页、发现、搜索、排行榜、账号、音源与界面样式一起切换，每个平台记住自己的主题色与播放样式
+- 网易云：验证码 / 扫码 / 密码登录，每日推荐、私人雷达、歌单、专辑、歌手、电台、评论
+- QQ 音乐：QQ / TIM 扫码登录，按所选音质播放（Hi-Res / 无损 / 320k），显示绿钻等会员信息
+- 个人中心显示当前平台的会员名称、等级、到期时间与权益
+- 洛雪音源：导入洛雪音乐格式的自定义音源脚本，平台取不到完整地址时获取同一首歌的地址
 
-每首歌都带 `sourceId`，所以播放队列可以混合不同平台的歌曲，播放时会找回各自的源取播放地址。
+**播放与歌词**
+- 八种播放样式：封面、黑胶、光盘、沉浸、卡片流、3D 封面流、照片墙、极简；竖屏、横屏与桌面端都可使用
+- Apple Music 风格歌词：逐行弹簧滚动、逐字填色、翻译、拖动浏览；横屏播放页沉浸显示
+- 桌面歌词（Android 悬浮窗 / 桌面端置顶歌词条，可自定义颜色与透明度）与 Android 状态栏歌词
+- 10 段均衡器与预设、音量均衡与强度调节、音量增强；Android 高解析输出、Windows / macOS 独占输出
+- 基于 libmpv（FFmpeg）的播放引擎，支持 FLAC / APE / DSD 等格式，淡入淡出、睡眠定时
 
-## 构建
+**本地音乐与网盘**
+- 扫描或导入本地音乐，后台解析标签，几千首歌也流畅；封面与歌词依次在三个平台中联网匹配，也可手动选择
+- 正确识别 GBK / UTF-16 编码的歌词与标签，支持同目录 `cover.jpg`
+- WebDAV 网盘挂载：坚果云、Nextcloud、群晖、pCloud 等直接添加；阿里云盘、百度网盘、夸克、115、OneDrive、Google Drive 等经 Alist / OpenList 挂载
+
+**界面与体验**
+- 液态玻璃导航与控件、浅色 / 深色 / 跟随系统、五种主题色、封面取色背景、自定义背景图
+- 手机、平板、桌面自适应布局，横屏模式与无限照片墙首页
+- Android 桌面小组件、应用图标跟随主题色；桌面端快捷键、迷你模式、Windows 风格窗口按钮
+- 应用内一键更新；无广告、无统计、不收集任何个人数据
+
+## 下载安装
+
+前往 [Releases](https://github.com/Marginal-Z/YUNYIN/releases/latest) 下载对应平台的安装包：
+
+| 平台 | 文件 | 说明 |
+| --- | --- | --- |
+| Android | `YunYin-<版本>-android-arm64-v8a.apk` | 绝大多数手机；不确定时选 `universal` |
+| Android | `YunYin-<版本>-android-universal.apk` | 适用于所有设备，体积较大 |
+| Windows | `YunYin-<版本>-windows-x64-setup.exe` | 安装程序（推荐），安装到用户目录，无需管理员权限 |
+| Windows | `YunYin-<版本>-windows-x64.zip` | 便携版，解压后运行 `yunyin.exe` |
+| Linux | `YunYin-<版本>-linux-<x64\|arm64>.deb` | `sudo apt install ./文件名.deb`，自动安装依赖 |
+| Linux | `YunYin-<版本>-linux-<x64\|arm64>.AppImage` | 便携版，`chmod +x` 后直接运行 |
+| Linux | `YunYin-<版本>-linux-<x64\|arm64>.tar.gz` | 便携版，解压后运行 `./yunyin` |
+| macOS | `YunYin-<版本>-macos-universal.zip` | Intel 与 Apple 芯片通用；未签名，首次请右键 → 打开 |
+
+安装后，新版本会在应用内提示并自动下载安装（可在“设置 → 账号与关于”中关闭自动检查）。
+
+## 使用指南
+
+- **切换平台**：个人中心 → 平台模式，或 设置 → 平台模式。
+- **登录**：首页头像 → 个人中心 → 登录。网易云支持验证码、扫码与密码；QQ 音乐使用 QQ 或 TIM 扫码。
+- **洛雪音源**：设置 → 洛雪音源，粘贴脚本链接或选择 `.js` 文件导入。请只使用可信来源的脚本。
+- **网盘**：乐库 → 网盘（桌面端侧边栏“网盘”）→ 添加网盘，选择网盘类型后填写地址、账号与密码。
+- **本地音乐**：乐库 → 本地 → 扫描本机歌曲 / 导入文件；歌曲菜单中可“手动选择匹配的歌曲”修正封面与歌词。
+- **音效**：设置 → 音效，打开均衡器并选择预设或逐段调节。
+- **桌面歌词**：设置 → 桌面歌词（桌面端 `Ctrl+L`）。Android 首次开启需要允许“显示在其他应用上层”。
+
+桌面端快捷键：`空格` 播放 / 暂停 · `Ctrl+←/→` 上一首 / 下一首 · `Ctrl+↑/↓` 音量 · `Ctrl+F` 搜索 · `Ctrl+M` 迷你模式 · `Ctrl+L` 桌面歌词。
+
+## 从源码构建
+
+### 环境要求
+
+- Flutter 3.47（stable）
+- Android：Android SDK、JDK 17
+- Linux：`clang cmake ninja-build pkg-config libgtk-3-dev libmpv-dev`
+- Windows：Visual Studio 2022（含 C++ 桌面开发）
+- macOS：Xcode 16
+
+### 构建与运行
 
 ```bash
+git clone https://github.com/Marginal-Z/YUNYIN.git
+cd YUNYIN
 flutter pub get
-flutter run                        # 当前设备
-flutter build apk --release        # Android
-flutter build windows --release    # Windows（需在 Windows 上构建）
-flutter build linux --release      # Linux
+flutter run                          # 在当前设备上运行
+flutter build apk --release          # Android
+flutter build windows --release      # Windows
+flutter build linux --release        # Linux
+flutter build macos --release        # macOS
 ```
 
-Linux 构建需要：`clang cmake ninja-build pkg-config libgtk-3-dev libmpv-dev`。
-
-推送到 `main` 后 GitHub Actions 会自动执行检查与测试并构建各平台安装包；推送 `v*` 标签会发布到 Releases。
-
-### 发行包与架构
-
-| 平台 | 架构 | 文件 | 说明 |
-| --- | --- | --- | --- |
-| Android | arm64-v8a / armeabi-v7a / x86_64 | `*-android-<abi>.apk` | 绝大多数手机选 arm64-v8a；不确定就用 universal |
-| Android | 全部 | `*-android-universal.apk` | 体积较大，任何设备都能装 |
-| Windows | x64 | `*-windows-x64-setup.exe` | 安装程序，安装到用户目录，无需管理员权限；推荐 |
-| Windows | x64 | `*-windows-x64.zip` | 便携版，解压运行 `yunyin.exe`；Windows on ARM 可通过系统的 x64 转译运行 |
-| Linux | x64 / arm64 | `*-linux-<arch>.deb` | `sudo apt install ./文件名.deb`，自动安装 libmpv |
-| Linux | x64 / arm64 | `*-linux-<arch>.AppImage` | 便携版，内置 libmpv，`chmod +x` 后直接运行 |
-| Linux | x64 / arm64 | `*-linux-<arch>.tar.gz` | 便携版，内置 libmpv，解压后运行 `./yunyin` |
-| macOS | Intel + Apple 芯片 | `*-macos-universal.zip` | 未签名，首次打开请右键 → 打开 |
-
-### 应用内更新
-
-设置 → 关于与更新 可以手动检查，默认启动时也会自动检查。云音读取 GitHub Releases 的最新版本，只在版本号更高时提示，
-按当前的安装方式下载对应安装包并覆盖安装，完成后自动重新打开：
-
-| 安装方式 | 更新方式 |
-| --- | --- |
-| Android | 下载与当前相同 ABI 的 APK，交给系统安装器覆盖安装（首次需允许“安装未知应用”） |
-| Windows 安装程序 | 静默运行新版安装程序，固定 AppId 覆盖原目录；安装程序拒绝静默降级 |
-| Windows 便携版 | 退出后把新版 zip 解压覆盖到原目录 |
-| deb | 通过 `pkexec apt-get install` 升级软件包 |
-| AppImage | 原子替换 `$APPIMAGE` 指向的文件 |
-| tar.gz 便携版 | 退出后解压覆盖原目录 |
-| macOS | 退出后替换 `.app` |
-
-Android 发布包使用固定的发布密钥签名（CI 从 `ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD` 两个 secrets 读取，
-本地放在 `android/key.properties` 与 `android/app/yunyin-release.keystore`，均不入库，可用 `tool/android/set_signing_secrets.sh` 写入 secrets）。
-没有配置密钥时本地构建退回调试签名，而标签发布会直接失败，避免发布无法覆盖安装的 APK。
-1.0.x 版本使用的是临时签名，Android 用户需要卸载一次再安装 1.1.0，之后即可应用内更新。
-
-更新说明取自 `CHANGELOG.md` 中对应版本的段落。
-
-### 官网
-
-`website/` 是静态官网（截图均为应用实际渲染画面），推送到 `main` 后由 `.github/workflows/pages.yml` 部署到 GitHub Pages；下载链接在访问时从 GitHub Releases 读取，发布新版本无需改动官网。
-
-测试：
+### 测试
 
 ```bash
-flutter test                                   # 单元测试（加密算法、歌词解析与动效、更新）
-flutter test --run-skipped --tags live         # 联网测试网易云接口与真实播放（需要 libmpv）
+flutter analyze
+flutter test                                   # 单元与组件测试
+flutter test --run-skipped --tags live         # 联网测试各平台接口（需要网络）
 flutter test integration_test -d <设备>         # 音频链路集成测试（CI 在 Android 模拟器与三大桌面系统上运行）
 ```
 
-## 平台说明
+洛雪音源运行环境的测试需要 QuickJS 动态库：`LIBQUICKJSC_TEST_PATH=<flutter_js>/linux/shared/libquickjs_c_bridge_plugin.so flutter test`。
 
-- **刷新率**：Android 启动时请求屏幕支持的最高刷新率（90 / 120 / 144Hz…），iOS 开启 ProMotion，Windows 与 macOS 由 Flutter 引擎跟随显示器刷新率出帧。
-  Linux 版 Flutter 引擎目前没有接入系统垂直同步，固定以 60Hz 出帧，这是引擎本身的限制。
-- **Linux 流畅度**：Wayland 下默认让 GTK 用 OpenGL 绘制窗口（`GDK_GL=always`），并让 Dart UI 在独立线程运行；
-  若个别驱动出现显示异常，可用 `YUNYIN_GDK_GL=0 yunyin` 启动关闭前者。
-- **登录**：手机号登录优先使用验证码；网易云经常对密码登录要求安全验证，此时会提示改用验证码或扫码。
-- **Web**：网易云接口不允许浏览器跨域请求，Web 版无法使用，不作为发行目标。
-- **字体**：界面英文数字使用内置 Inter；中文使用系统字体（Android / Linux 为 Noto Sans CJK，Windows 为微软雅黑，macOS / iOS 为苹方）。
-- **未登录**：网易云对未登录用户只提供部分歌曲的完整播放，会员歌曲为试听片段。
-- **性能测试**：设置环境变量 `YUNYIN_BENCH=1` 启动桌面版，会自动滚动页面并在终端输出每帧耗时与帧间隔。
-- **截图模式**：设置 `YUNYIN_SHOTS=<目录>` 启动桌面版，应用会以 1440×900 桌面尺寸与 392×850 手机尺寸依次打开首页、播放页、歌词、发现与歌单，把真实渲染结果保存为 PNG 后退出；官网 `website/shots/` 中的截图即由此生成（使用全新的配置目录，未登录状态）。
+### 持续集成与发布
 
-## 流畅度与适配
+推送到 `main` 后，GitHub Actions 执行静态检查与测试，构建全部平台的安装包，并在各平台上验证音频链路；推送 `v*` 标签时发布到 Releases，更新说明取自 `CHANGELOG.md` 对应版本的段落。
+Android 发布包使用固定密钥签名（CI 读取 `ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD`，本地使用 `android/key.properties`，均不入库）。
+`website/` 为官网，由 `.github/workflows/pages.yml` 部署到 GitHub Pages。
 
-- 页面数据按键缓存：再次进入页面直接显示上次的数据，过期后在后台静默刷新；首页数据保存在本机，冷启动立即显示。
-- 液态玻璃：「清透」只有一层着色器；「柔和」的模糊层通过 `BackdropGroup` 共享一次背景截取；静态背景上的侧边栏不做模糊。
-- 界面整体等比缩放：手机按 390 宽的设计稿排版后缩放到屏幕（按短边计算，0.82–1.18 倍），桌面窗口小于 1180×760 时等比缩小；系统字体放大限制在 0.9–1.15 倍。横屏播放页与歌词页为左右两栏。
-- `YUNYIN_BENCH=1` 输出各场景的帧耗时；`YUNYIN_SHOTS=<目录>` 额外生成小屏大字体、横屏与最小桌面窗口的截图，用于检查适配。
+## 项目结构
 
-## 液态玻璃
+```
+lib/
+├── core/                 主题、设置、通用组件（液态玻璃、卡片、按钮、图标）、桌面歌词、更新
+├── data/
+│   ├── models.dart       与平台无关的数据模型
+│   ├── local_library.dart / downloads.dart / listen_stats.dart
+│   ├── cloud/            网盘（WebDAV）
+│   ├── lx/               洛雪音源运行环境（QuickJS / JavaScriptCore）
+│   └── sources/          播放源：netease、qq、kugou、local、cloud
+├── player/               播放队列、播放模式、音效与均衡器、淡入淡出、睡眠定时
+├── features/             各页面（移动端与桌面端）
+└── debug/                截图、性能测试与自检模式
+android/ ios/ linux/ macos/ windows/   各平台工程（Android 小组件、悬浮歌词等原生代码）
+shaders/                  液态玻璃着色器
+test/ integration_test/   测试
+```
 
-玻璃控件的效果由片段着色器 `shaders/liquid_glass.frag` 实现，光学模型移植自
-[liquid-glass-studio](https://github.com/iyinchao/liquid-glass-studio)（MIT）：边缘厚度内按斯涅尔定律折射并分通道色散、菲涅尔提亮、按法线角度的高光；
-「柔和」材质先做半径 16 的高斯模糊并叠加白色色调。着色器作为 `BackdropFilter` 的图像滤镜运行，需要 Impeller 渲染引擎
-（Android、Windows、Linux、macOS 默认启用），其他情况退回普通毛玻璃。第三方许可证见 `shaders/THIRD_PARTY_NOTICES.txt`，应用内“开源许可”中也可查看。
+### 技术栈
+
+| 模块 | 依赖 |
+| --- | --- |
+| 界面 | Flutter（Impeller）、provider、自研液态玻璃着色器 |
+| 播放 | media_kit（libmpv / FFmpeg）、audio_service |
+| 网络 | dio、pointycastle（平台接口加密） |
+| 脚本 | flutter_js（QuickJS / JavaScriptCore） |
+| 桌面 | window_manager |
+
+### 接入新的平台
+
+1. 在 `lib/data/sources/<平台>/` 中继承 `MusicSource`，在 `features` 中声明支持的能力，只实现这些方法；未实现的入口会自动隐藏。
+2. 在 `SourceRegistry.create()` 中注册，即可在“平台模式”中切换。
+
+## 常见问题
+
+<details>
+<summary>Linux 上没有声音或提示缺少播放组件</summary>
+
+deb 包会自动安装 libmpv；tar.gz 与 AppImage 已内置。若仍提示缺少组件，请运行 `sudo apt install libmpv2`。
+</details>
+
+<details>
+<summary>macOS 提示“无法打开，因为无法验证开发者”</summary>
+
+应用未签名。请在 Finder 中右键点击云音 → 打开，或在“系统设置 → 隐私与安全性”中允许。
+</details>
+
+<details>
+<summary>某些歌曲只能试听或无法播放</summary>
+
+播放权限与你在各平台的账号一致：会员歌曲需要对应会员。可以登录平台账号，或在“设置 → 洛雪音源”中导入音源。
+</details>
+
+<details>
+<summary>本地歌曲没有封面或歌词</summary>
+
+导入后云音会在后台联网匹配；也可以在歌曲菜单中选择“联网匹配歌词与封面”或“手动选择匹配的歌曲”。
+</details>
+
+## 参与贡献
+
+欢迎提交 Issue 与 Pull Request：
+
+1. 提交前请运行 `flutter analyze` 与 `flutter test`，确保没有新的警告与失败。
+2. 代码风格遵循项目现有写法（行宽 160，注释使用中文）。
+3. 界面改动请附上截图；新功能请同时补充测试。
 
 ## 隐私
 
-云音不收集任何数据。登录凭据（Cookie）只保存在本机，只发送给网易云音乐官方接口。
+云音没有服务器，不收集任何数据。账号凭据、网盘配置与音源脚本只保存在本机，只发送给对应的平台或你填写的服务器。详见应用内“账号与关于 → 隐私政策”。
+
+## 致谢
+
+- [liquid-glass-studio](https://github.com/iyinchao/liquid-glass-studio)（MIT）：液态玻璃的光学模型
+- [media_kit](https://github.com/media-kit/media-kit)、[mpv](https://mpv.io/)、[FFmpeg](https://ffmpeg.org/)：播放引擎
+- [flutter_js](https://github.com/abner/flutter_js)：脚本运行环境
+- 全部第三方组件的许可证见应用内“开源许可”
 
 ## 免责声明
 
-本项目是非官方的第三方客户端，与网易公司及网易云音乐无关，仅供学习交流。音乐内容的版权归各权利人所有，请支持正版。
+云音是非官方的第三方客户端，与网易公司、腾讯公司、酷狗音乐及其关联公司没有任何关联，不提供、不存储、不分发任何音乐内容，仅供学习与交流使用。音乐内容的版权归各权利人所有，请支持正版。
+
+## 许可证
+
+本仓库目前尚未附带开源许可证文件。在添加 `LICENSE` 之前，源代码的版权归作者所有。

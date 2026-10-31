@@ -51,7 +51,8 @@ class LyricsOverlay extends ChangeNotifier {
 
   void _configure() {
     final playing = _player.playing;
-    final key = '${_settings.desktopLyrics}|${_settings.statusBarLyrics}|${_settings.lyricsLocked}|$playing|${_settings.accent.index}';
+    final key =
+        '${_settings.desktopLyrics}|${_settings.statusBarLyrics}|${_settings.lyricsLocked}|$playing|${_settings.lyricsDisplayColor.toARGB32()}|${_settings.lyricsOpacity}|${_settings.statusLyricsOffset}';
     if (key == _config) return;
     _config = key;
     _index = -2;
@@ -61,7 +62,9 @@ class LyricsOverlay extends ChangeNotifier {
         // 暂停时收起状态栏歌词，把状态栏还给系统。
         'status': _settings.statusBarLyrics && playing,
         'locked': _settings.lyricsLocked,
-        'accent': _settings.accent.base.toARGB32(),
+        'accent': _settings.lyricsDisplayColor.toARGB32(),
+        'opacity': _settings.lyricsOpacity,
+        'statusOffset': _settings.statusLyricsOffset,
       });
     }
     _compute();
