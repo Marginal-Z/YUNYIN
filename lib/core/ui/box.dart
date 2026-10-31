@@ -175,6 +175,7 @@ class GlassScope extends InheritedWidget {
 Widget _shaderGlass({
   required double radius,
   required GlassMaterial material,
+  required bool dark,
   double? width,
   double? height,
   EdgeInsetsGeometry? padding,
@@ -183,11 +184,14 @@ Widget _shaderGlass({
 }) {
   Widget content = Container(padding: padding, alignment: alignment, child: child);
   content = LiquidGlassBackdrop(radius: radius, material: material, child: content);
-  // 原版投影：向下 10 像素、约 25 像素的指数衰减，最深处约 9%。
-  content = CustomPaint(
-    painter: _OuterShadowPainter(BorderRadius.circular(radius), const [Shadow2(0, 10, 40, Color.fromRGBO(0, 0, 0, 0.14))], clipInside: true),
-    child: content,
-  );
+  // 投影：浅色模式下柔和、贴近（迷你播放条与导航栏上下相邻，投影不能落到另一块玻璃里再被折射成一圈暗边）；
+  // 深色模式的黑色投影在深色背景上只会形成一圈脏边，不画。
+  if (!dark) {
+    content = CustomPaint(
+      painter: _OuterShadowPainter(BorderRadius.circular(radius), const [Shadow2(0, 4, 18, Color.fromRGBO(0, 0, 0, 0.08))], clipInside: true),
+      child: content,
+    );
+  }
   return width != null || height != null ? SizedBox(width: width, height: height, child: content) : content;
 }
 
@@ -287,6 +291,7 @@ class Glass extends StatelessWidget {
       return _shaderGlass(
         radius: radius,
         material: GlassScope.materialOf(context),
+        dark: p.isDark,
         width: width,
         height: height,
         padding: padding,
@@ -330,7 +335,15 @@ class LiquidGlass extends StatelessWidget {
     // 关闭毛玻璃时退回半透明实色，保证内容可读。
     final blur = GlassScope.of(context);
     if (blur && LiquidGlassShader.available) {
-      return _shaderGlass(radius: radius, material: GlassScope.materialOf(context), width: width, height: height, padding: padding, child: child);
+      return _shaderGlass(
+        radius: radius,
+        material: GlassScope.materialOf(context),
+        dark: p.isDark,
+        width: width,
+        height: height,
+        padding: padding,
+        child: child,
+      );
     }
     final fill = LinearGradient(
       begin: Alignment.topLeft,

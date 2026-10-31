@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../core/settings.dart';
 import '../data/sources/source_manager.dart';
 import '../features/common/actions.dart';
+import '../features/settings/about_pages.dart';
 import '../features/shell/nav.dart';
 import '../player/player_controller.dart';
 
@@ -224,6 +225,38 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   home();
   nav.push(StatsRoute());
   await shot('desktop-stats', settle: 2000);
+
+  // 播放样式（黑胶、光盘、沉浸）与深色模式下的透明控件。
+  _spec.value = _mobile;
+  for (final dark in [false, true]) {
+    settings.setThemeMode(dark ? ThemeMode.dark : ThemeMode.light);
+    for (final st in [PlayerStyle.vinyl, PlayerStyle.disc, PlayerStyle.immersive]) {
+      settings.setPlayerStyle(st);
+      home();
+      openPlayer(ctx());
+      await shot('mobile-player-${st.name}${dark ? '-dark' : ''}', settle: 3000);
+      navKey.currentState!.pop();
+      await wait(500);
+    }
+  }
+  settings.setPlayerStyle(PlayerStyle.cover);
+  settings.setThemeMode(ThemeMode.dark);
+  home();
+  await shot('mobile-home-dark-nav', settle: 2000);
+  settings.setThemeMode(ThemeMode.light);
+  // 账号与关于中的二级页面。
+  for (final page in AboutPage.values) {
+    home();
+    nav.push(AboutRoute(page));
+    await shot('mobile-about-${page.name}', settle: 1500);
+  }
+  _spec.value = _desktop;
+  settings.setPlayerStyle(PlayerStyle.vinyl);
+  home();
+  openPlayer(ctx());
+  await shot('desktop-player-vinyl', settle: 3000);
+  navKey.currentState!.pop();
+  settings.setPlayerStyle(PlayerStyle.cover);
 
   await fit('small', _small);
   await fit('landscape', _landscape);

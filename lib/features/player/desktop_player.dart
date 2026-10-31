@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/theme/cover_colors.dart';
+import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
-import '../../core/ui/cover.dart';
 import '../../core/ui/glow_background.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
@@ -12,6 +11,7 @@ import '../../player/player_controller.dart';
 import '../common/actions.dart';
 import '../desktop/player_bar.dart';
 import '../desktop/window_controls.dart';
+import 'artwork.dart';
 import 'lyrics_view.dart';
 
 /// 桌面端“正在播放”：左侧封面，右侧滚动歌词。
@@ -23,7 +23,7 @@ class DesktopPlayerPage extends StatelessWidget {
     final p = Palette.of(context);
     final player = context.watch<PlayerController>();
     final song = player.current;
-    final btnShadow = p.glassButtonShadow;
+    final style = context.select<AppSettings, PlayerStyle>((s) => s.playerStyle);
     return Material(
       type: MaterialType.transparency,
       child: GlowBackground.player(
@@ -32,6 +32,10 @@ class DesktopPlayerPage extends StatelessWidget {
         flow: player.playing,
         child: Stack(
           children: [
+            if (style == PlayerStyle.immersive && song != null)
+              Positioned.fill(
+                child: ImmersiveBackdrop(url: song.coverUrl, dark: p.isDark),
+              ),
             Positioned(
               left: 0,
               right: 0,
@@ -39,17 +43,18 @@ class DesktopPlayerPage extends StatelessWidget {
               height: 64,
               child: WindowDragArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  // Windows 右上角留出标题栏按钮的位置。
+                  padding: EdgeInsets.only(left: 24, right: useWindowsCaption ? 150 : 24),
                   child: Row(
                     children: [
                       const WindowControls(),
                       const SizedBox(width: 16),
-                      GlassButton(
+                      YIconButton(
                         YIcons.chevronDown,
                         size: 40,
-                        iconSize: 20,
+                        iconSize: 22,
                         strokeWidth: 1.9,
-                        shadows: btnShadow,
+                        color: p.text,
                         label: '收起播放页',
                         onTap: () => Navigator.of(context).maybePop(),
                       ),
@@ -70,11 +75,11 @@ class DesktopPlayerPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 108),
-                      GlassButton(
+                      YIconButton(
                         YIcons.more,
                         size: 40,
-                        iconSize: 20,
-                        shadows: btnShadow,
+                        iconSize: 22,
+                        color: p.text,
                         label: '更多',
                         onTap: song == null ? null : () => showSongMenu(context, song),
                       ),
@@ -102,16 +107,8 @@ class DesktopPlayerPage extends StatelessWidget {
                               LayoutBuilder(
                                 builder: (context, c) {
                                   final size = c.maxWidth.clamp(200.0, 360.0);
-                                  return Cover(
-                                    song.coverUrl,
-                                    size: size,
-                                    radius: 34,
-                                    imageSize: 900,
-                                    shadows: [
-                                      Shadow2(0, 32, 64, CoverThemed.shadowOf(context).withValues(alpha: 0.35)),
-                                      const Shadow2(0, 4, 10, Color.fromRGBO(0, 0, 0, 0.08)),
-                                    ],
-                                  );
+                                  // 沉浸样式在桌面端表现为封面铺满背景，封面本身使用大封面样式。
+                                  return PlayerArtwork(song: song, size: size, style: style == PlayerStyle.immersive ? PlayerStyle.cover : style);
                                 },
                               ),
                               const SizedBox(height: 28),
@@ -162,6 +159,7 @@ class DesktopPlayerPage extends StatelessWidget {
                 ),
               ),
             const Positioned(left: 40, right: 40, bottom: 20, child: DesktopPlayerBar(onPlayerPage: true)),
+            if (useWindowsCaption) const Positioned(top: 0, right: 0, child: WindowsCaptionButtons()),
           ],
         ),
       ),

@@ -15,7 +15,21 @@ import 'package:flutter/material.dart';
 ///
 /// 关键帧沿用设计稿中 5.2 秒循环的百分比，按 [_ms] 换算为毫秒。
 class Splash extends StatefulWidget {
-  const Splash({super.key, required this.full, required this.desktop, required this.version, required this.onDone});
+  const Splash({
+    super.key,
+    required this.full,
+    required this.desktop,
+    required this.version,
+    required this.onDone,
+    this.systemSplash = false,
+    this.uiScale = 1,
+  });
+
+  /// 系统已显示过启动图（Android）：首帧与系统启动图衔接。
+  final bool systemSplash;
+
+  /// 界面整体缩放倍数，用于把系统启动图的尺寸换算为界面尺寸。
+  final double uiScale;
 
   /// 完整版（首次启动）还是缩短版。
   final bool full;
@@ -215,10 +229,30 @@ class _SplashState extends State<Splash> with TickerProviderStateMixin {
     }
 
     // Logo：下落、挤压、二次弹跳（变换原点在底边中点）。
-    final y = _kf(p, const [(0, -470), (13, 0), (21, -58), (28, 0), (34, -16), (39, 0)], _logoCurves);
-    final sx = _kf(p, const [(0, 0.86), (13, 1.22), (21, 0.9), (28, 1.1), (34, 0.97), (39, 1.03), (44, 1)], _logoCurves);
-    final sy = _kf(p, const [(0, 1.16), (13, 0.78), (21, 1.12), (28, 0.9), (34, 1.04), (39, 0.97), (44, 1)], _logoCurves);
-    final logoOp = _kf(p, const [(0, 0), (3, 1)]);
+    // 有系统启动图的平台（Android）不从屏幕外落下：首帧与系统启动图的云朵完全重合（屏幕正中、宽约 93dp），
+    // 随后向上跃起到 Logo 位置再落地弹跳，系统启动图与启动动画之间不会跳变。
+    var y = _kf(p, const [(0, -470), (13, 0), (21, -58), (28, 0), (34, -16), (39, 0)], _logoCurves);
+    var sx = _kf(p, const [(0, 0.86), (13, 1.22), (21, 0.9), (28, 1.1), (34, 0.97), (39, 1.03), (44, 1)], _logoCurves);
+    var sy = _kf(p, const [(0, 1.16), (13, 0.78), (21, 1.12), (28, 0.9), (34, 1.04), (39, 0.97), (44, 1)], _logoCurves);
+    var logoOp = _kf(p, const [(0, 0), (3, 1)]);
+    if (widget.systemSplash) {
+      // 云朵在画布中宽 56/72，系统启动图中宽 56 × 1.6667dp；界面经过整体缩放时换算回屏幕尺寸。
+      final cloudW = logoW * 56 / 72;
+      final s0 = (56 * 1.6667 / widget.uiScale) / cloudW;
+      // 变换原点在底边中点：缩放 s0 后云朵中心 = logoTop + logoH + y·k − logoH·s0/2，令其等于屏幕中心。
+      final y0 = (size.height / 2 - logoTop - logoH + logoH * s0 / 2) / k;
+      final grow = _kf(p, [(0, s0), (9, 1)], const [Curves.easeOutCubic]);
+      y = _kf(
+        p,
+        [(0, y0), (9, -90), (13, 0), (21, -58), (28, 0), (34, -16), (39, 0)],
+        const [Curves.easeOutCubic, Curves.easeInQuad, Curves.easeOutQuad, Curves.easeInQuad, Curves.easeOutQuad, Curves.easeInQuad],
+      );
+      final squashX = _kf(p, const [(0, 1), (9, 1), (13, 1.22), (21, 0.9), (28, 1.1), (34, 0.97), (39, 1.03), (44, 1)], const [Curves.linear, ..._logoCurves]);
+      final squashY = _kf(p, const [(0, 1), (9, 1), (13, 0.78), (21, 1.12), (28, 0.9), (34, 1.04), (39, 0.97), (44, 1)], const [Curves.linear, ..._logoCurves]);
+      sx = squashX * grow;
+      sy = squashY * grow;
+      logoOp = 1;
+    }
     children.add(
       Positioned(
         left: cx - logoW / 2,

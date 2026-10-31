@@ -16,6 +16,24 @@ enum GlassMaterial {
   final String label;
 }
 
+/// 播放页样式。
+enum PlayerStyle {
+  /// 大封面。
+  cover('封面'),
+
+  /// 黑胶唱片：唱片旋转、唱臂随播放落下。
+  vinyl('黑胶'),
+
+  /// 光盘：封面印在光盘上，表面有流转的彩虹光泽。
+  disc('光盘'),
+
+  /// 沉浸：封面铺满上半屏并与模糊的封面背景融为一体。
+  immersive('沉浸');
+
+  const PlayerStyle(this.label);
+  final String label;
+}
+
 /// 界面背景。
 enum BackgroundMode {
   /// 默认：纯色（浅色模式纯白）。枚举名保留 glow 以兼容已保存的设置。
@@ -66,6 +84,9 @@ class AppSettings extends ChangeNotifier {
   /// 界面背景。
   BackgroundMode background = BackgroundMode.glow;
 
+  /// 播放页样式。
+  PlayerStyle playerStyle = PlayerStyle.cover;
+
   /// 自定义背景图片（应用数据目录中的副本）。
   String? backgroundImage;
 
@@ -108,6 +129,7 @@ class AppSettings extends ChangeNotifier {
     coverColors = _p.getBool('coverColors') ?? true;
     autoUpdate = _p.getBool('autoUpdate') ?? true;
     glassMaterial = GlassMaterial.values[(_p.getInt('glassMaterial') ?? 0).clamp(0, GlassMaterial.values.length - 1)];
+    playerStyle = PlayerStyle.values[(_p.getInt('playerStyle') ?? 0).clamp(0, PlayerStyle.values.length - 1)];
     background = BackgroundMode.values[(_p.getInt('background') ?? 0).clamp(0, BackgroundMode.values.length - 1)];
     backgroundImage = _p.getString('backgroundImage');
     backgroundBlur = _p.getBool('backgroundBlur') ?? false;
@@ -175,6 +197,12 @@ class AppSettings extends ChangeNotifier {
         backgroundBlur = v;
     }
     _p.setBool(key, v);
+    notifyListeners();
+  }
+
+  void setPlayerStyle(PlayerStyle v) {
+    playerStyle = v;
+    _p.setInt('playerStyle', v.index);
     notifyListeners();
   }
 

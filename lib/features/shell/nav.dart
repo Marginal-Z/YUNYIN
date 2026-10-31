@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/models.dart';
+import '../settings/about_pages.dart' show AboutPage;
 
 /// 移动端页面周围的悬浮控件：玻璃导航栏、迷你播放条。
 enum Chrome {
@@ -134,6 +135,19 @@ class SettingsMoreRoute extends AppRoute {
 
 /// 外观（设置的二级页面）。
 class AppearanceRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
+/// 账号与关于中的隐私政策、用户协议、权限管理与意见反馈。
+class AboutRoute extends AppRoute {
+  AboutRoute(this.page);
+
+  final AboutPage page;
+
   @override
   Chrome get chrome => Chrome.navOnly;
 

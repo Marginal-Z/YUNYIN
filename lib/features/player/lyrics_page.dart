@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
-import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/glow_background.dart';
 import '../../core/ui/icons.dart';
@@ -105,7 +104,7 @@ class _LyricsPageState extends State<LyricsPage> {
               left: 28,
               right: land && _controls ? side + 40 : 28,
               top: pad.top + (land ? 76 : (_controls ? 168 : 12)),
-              bottom: pad.bottom,
+              bottom: pad.bottom + (!land && _controls ? 172 : 0),
               child: const LyricsView(desktop: false, anchor: 0.3),
             ),
             Positioned(
@@ -121,7 +120,14 @@ class _LyricsPageState extends State<LyricsPage> {
                       Positioned(
                         left: 16,
                         top: pad.top + 20,
-                        child: GlassButton(YIcons.chevronDown, label: '收起歌词', onTap: () => Navigator.of(context).maybePop()),
+                        child: YIconButton(
+                          YIcons.chevronDown,
+                          size: 44,
+                          iconSize: 26,
+                          color: p.text,
+                          label: '收起歌词',
+                          onTap: () => Navigator.of(context).maybePop(),
+                        ),
                       ),
                       Positioned(
                         left: 76,
@@ -138,8 +144,11 @@ class _LyricsPageState extends State<LyricsPage> {
                       Positioned(
                         right: 16,
                         top: pad.top + 20,
-                        child: GlassButton(
+                        child: YIconButton(
                           YIcons.more,
+                          size: 44,
+                          iconSize: 24,
+                          color: p.text,
                           label: '歌词选项',
                           onTap: () async {
                             final v = await showOptions<int>(
@@ -158,12 +167,10 @@ class _LyricsPageState extends State<LyricsPage> {
                         left: land ? size.width - side - 20 : 20,
                         right: 20,
                         top: pad.top + 84,
-                        child: YBox(
+                        // 歌曲信息不加卡片背景。
+                        child: Container(
                           height: 72,
-                          radius: BorderRadius.circular(24),
-                          color: p.lyricsCard,
-                          shadows: p.cardShadow,
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: Row(
                             children: [
                               Cover(song.coverUrl, size: 48, radius: 12),
@@ -193,12 +200,10 @@ class _LyricsPageState extends State<LyricsPage> {
                                 onTap: () => player.toggleLike(song),
                                 scale: 0.9,
                                 semanticLabel: liked ? '取消喜欢' : '喜欢',
-                                child: Container(
+                                child: SizedBox(
                                   width: 40,
                                   height: 40,
-                                  decoration: BoxDecoration(color: p.isDark ? p.translucentButton : Colors.white, shape: BoxShape.circle),
-                                  alignment: Alignment.center,
-                                  child: YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 20, color: p.accentText),
+                                  child: Center(child: YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 24, color: p.accentText)),
                                 ),
                               ),
                             ],
@@ -216,8 +221,8 @@ class _LyricsPageState extends State<LyricsPage> {
               bottom: 22 + pad.bottom,
               child: fade(
                 top: false,
-                LiquidGlass(
-                  radius: 34,
+                // 控制区透明、无背景框；歌词区域在控件显示时止于其上方，两者不重叠。
+                Container(
                   height: 150,
                   padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
                   child: Column(

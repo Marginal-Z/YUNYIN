@@ -118,6 +118,19 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </receiver>
+        <!-- 桌面小组件：正在播放（4 × 2 与 2 × 2）。 -->
+        <receiver android:name=".NowPlayingWidget" android:exported="false" android:label="@string/widget_large">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_now_playing_info" />
+        </receiver>
+        <receiver android:name=".NowPlayingSmallWidget" android:exported="false" android:label="@string/widget_small">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_now_playing_small_info" />
+        </receiver>
         <!-- 应用内更新：把下载的安装包交给系统安装器。 -->
         <provider
             android:name="androidx.core.content.FileProvider"

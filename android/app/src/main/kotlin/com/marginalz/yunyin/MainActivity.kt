@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -52,6 +53,39 @@ class MainActivity : AudioServiceActivity() {
                         pendingIcon = name
                         result.success(null)
                     }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/widget").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "update" -> {
+                    WidgetRenderer.save(
+                        this,
+                        call.argument<String>("title"),
+                        call.argument<String>("artist"),
+                        call.argument<String>("cover"),
+                        call.argument<Boolean>("playing") ?: false,
+                    )
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/system").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "permissionStatus" -> result.success(
+                    mapOf(
+                        "network" to true,
+                        "background" to true,
+                        "notifications" to NotificationManagerCompat.from(this).areNotificationsEnabled(),
+                        "audio" to (ContextCompat.checkSelfPermission(this, audioPermission) == PackageManager.PERMISSION_GRANTED),
+                        "install" to (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()),
+                    ),
+                )
+                "openAppSettings" -> {
+                    startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }

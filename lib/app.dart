@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -205,6 +206,8 @@ class _SplashGateState extends State<_SplashGate> {
             child: Splash(
               full: _full,
               desktop: MediaQuery.sizeOf(context).width >= kDesktopBreakpoint,
+              systemSplash: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+              uiScale: AdaptiveScale.of(context),
               version: context.read<UpdateManager>().current,
               onDone: _finish,
             ),

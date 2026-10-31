@@ -10,6 +10,7 @@ import '../login/login_page.dart';
 import '../playlist/playlist_page.dart';
 import '../search/search_page.dart';
 import '../search/search_result_page.dart';
+import '../settings/about_pages.dart';
 import '../settings/appearance_page.dart';
 import '../settings/settings_more_page.dart';
 import '../settings/settings_page.dart';
@@ -29,6 +30,7 @@ Widget buildMobileRoute(AppRoute r) => switch (r) {
   SettingsMoreRoute() => const SettingsMorePage(),
   AppearanceRoute() => const AppearancePage(),
   StatsRoute() => const StatsPage(),
+  AboutRoute(:final page) => buildAboutPage(page),
   LoginRoute() => const LoginPage(),
 };
 

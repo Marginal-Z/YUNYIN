@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'core/app_icon.dart';
 import 'core/data_cache.dart';
+import 'core/widget_bridge.dart';
 import 'data/listen_stats.dart';
 import 'core/ui/liquid_glass_filter.dart';
 import 'core/update/updater.dart';
@@ -73,6 +74,8 @@ Future<void> main() async {
   final stats = ListenStats();
   await stats.init();
   stats.attach(player);
+  // Android 桌面小组件显示正在播放的歌曲。
+  WidgetBridge.attach(player);
   final downloads = DownloadManager(sources, settings);
   await downloads.init();
   player.localLookup = downloads.local;

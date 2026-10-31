@@ -13,9 +13,10 @@ import '../../core/update/updater.dart';
 import '../../data/sources/source_manager.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
+import '../common/actions.dart';
+import 'about_pages.dart';
 import 'update_dialog.dart';
 
-const kRepoUrl = 'https://github.com/Marginal-Z/YUNYIN';
 
 /// 账号与关于。
 class SettingsMorePage extends StatelessWidget {
@@ -58,13 +59,8 @@ class SettingsMorePage extends StatelessWidget {
               title: '个性化推荐',
               trailing: YSwitch(value: s.personalized, label: '个性化推荐', onChanged: (v) => s.setFlag('personalized', v)),
             ),
-            SettingsRow(icon: YIcons.shield, tile: TileColor.graphite, title: '隐私政策', onTap: () => open('$kRepoUrl#隐私')),
-            SettingsRow(
-              icon: YIcons.lock,
-              tile: TileColor.teal,
-              title: '权限管理',
-              onTap: () => Toast.show(context, '云音仅使用网络、存储与通知权限', icon: YIcons.lock),
-            ),
+            SettingsRow(icon: YIcons.shield, tile: TileColor.graphite, title: '隐私政策', onTap: () => go(context, AboutRoute(AboutPage.privacy))),
+            SettingsRow(icon: YIcons.lock, tile: TileColor.teal, title: '权限管理', onTap: () => go(context, AboutRoute(AboutPage.permissions))),
           ],
         ),
         const GroupLabel('关于云音'),
@@ -96,7 +92,7 @@ class SettingsMorePage extends StatelessWidget {
               title: '启动时检查更新',
               trailing: YSwitch(value: s.autoUpdate, label: '启动时检查更新', onChanged: (v) => s.setFlag('autoUpdate', v)),
             ),
-            SettingsRow(icon: YIcons.document, tile: TileColor.orange, title: '用户协议', onTap: () => open('$kRepoUrl#免责声明')),
+            SettingsRow(icon: YIcons.document, tile: TileColor.orange, title: '用户协议', onTap: () => go(context, AboutRoute(AboutPage.agreement))),
             SettingsRow(
               icon: YIcons.code,
               tile: TileColor.graphite,
@@ -106,7 +102,7 @@ class SettingsMorePage extends StatelessWidget {
                 if (context.mounted) showLicensePage(context: context, applicationName: '云音', applicationVersion: info.version);
               },
             ),
-            SettingsRow(icon: YIcons.feedback, tile: TileColor.red, title: '意见反馈', onTap: () => open('$kRepoUrl/issues')),
+            SettingsRow(icon: YIcons.feedback, tile: TileColor.red, title: '意见反馈', onTap: () => go(context, AboutRoute(AboutPage.feedback))),
             SettingsRow(icon: YIcons.code, tile: TileColor.graphite, title: '项目主页', value: 'GitHub', onTap: () => open(kRepoUrl)),
           ],
         ),

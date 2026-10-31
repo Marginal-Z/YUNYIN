@@ -23,12 +23,13 @@ class AdaptiveScale extends StatelessWidget {
 
   static double scaleFor(Size size, double desktopBreakpoint) {
     if (size.isEmpty) return 1;
+    // 比设计尺寸小时按比例缩小；比设计尺寸大时只放大一半（大屏既让卡片与文字变大，也多显示一些内容）。
+    double damp(double raw, double min, double max) => (raw <= 1 ? raw : 1 + (raw - 1) * 0.5).clamp(min, max);
     if (size.width >= desktopBreakpoint) {
-      final s = math.min(size.width / _desktopDesignSize.width, size.height / _desktopDesignSize.height);
-      return s.clamp(0.8, 1.0);
+      return damp(math.min(size.width / _desktopDesignSize.width, size.height / _desktopDesignSize.height), 0.8, 1.3);
     }
-    // 按短边缩放：竖屏即宽度；横屏时不会因为宽度大而把高度压得过矮。
-    return (size.shortestSide / _mobileDesignWidth).clamp(0.82, 1.18);
+    // 按短边缩放：竖屏即宽度；横屏时不会因为宽度大而把高度压得过矮。平板竖屏最多放大 1.4 倍。
+    return damp(size.shortestSide / _mobileDesignWidth, 0.82, 1.4);
   }
 
   @override

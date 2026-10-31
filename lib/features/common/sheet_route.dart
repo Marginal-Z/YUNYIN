@@ -2,10 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// 从底部滑入的全屏页面（正在播放）。
+/// 从底部弹出的全屏页面（正在播放）。
 ///
-/// 打开时带轻微回弹的减速曲线；[dismissible] 时可以按住页面向下拖动，页面跟随手指，
-/// 松手后按位置与速度决定收起或弹回（与系统音乐 App 的播放页相同）。拖动时顶部出现圆角。
+/// 打开时页面从下方略微升起、由 88% 放大到全屏并淡入，圆角随之收起，下方页面逐渐变暗，
+/// 配合弹簧阻尼曲线（封面从迷你播放条飞入由 Hero 完成）；收起时反向滑回。
+/// [dismissible] 时可以按住页面向下拖动，页面跟随手指，松手后按位置与速度决定收起或弹回。
 class SheetRoute<T> extends PageRoute<T> {
   SheetRoute({required this.builder, this.dismissible = false});
 
@@ -22,7 +23,7 @@ class SheetRoute<T> extends PageRoute<T> {
   bool get opaque => true;
 
   @override
-  Color? get barrierColor => null;
+  Color? get barrierColor => const Color(0x59000000);
 
   @override
   String? get barrierLabel => null;
@@ -43,17 +44,38 @@ class SheetRoute<T> extends PageRoute<T> {
       animation: animation,
       builder: (context, child) {
         final v = animation.value;
-        // 拖动与松手后的动画由手势直接控制位置，不再套曲线，避免跳变。
-        final t = _dragging || navigator?.userGestureInProgress == true
-            ? v
-            : (animation.status == AnimationStatus.reverse ? Curves.easeInCubic.transform(v) : math.min(1.0, const _OpenCurve().transform(v)));
-        final radius = (1 - v).clamp(0.0, 1.0) * 120;
-        return FractionalTranslation(
-          translation: Offset(0, 1 - t),
-          child: ClipRRect(
-            clipBehavior: v < 1 ? Clip.antiAlias : Clip.none,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(math.min(radius, 28))),
-            child: child,
+        final gesture = _dragging || navigator?.userGestureInProgress == true;
+        if (gesture || animation.status == AnimationStatus.reverse) {
+          // 拖动时页面跟随手指；收起时整页滑回下方。
+          final t = gesture ? v : Curves.easeInCubic.transform(v);
+          final radius = (1 - v).clamp(0.0, 1.0) * 120;
+          return FractionalTranslation(
+            translation: Offset(0, 1 - t),
+            child: ClipRRect(
+              clipBehavior: v < 1 ? Clip.antiAlias : Clip.none,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(math.min(radius, 28))),
+              child: child,
+            ),
+          );
+        }
+        // 弹出：升起 + 放大 + 淡入，圆角从 36 收到 0。
+        final t = const _OpenCurve().transform(v);
+        final scale = 0.88 + 0.12 * math.min(t, 1.006);
+        final radius = (1 - t).clamp(0.0, 1.0) * 36;
+        return Opacity(
+          opacity: (v * 3).clamp(0.0, 1.0),
+          child: FractionalTranslation(
+            // 位移不越过终点（回弹只体现在缩放上），页面底部不会露出缝隙。
+            translation: Offset(0, (1 - math.min(t, 1.0)) * 0.3),
+            child: Transform.scale(
+              scale: scale,
+              alignment: Alignment.bottomCenter,
+              child: ClipRRect(
+                clipBehavior: v < 1 ? Clip.antiAlias : Clip.none,
+                borderRadius: BorderRadius.circular(radius),
+                child: child,
+              ),
+            ),
           ),
         );
       },

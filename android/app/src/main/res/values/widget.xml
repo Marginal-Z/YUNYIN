@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 桌面小组件（浅色）。 -->
+    <color name="widget_bg">#F7FFFFFF</color>
+    <color name="widget_stroke">#14000000</color>
+    <color name="widget_text">#FF1D1D1F</color>
+    <color name="widget_text2">#FF6E6E73</color>
+    <color name="widget_button">#FF1D1D1F</color>
+    <color name="widget_button_icon">#FFFFFFFF</color>
+    <string name="widget_large">正在播放</string>
+    <string name="widget_small">正在播放（小）</string>
+    <string name="widget_description">显示正在播放的歌曲，可直接播放、暂停与切歌</string>
+    <string name="widget_idle">云音</string>
+    <string name="widget_idle_sub">点按打开，开始听歌</string>
+</resources>

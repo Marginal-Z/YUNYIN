@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/theme/cover_colors.dart';
+import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
@@ -14,6 +14,7 @@ import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
 import '../../player/player_controller.dart';
 import '../common/actions.dart';
+import 'artwork.dart';
 
 /// 移动端“正在播放”。
 class PlayerPage extends StatelessWidget {
@@ -28,12 +29,12 @@ class PlayerPage extends StatelessWidget {
     if (song == null) {
       return GlowBackground.player(context);
     }
-    final glassShadow = [const Shadow2(0, 6, 18, Color.fromRGBO(0, 0, 0, 0.1)), p.glassButtonShadow.last];
     final header = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          GlassButton(YIcons.chevronDown, label: '收起播放页', shadows: glassShadow, onTap: () => Navigator.of(context).maybePop()),
+          // 收起与更多按钮不加背景，只保留图标。
+          YIconButton(YIcons.chevronDown, size: 44, iconSize: 26, color: p.text, label: '收起播放页', onTap: () => Navigator.of(context).maybePop()),
           Expanded(
             child: Column(
               children: [
@@ -51,16 +52,18 @@ class PlayerPage extends StatelessWidget {
               ],
             ),
           ),
-          GlassButton(YIcons.more, label: '更多', shadows: glassShadow, onTap: () => showSongMenu(context, song)),
+          YIconButton(YIcons.more, size: 44, iconSize: 24, color: p.text, label: '更多', onTap: () => showSongMenu(context, song)),
         ],
       ),
     );
+    final style = context.select<AppSettings, PlayerStyle>((s) => s.playerStyle);
     // 下拉收起由 SheetRoute 处理（页面跟随手指）。
     return GlowBackground.player(
       context,
       child: LayoutBuilder(
         builder: (context, c) {
           if (c.maxWidth > c.maxHeight * 1.3) return _landscape(context, c, header);
+          if (style == PlayerStyle.immersive) return _immersive(context, c, header);
           final h = c.maxHeight - pad.top - pad.bottom;
           final extra = h - 844;
           final double topGap = 28 + math.max(0.0, extra * 0.25);
@@ -75,19 +78,7 @@ class PlayerPage extends StatelessWidget {
                 const SizedBox(height: 20),
                 header,
                 SizedBox(height: topGap),
-                Hero(
-                  tag: 'cover',
-                  child: Cover(
-                    song.coverUrl,
-                    size: coverSize,
-                    radius: 30,
-                    imageSize: 800,
-                    shadows: [
-                      Shadow2(0, 28, 56, CoverThemed.shadowOf(context).withValues(alpha: 0.35)),
-                      const Shadow2(0, 4, 10, Color.fromRGBO(0, 0, 0, 0.08)),
-                    ],
-                  ),
-                ),
+                PlayerArtwork(song: song, size: coverSize, style: style),
                 const SizedBox(height: 22),
                 // 封面下方两行歌词；歌名、进度与播放控件放在下方，靠近功能卡片。
                 const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
@@ -122,6 +113,86 @@ class PlayerPage extends StatelessWidget {
     );
   }
 
+  /// 沉浸：封面铺满上半屏、底边渐隐，下面是柔化的封面背景与播放控件。
+  Widget _immersive(BuildContext context, BoxConstraints c, Widget header) {
+    final p = Palette.of(context);
+    final pad = MediaQuery.paddingOf(context);
+    final song = context.read<PlayerController>().current!;
+    final w = c.maxWidth;
+    final imageH = math.min(w * 1.05, c.maxHeight * 0.56);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ImmersiveBackdrop(url: song.coverUrl, dark: p.isDark),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          height: imageH,
+          child: Pressable(
+            onTap: () => openLyrics(context),
+            onLongPress: () => pickPlayerStyle(context),
+            scale: 1,
+            child: ShaderMask(
+              shaderCallback: (r) => const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.black, Colors.black, Colors.transparent],
+                stops: [0, 0.62, 1],
+              ).createShader(r),
+              blendMode: BlendMode.dstIn,
+              child: CoverImage(song.coverUrl, imageSize: 1000),
+            ),
+          ),
+        ),
+        // 顶部渐暗，保证状态栏与按钮清晰。
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          height: pad.top + 96,
+          child: const IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x59000000), Color(0x00000000)]),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.only(top: pad.top, bottom: pad.bottom),
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              header,
+              const Spacer(),
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
+              const SizedBox(height: 18),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  children: [
+                    _TitleRow(song: song),
+                    const SizedBox(height: 16),
+                    const _Progress(),
+                    const SizedBox(height: 14),
+                    const _Controls(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, math.max(22, pad.bottom + 8) - pad.bottom),
+                child: _PlayerTabs(song: song),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   /// 横屏：左侧封面，右侧歌名、进度、播放控件与功能卡片。
   Widget _landscape(BuildContext context, BoxConstraints c, Widget header) {
     final pad = MediaQuery.paddingOf(context);
@@ -137,15 +208,10 @@ class PlayerPage extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 28),
-                Hero(
-                  tag: 'cover',
-                  child: Cover(
-                    song.coverUrl,
-                    size: cover,
-                    radius: 24,
-                    imageSize: 800,
-                    shadows: [Shadow2(0, 20, 44, CoverThemed.shadowOf(context).withValues(alpha: 0.35))],
-                  ),
+                PlayerArtwork(
+                  song: song,
+                  size: cover,
+                  style: context.select<AppSettings, PlayerStyle>((s) => s.playerStyle == PlayerStyle.immersive ? PlayerStyle.cover : s.playerStyle),
                 ),
                 const SizedBox(width: 28),
                 Expanded(
@@ -426,31 +492,24 @@ class _PlayerTabs extends StatelessWidget {
           onTap: onTap,
           scale: 0.96,
           semanticLabel: label,
-          child: Container(
-            decoration: BoxDecoration(color: active ? p.navActive : Colors.transparent, borderRadius: BorderRadius.circular(27)),
-            child: CustomPaint(
-              foregroundPainter: active ? InsetShadowPainter(BorderRadius.circular(27), [Shadow2(0, 0.5, 1, p.navActiveInset)]) : null,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  YIcon(icon, size: 22, color: color),
-                  const SizedBox(height: 3),
-                  Text(
-                    label,
-                    style: ts(11, weight: active ? w600 : w500, color: color, height: 1.2),
-                  ),
-                ],
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              YIcon(icon, size: 22, color: color),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: ts(11, weight: active ? w600 : w500, color: color, height: 1.2),
               ),
-            ),
+            ],
           ),
         ),
       );
     }
 
-    return LiquidGlass(
-      radius: 32,
+    // 功能栏透明、无背景框，当前项以主题色区分。
+    return SizedBox(
       height: 64,
-      padding: const EdgeInsets.all(5),
       child: Row(
         children: [
           item(YIcons.lyrics, '歌词', () => openLyrics(context), active: true),
