@@ -138,6 +138,8 @@ class PlayerController extends ChangeNotifier {
       }),
       p.stream.error.listen((e) {
         if (current != null && e.isNotEmpty) debugPrint('player error: $e');
+        // 音频滤镜（均衡器）创建失败：关闭均衡器并在原位置重新播放，避免一直没有声音。
+        if (e.contains('Audio filter') && _eqApplied.isNotEmpty) unawaited(_onEqFailed().then((_) => current != null ? _load(autoplay: true, keepPosition: true) : null));
       }),
       p.stream.log.listen((l) {
         if (l.text.contains('Could not open/initialize audio device')) _onAudioDeviceFailed();

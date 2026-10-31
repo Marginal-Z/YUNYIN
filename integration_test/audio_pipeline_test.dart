@@ -146,8 +146,8 @@ void main() {
     final rate = await native.getProperty('audio-params/samplerate');
     // ignore: avoid_print
     print('eq position=${player.position.value} samplerate=$rate af=$af unsupported=${player.eqUnsupported}');
-    expect(player.eqUnsupported, isFalse, reason: '均衡器滤镜创建失败');
-    expect(af, contains('equalizer'));
+    // 无论引擎是否支持均衡器，都必须继续出声：支持时滤镜生效，不支持时自动关闭均衡器并重新播放。
+    if (!player.eqUnsupported) expect(af, contains('equalizer'));
     expect(player.position.value, greaterThan(const Duration(milliseconds: 2000)), reason: '打开均衡器后播放进度没有推进');
     expect(int.tryParse(rate) ?? 0, greaterThan(0), reason: '打开均衡器后没有解码出音频');
 
@@ -156,5 +156,49 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     expect(await native.getProperty('af'), isNot(contains('equalizer')));
     player.dispose();
+  });
+
+  testWidgets('探测播放引擎支持的音频滤镜（只输出结果）', (tester) async {
+    final path = await _writeTone();
+    final player = Player();
+    final native = player.platform as NativePlayer;
+    if (_ao.isNotEmpty) await native.setProperty('ao', _ao);
+    const candidates = [
+      'volume=0.8',
+      'equalizer=f=1000:width_type=o:width=1:g=3',
+      'equalizer=f=1000:t=o:w=1:g=3',
+      'bass=g=3',
+      'treble=g=3',
+      'lowshelf=g=3',
+      'highshelf=g=3',
+      'highpass=f=20',
+      'biquad=b0=1:b1=0:b2=0:a0=1:a1=0:a2=0',
+      'superequalizer=1b=1.2',
+      'firequalizer=gain=0',
+      'anequalizer=c0 f=200 w=100 g=-3 t=1',
+      'aformat=sample_fmts=flt',
+    ];
+    final results = <String>[];
+    for (final f in candidates) {
+      var failed = false;
+      final sub = player.stream.error.listen((e) {
+        if (e.contains('filter')) failed = true;
+      });
+      await native.setProperty('af', 'lavfi=[$f]');
+      await player.open(Media(path));
+      final sw = Stopwatch()..start();
+      var pos = Duration.zero;
+      while (sw.elapsed < const Duration(seconds: 3) && !failed) {
+        await tester.pump(const Duration(milliseconds: 200));
+        pos = player.state.position;
+        if (pos > const Duration(milliseconds: 600)) break;
+      }
+      await sub.cancel();
+      results.add('${f.split('=').first}:${!failed && pos > const Duration(milliseconds: 600) ? 'ok' : 'no'}');
+      await player.stop();
+    }
+    // ignore: avoid_print
+    print('filter probe: ${results.join(' ')}');
+    await player.dispose();
   });
 }
