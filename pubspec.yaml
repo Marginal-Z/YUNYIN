@@ -56,6 +56,7 @@ dependencies:
   file_picker: ^13.2.0
   audio_metadata_reader: ^1.8.1
   fast_gbk: ^1.0.0
+  flutter_js: ^0.8.7
 
 dev_dependencies:
   flutter_test:

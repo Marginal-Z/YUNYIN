@@ -11,6 +11,7 @@ import '../core/settings.dart';
 import '../data/models.dart';
 import '../data/sources/music_source.dart';
 import '../data/sources/source_manager.dart';
+import '../data/sources/source_policy.dart';
 import 'mpv_property.dart' if (dart.library.js_interop) 'mpv_property_web.dart';
 
 enum PlayMode { sequence, shuffle, repeatOne }
@@ -532,7 +533,7 @@ class PlayerController extends ChangeNotifier {
       if (local != null) {
         info = StreamInfo(url: local);
       } else {
-        info = await source.stream(song, settings.quality);
+        info = await resolveStream(source, song, settings.quality);
       }
     } catch (e) {
       if (token != _loadToken) return;

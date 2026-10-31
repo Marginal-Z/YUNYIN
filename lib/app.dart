@@ -29,6 +29,7 @@ import 'player/player_controller.dart';
 import 'core/update/updater.dart';
 import 'core/lyrics_overlay.dart';
 import 'data/cloud/cloud_drives.dart';
+import 'data/lx/lx_sources.dart';
 import 'data/listen_stats.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -45,6 +46,7 @@ class YunyinApp extends StatelessWidget {
     required this.updater,
     required this.stats,
     required this.lyricsOverlay,
+    required this.lx,
   });
 
   final AppSettings settings;
@@ -56,6 +58,7 @@ class YunyinApp extends StatelessWidget {
   final UpdateManager updater;
   final ListenStats stats;
   final LyricsOverlay lyricsOverlay;
+  final LxSources lx;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +73,7 @@ class YunyinApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: updater),
         ChangeNotifierProvider.value(value: stats),
         ChangeNotifierProvider.value(value: lyricsOverlay),
+        ChangeNotifierProvider.value(value: lx),
         ChangeNotifierProvider(create: (_) => AppNav()),
       ],
       child: Consumer<AppSettings>(

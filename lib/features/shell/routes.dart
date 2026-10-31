@@ -15,6 +15,7 @@ import '../search/search_page.dart';
 import '../search/search_result_page.dart';
 import '../settings/about_pages.dart';
 import '../settings/appearance_page.dart';
+import '../settings/lx_page.dart';
 import '../settings/settings_more_page.dart';
 import '../settings/settings_page.dart';
 import '../stats/stats_page.dart';
@@ -35,6 +36,7 @@ Widget buildMobileRoute(AppRoute r) => switch (r) {
   StatsRoute() => const StatsPage(),
   AboutRoute(:final page) => buildAboutPage(page),
   ProfileRoute() => const ProfilePage(),
+  LxSourcesRoute() => const LxSourcesPage(),
   LocalMatchRoute(:final song) => LocalMatchPage(song: song),
   CloudDrivesRoute() => const CloudDrivesPage(),
   CloudEditRoute(:final driveId) => CloudEditPage(driveId: driveId),

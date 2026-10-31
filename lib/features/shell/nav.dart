@@ -171,6 +171,15 @@ class LocalMatchRoute extends AppRoute {
   Chrome get chrome => Chrome.none;
 }
 
+/// 洛雪音源（设置的二级页面）。
+class LxSourcesRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.none;
+
+  @override
+  String get sideKey => 'settings';
+}
+
 /// 个人中心。
 class ProfileRoute extends AppRoute {
   @override

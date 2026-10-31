@@ -30,7 +30,10 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test
+      # 洛雪音源测试使用 flutter_js 自带的 QuickJS 动态库（x86_64）。
+      - run: |
+          export LIBQUICKJSC_TEST_PATH="$(find "${PUB_CACHE:-$HOME/.pub-cache}" -path '*flutter_js-*/linux/shared/libquickjs_c_bridge_plugin.so' | head -1)"
+          flutter test
 
   android:
     name: Android（arm64-v8a / armeabi-v7a / x86_64 / 通用）

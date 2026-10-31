@@ -22,6 +22,7 @@ import 'debug/screenshots.dart';
 import 'data/downloads.dart';
 import 'data/cloud/cloud_drives.dart';
 import 'data/local_library.dart';
+import 'data/lx/lx_sources.dart';
 import 'data/sources/source_policy.dart';
 import 'data/sources/source_manager.dart';
 import 'features/desktop/window_controls.dart';
@@ -93,6 +94,10 @@ Future<void> main() async {
   // 平台模式彼此独立：切换平台时一并切换该平台的界面样式；是否允许其他平台补位播放由设置决定。
   settings.initPlatform(sources.current.id);
   SourcePolicy.crossSource = settings.crossSource;
+  // 洛雪音源：当前平台取不到完整播放地址时使用。
+  final lx = LxSources();
+  await lx.init();
+  SourcePolicy.custom = lx.resolve;
   settings.addListener(() => SourcePolicy.crossSource = settings.crossSource);
   sources.addListener(() => settings.applyPlatform(sources.current.id));
   // 首页先显示上次的数据，随后在后台刷新。
@@ -115,7 +120,7 @@ Future<void> main() async {
   await updater.init();
 
   if (splashShotsRequested) prepareSplashShots();
-  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, drives: drives, updater: updater, stats: stats, lyricsOverlay: lyricsOverlay));
+  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, drives: drives, updater: updater, stats: stats, lyricsOverlay: lyricsOverlay, lx: lx));
   if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
   if (screenshotsRequested) unawaited(runScreenshots(rootNavigatorKey));
   if (splashShotsRequested) unawaited(runSplashShots());

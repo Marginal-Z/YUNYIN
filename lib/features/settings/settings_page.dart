@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/lyrics_overlay.dart';
+import '../../data/lx/lx_sources.dart';
+import 'lx_page.dart';
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
@@ -361,6 +363,7 @@ class SourceGroup extends StatelessWidget {
       indent: 56,
       children: [
         SettingsRow(icon: YIcons.source, tile: TileColor.red, title: '平台模式', value: sm.current.name, onTap: () => pickSource(context)),
+        SettingsRow(icon: YIcons.code, tile: TileColor.orange, title: '洛雪音源', value: lxSummary(context.watch<LxSources>()), onTap: () => go(context, LxSourcesRoute())),
         SettingsRow(
           icon: YIcons.sparkle,
           tile: TileColor.blue,

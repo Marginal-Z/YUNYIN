@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../core/settings.dart';
 import 'models.dart';
 import 'sources/source_manager.dart';
+import 'sources/source_policy.dart';
 
 /// 下载管理：把歌曲保存到下载目录，并维护一份索引。
 class DownloadManager extends ChangeNotifier {
@@ -77,7 +78,7 @@ class DownloadManager extends ChangeNotifier {
   Future<bool> download(Song song) async {
     if (!supported || isDownloaded(song) || progress.containsKey(song.key)) return true;
     final source = sources.byId(song.sourceId);
-    final info = await source.stream(song, settings.downloadQuality);
+    final info = await resolveStream(source, song, settings.downloadQuality);
     if (info.url == null) return false;
     final folder = Directory(await dir());
     await folder.create(recursive: true);
