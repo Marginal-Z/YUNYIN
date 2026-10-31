@@ -210,12 +210,10 @@ class _SplashState extends State<Splash> with TickerProviderStateMixin {
             top: center.dy + ty * m * k * f - d / 2 - 9 * k * bob,
             width: d,
             height: d,
-            child: Opacity(
-              opacity: op,
-              child: Transform.rotate(
-                angle: bob * 10 * math.pi / 180,
-                child: Transform.scale(scale: s, child: _particle(i, d)),
-              ),
+            // 透明度乘到碎片颜色上（不套 Opacity，原因同落地阴影）。
+            child: Transform.rotate(
+              angle: bob * 10 * math.pi / 180,
+              child: Transform.scale(scale: s, child: _particle(i, d, op.clamp(0.0, 1.0))),
             ),
           ),
         );
@@ -301,12 +299,14 @@ class _SplashState extends State<Splash> with TickerProviderStateMixin {
           left: 0,
           right: 0,
           top: logoTop + 332 * k + dy * k,
-          child: Opacity(
-            opacity: op,
-            child: Text(
-              '听见好音乐',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16 * k, fontWeight: FontWeight.w600, color: Colors.white, letterSpacing: 16 * k * 0.32),
+          child: Text(
+            '听见好音乐',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16 * k,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: op.clamp(0.0, 1.0)),
+              letterSpacing: 16 * k * 0.32,
             ),
           ),
         ),
@@ -436,22 +436,28 @@ class _SplashState extends State<Splash> with TickerProviderStateMixin {
     ),
   );
 
-  static Widget _particle(int i, double d) => switch (i) {
-    0 || 3 => _circle(d, _yellow),
+  static Widget _particle(int i, double d, double op) => switch (i) {
+    0 || 3 => _circle(d, _yellow.withValues(alpha: op)),
     1 => DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: _cream, width: d * 6 / 44),
+        border: Border.all(
+          color: _cream.withValues(alpha: op),
+          width: d * 6 / 44,
+        ),
       ),
     ),
     2 => Transform.rotate(
       angle: math.pi / 4,
       child: DecoratedBox(
-        decoration: BoxDecoration(color: _cream, borderRadius: BorderRadius.circular(d * 0.2)),
+        decoration: BoxDecoration(
+          color: _cream.withValues(alpha: op),
+          borderRadius: BorderRadius.circular(d * 0.2),
+        ),
       ),
     ),
-    4 => _circle(d, _teal),
-    _ => _circle(d, _sky),
+    4 => _circle(d, _teal.withValues(alpha: op)),
+    _ => _circle(d, _sky.withValues(alpha: op)),
   };
 }
 
