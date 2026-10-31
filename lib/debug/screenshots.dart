@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 
 import '../core/settings.dart';
+import '../data/cloud/cloud_drives.dart';
 import '../data/sources/source_manager.dart';
 import '../features/common/actions.dart';
 import '../features/settings/about_pages.dart';
@@ -254,6 +255,21 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   home();
   nav.push(StatsRoute());
   await shot('desktop-stats', settle: 2000);
+
+  // 网盘：空列表、添加页面，以及挂载了网盘的列表（桌面端）。
+  _spec.value = _mobile;
+  home();
+  nav.push(CloudDrivesRoute());
+  await shot('mobile-cloud', settle: 1500);
+  nav.push(CloudEditRoute());
+  await shot('mobile-cloud-edit', settle: 1500);
+  final drives = ctx().read<CloudDrives>();
+  drives.upsert(const CloudDrive(id: 'shot', kind: CloudKind.jianguoyun, name: '坚果云', url: 'https://dav.jianguoyun.com/dav/'));
+  _spec.value = _desktop;
+  home();
+  nav.push(CloudDrivesRoute());
+  await shot('desktop-cloud', settle: 1500);
+  drives.remove('shot');
 
   // 播放样式（黑胶、光盘、沉浸）与深色模式下的透明控件。
   _spec.value = _mobile;
