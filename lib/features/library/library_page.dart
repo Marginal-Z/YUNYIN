@@ -41,6 +41,8 @@ class _LibraryPageState extends State<LibraryPage> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             const Expanded(child: PageTitle('乐库', subtitle: '我的音乐')),
+            CircleButton(YIcons.user, label: '个人中心', onTap: () => go(context, ProfileRoute())),
+            const SizedBox(width: 10),
             CircleButton(YIcons.equalizer, label: '听歌统计', onTap: () => go(context, StatsRoute())),
             const SizedBox(width: 10),
             CircleButton(YIcons.sliders, label: '设置', onTap: () => go(context, SettingsRoute())),

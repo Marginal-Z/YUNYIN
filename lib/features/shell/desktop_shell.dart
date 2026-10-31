@@ -326,13 +326,13 @@ class _Sidebar extends StatelessWidget {
             child: Row(
               children: [
                 Pressable(
-                  onTap: () => open(source.user == null && source.supports(SourceFeature.login) ? LoginRoute() : SettingsMoreRoute()),
+                  onTap: () => open(ProfileRoute()),
                   child: Avatar(source.user?.avatar, size: 34),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Pressable(
-                    onTap: () => open(source.user == null && source.supports(SourceFeature.login) ? LoginRoute() : SettingsMoreRoute()),
+                    onTap: () => open(ProfileRoute()),
                     scale: 1,
                     child: Text(
                       source.user?.nickname ?? '点击登录',

@@ -305,6 +305,50 @@ class NeteaseSource extends MusicSource {
 
   // ── 账号 ──────────────────────────────────────────
 
+  @override
+  Future<Membership?> membership() async {
+    if (_user == null) return null;
+    final j = await _weapi('/music-vip-membership/front/vip/info');
+    final d = j['data'];
+    if (d is! Map) return const Membership(platform: '网易云音乐', title: '未开通会员');
+    final now = DateTime.now();
+    DateTime? until(Object? m) {
+      if (m is! Map) return null;
+      final t = (m['expireTime'] as num?)?.toInt() ?? 0;
+      final at = DateTime.fromMillisecondsSinceEpoch(t);
+      return at.isAfter(now) ? at : null;
+    }
+
+    final svip = until(d['redplus']);
+    final vip = until(d['associator']);
+    final pack = until(d['musicPackage']);
+    final level = (d['redVipLevel'] as num?)?.toInt() ?? 0;
+    if (svip != null) {
+      return Membership(
+        platform: '网易云音乐',
+        title: '黑胶 SVIP',
+        active: true,
+        level: level > 0 ? 'Lv.$level' : null,
+        expires: svip,
+        benefits: const ['Hi-Res 与超清母带音质', '下载会员歌曲', '专属播放器皮肤', '黑胶 VIP 全部权益'],
+      );
+    }
+    if (vip != null) {
+      return Membership(
+        platform: '网易云音乐',
+        title: '黑胶 VIP',
+        active: true,
+        level: level > 0 ? 'Lv.$level' : null,
+        expires: vip,
+        benefits: const ['无损与 Hi-Res 音质', '播放与下载会员歌曲', '会员专属歌单'],
+      );
+    }
+    if (pack != null) {
+      return Membership(platform: '网易云音乐', title: '音乐包', active: true, expires: pack, benefits: const ['播放与下载付费歌曲', '极高音质']);
+    }
+    return Membership(platform: '网易云音乐', title: '未开通会员', level: level > 0 ? '曾为 Lv.$level' : null);
+  }
+
   Future<void> _refreshAccount() async {
     final j = await _weapi('/w/nuser/account/get');
     final p = j['profile'] as Map<String, dynamic>?;

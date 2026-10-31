@@ -230,8 +230,18 @@ class _FlowCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: ts(math.max(13, size * 0.07), weight: w700, color: Colors.white)),
-                Text(song.artistText, maxLines: 1, overflow: TextOverflow.ellipsis, style: ts(math.max(11, size * 0.045), color: const Color(0xCCFFFFFF))),
+                Text(
+                  song.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ts(math.max(13, size * 0.07), weight: w700, color: Colors.white),
+                ),
+                Text(
+                  song.artistText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ts(math.max(11, size * 0.045), color: const Color(0xCCFFFFFF)),
+                ),
               ],
             ),
           ),
@@ -264,7 +274,13 @@ class _Reflected extends StatelessWidget {
           clip: true,
           radius: r,
           shadows: [Shadow2(0, 18, 36, CoverThemed.shadowOf(context).withValues(alpha: 0.28))],
-          child: Stack(fit: StackFit.expand, children: [image, if (dim > 0) ColoredBox(color: Colors.black.withValues(alpha: dim))]),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              image,
+              if (dim > 0) ColoredBox(color: Colors.black.withValues(alpha: dim)),
+            ],
+          ),
         ),
         const SizedBox(height: 4),
         SizedBox(
@@ -283,7 +299,10 @@ class _Reflected extends StatelessWidget {
                 maxHeight: size,
                 child: Transform.flip(
                   flipY: true,
-                  child: ClipRRect(borderRadius: r, child: SizedBox(width: size, height: size, child: image)),
+                  child: ClipRRect(
+                    borderRadius: r,
+                    child: SizedBox(width: size, height: size, child: image),
+                  ),
                 ),
               ),
             ),
@@ -398,9 +417,18 @@ class _QueueWallState extends State<QueueWall> {
                               child: Row(
                                 children: [
                                   Expanded(
-                                    child: Text(song.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: ts(12, weight: w700, color: Colors.white)),
+                                    child: Text(
+                                      song.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: ts(12, weight: w700, color: Colors.white),
+                                    ),
                                   ),
-                                  SizedBox(width: 14, height: 14, child: NowPlayingBars(color: Colors.white, playing: player.playing)),
+                                  SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: NowPlayingBars(color: Colors.white, playing: player.playing),
+                                  ),
                                 ],
                               ),
                             ),
@@ -443,7 +471,13 @@ class MinimalArt extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: const Color(0x33FFFFFF),
-            boxShadow: [BoxShadow(color: glow.withValues(alpha: playing ? 0.45 : 0.25), blurRadius: size * 0.3, spreadRadius: size * 0.02)],
+            boxShadow: [
+              BoxShadow(
+                color: glow.withValues(alpha: playing ? 0.45 : 0.25),
+                blurRadius: size * 0.3,
+                spreadRadius: size * 0.02,
+              ),
+            ],
           ),
           child: Cover(song.coverUrl, size: size, circle: true, imageSize: 600),
         ),

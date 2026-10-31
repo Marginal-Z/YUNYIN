@@ -161,6 +161,12 @@ class StatsRoute extends AppRoute {
   String get sideKey => 'stats';
 }
 
+/// 个人中心。
+class ProfileRoute extends AppRoute {
+  @override
+  String get sideKey => 'profile';
+}
+
 /// 网盘列表。
 class CloudDrivesRoute extends AppRoute {
   @override

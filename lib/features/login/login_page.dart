@@ -125,6 +125,7 @@ class _LoginPageState extends State<LoginPage> {
     final source = context.watch<SourceManager>().current;
     final canQr = source.supports(SourceFeature.qrLogin);
     final canPwd = source.supports(SourceFeature.passwordLogin);
+    final canSms = source.supports(SourceFeature.smsLogin);
 
     Widget field({required Widget child, double top = 0}) => Container(
       height: 52,
@@ -165,7 +166,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: ts(34, weight: w700, em: -0.02, color: p.text),
                 ),
                 const SizedBox(height: 6),
-                Text(source.id == 'netease' ? '听见好音乐 · 使用网易云音乐账号登录' : '听见好音乐', style: ts(15, color: p.text2)),
+                Text('听见好音乐 · 使用${source.name}账号登录', style: ts(15, color: p.text2)),
               ],
             ),
           ),
@@ -179,68 +180,78 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  field(
-                    child: Row(
-                      children: [
-                        Pressable(
-                          onTap: _pickCountry,
-                          pressedOpacity: 0.6,
-                          semanticLabel: '选择区号',
-                          child: Row(
-                            children: [
-                              Text(
-                                '+$_cc',
-                                style: ts(16, weight: w600, color: p.text),
-                              ),
-                              const SizedBox(width: 4),
-                              YIcon(YIcons.chevronDown, size: 16, strokeWidth: 2, color: p.text),
-                            ],
+                  if (canSms) ...[
+                    field(
+                      child: Row(
+                        children: [
+                          Pressable(
+                            onTap: _pickCountry,
+                            pressedOpacity: 0.6,
+                            semanticLabel: '选择区号',
+                            child: Row(
+                              children: [
+                                Text(
+                                  '+$_cc',
+                                  style: ts(16, weight: w600, color: p.text),
+                                ),
+                                const SizedBox(width: 4),
+                                YIcon(YIcons.chevronDown, size: 16, strokeWidth: 2, color: p.text),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Container(width: 1, height: 22, color: const Color.fromRGBO(60, 60, 67, 0.18)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: _phone,
-                            keyboardType: TextInputType.phone,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                            style: ts(16, color: p.text),
-                            cursorColor: p.accentText,
-                            decoration: deco('请输入手机号'),
+                          const SizedBox(width: 10),
+                          Container(width: 1, height: 22, color: const Color.fromRGBO(60, 60, 67, 0.18)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _phone,
+                              keyboardType: TextInputType.phone,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              style: ts(16, color: p.text),
+                              cursorColor: p.accentText,
+                              decoration: deco('请输入手机号'),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  field(
-                    top: 12,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _code,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                            style: ts(16, color: p.text),
-                            cursorColor: p.accentText,
-                            decoration: deco('验证码'),
-                            onSubmitted: (_) => _login(),
+                    field(
+                      top: 12,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _code,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              style: ts(16, color: p.text),
+                              cursorColor: p.accentText,
+                              decoration: deco('验证码'),
+                              onSubmitted: (_) => _login(),
+                            ),
                           ),
-                        ),
-                        Pressable(
-                          onTap: _countdown > 0 ? null : _sendCode,
-                          pressedOpacity: 0.6,
-                          child: Text(
-                            _countdown > 0 ? '${_countdown}s 后重发' : '获取验证码',
-                            style: ts(15, weight: w600, color: _countdown > 0 ? p.text2 : p.accentText),
+                          Pressable(
+                            onTap: _countdown > 0 ? null : _sendCode,
+                            pressedOpacity: 0.6,
+                            child: Text(
+                              _countdown > 0 ? '${_countdown}s 后重发' : '获取验证码',
+                              style: ts(15, weight: w600, color: _countdown > 0 ? p.text2 : p.accentText),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  PrimaryButton(label: _busy ? '登录中…' : '登录 / 注册', height: 52, fontSize: 17, onTap: _login),
+                    const SizedBox(height: 16),
+                    PrimaryButton(label: _busy ? '登录中…' : '登录 / 注册', height: 52, fontSize: 17, onTap: _login),
+                  ] else ...[
+                    // 只支持扫码登录的平台（QQ 音乐）：直接给出扫码入口。
+                    Text(
+                      '使用手机上的 ${source.id == 'qq' ? 'QQ 或 TIM' : '${source.name} App'} 扫码，确认后即可登录${source.name}',
+                      style: ts(14, height: 1.5, color: p.text2),
+                    ),
+                    const SizedBox(height: 16),
+                    PrimaryButton(label: '扫码登录', icon: YIcons.qr, height: 52, fontSize: 17, onTap: _qrLogin),
+                  ],
                   const SizedBox(height: 14),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,7 +614,7 @@ class _QrSheetState extends State<_QrSheet> {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final status = switch (_state) {
-      QrState.waiting => '使用网易云音乐 App 扫码登录',
+      QrState.waiting => '使用${_ticket?.app ?? '手机 App'}扫码登录',
       QrState.scanned => '已扫码，请在手机上确认',
       QrState.confirmed => '登录成功',
       QrState.expired => '二维码已过期',
@@ -629,12 +640,14 @@ class _QrSheetState extends State<_QrSheet> {
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                 : Opacity(
                     opacity: _state == QrState.expired ? 0.2 : 1,
-                    child: QrImageView(
-                      data: _ticket!.content,
-                      padding: EdgeInsets.zero,
-                      eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: Color(0xFF1D1D1F)),
-                      dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: Color(0xFF1D1D1F)),
-                    ),
+                    child: _ticket!.image != null
+                        ? Image.memory(_ticket!.image!, fit: BoxFit.contain, filterQuality: FilterQuality.none, gaplessPlayback: true)
+                        : QrImageView(
+                            data: _ticket!.content,
+                            padding: EdgeInsets.zero,
+                            eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: Color(0xFF1D1D1F)),
+                            dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: Color(0xFF1D1D1F)),
+                          ),
                   ),
           ),
           const SizedBox(height: 14),

@@ -14,7 +14,9 @@ void main() {
     expect(decodeText(utf8.encode(lrc)), lrc);
     final le = <int>[0xFF, 0xFE];
     for (final u in lrc.codeUnits) {
-      le..add(u & 0xFF)..add(u >> 8);
+      le
+        ..add(u & 0xFF)
+        ..add(u >> 8);
     }
     expect(decodeText(le), lrc);
   });

@@ -68,6 +68,9 @@ abstract class MusicSource extends ChangeNotifier {
   Future<void> loginWithPassword(String account, String password, {String countryCode = '86'}) => throw const SourceUnsupported('密码登录');
   Future<void> logout() async {}
 
+  /// 当前账号的会员信息；未登录或平台不提供时返回 null。
+  Future<Membership?> membership() async => null;
+
   // ── 发现 ──────────────────────────────────────────
   Future<HomeFeed> homeFeed() => throw const SourceUnsupported('首页推荐');
   Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) => throw const SourceUnsupported('推荐歌单');

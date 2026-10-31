@@ -115,15 +115,15 @@ class HomePage extends StatelessWidget {
               ),
             ),
             if (user?.avatar != null)
-              Pressable(onTap: () => context.read<AppNav>().switchTab(2), semanticLabel: '个人主页', child: Cover(user!.avatar, size: 44, circle: true))
+              Pressable(onTap: () => go(context, ProfileRoute()), semanticLabel: '个人中心', child: Cover(user!.avatar, size: 44, circle: true))
             else
               CircleButton(
                 YIcons.user,
                 size: 44,
                 iconSize: 22,
                 color: p.text3,
-                label: '个人主页',
-                onTap: () => user == null && source.supports(SourceFeature.login) ? go(context, LoginRoute()) : context.read<AppNav>().switchTab(2),
+                label: '个人中心',
+                onTap: () => go(context, ProfileRoute()),
               ),
           ],
         ),

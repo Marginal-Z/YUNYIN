@@ -9,6 +9,7 @@ import '../library/collections_page.dart';
 import '../library/library_page.dart';
 import '../login/login_page.dart';
 import '../playlist/playlist_page.dart';
+import '../profile/profile_page.dart';
 import '../search/search_page.dart';
 import '../search/search_result_page.dart';
 import '../settings/about_pages.dart';
@@ -32,6 +33,7 @@ Widget buildMobileRoute(AppRoute r) => switch (r) {
   AppearanceRoute() => const AppearancePage(),
   StatsRoute() => const StatsPage(),
   AboutRoute(:final page) => buildAboutPage(page),
+  ProfileRoute() => const ProfilePage(),
   CloudDrivesRoute() => const CloudDrivesPage(),
   CloudEditRoute(:final driveId) => CloudEditPage(driveId: driveId),
   CloudBrowseRoute() => CloudBrowsePage(key: ValueKey(r.uid), route: r),

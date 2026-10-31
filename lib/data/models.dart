@@ -2,6 +2,8 @@
 /// 以便播放队列可以混合来自不同播放源的歌曲。
 library;
 
+import 'dart:typed_data';
+
 class ArtistRef {
   const ArtistRef(this.id, this.name);
 
@@ -441,12 +443,37 @@ class StreamInfo {
 
 /// 二维码登录凭据。
 class QrTicket {
-  const QrTicket(this.key, this.content);
+  const QrTicket(this.key, this.content, {this.image, this.app = '网易云音乐 App'});
 
   final String key;
 
   /// 需要渲染成二维码的内容。
   final String content;
+
+  /// 平台直接给出的二维码图片（PNG）；有时直接显示，不再渲染 [content]。
+  final Uint8List? image;
+
+  /// 用来扫码的 App 名称（显示在二维码下方）。
+  final String app;
+}
+
+/// 平台会员信息（个人中心显示）。
+class Membership {
+  const Membership({required this.platform, required this.title, this.active = false, this.level, this.expires, this.benefits = const []});
+
+  /// 平台名称，例如“网易云音乐”。
+  final String platform;
+
+  /// 会员名称，例如“黑胶 VIP”“豪华绿钻”；未开通时为“未开通会员”。
+  final String title;
+  final bool active;
+
+  /// 会员等级，例如“Lv.7”。
+  final String? level;
+  final DateTime? expires;
+
+  /// 当前会员包含的权益（例如“无损音质”“下载会员歌曲”）。
+  final List<String> benefits;
 }
 
 enum QrState { waiting, scanned, confirmed, expired }

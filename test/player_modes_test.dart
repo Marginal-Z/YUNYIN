@@ -18,7 +18,9 @@ void main() {
     final settings = AppSettings();
     await settings.init();
     settings.setPlayerStyle(style);
-    final songs = [for (var i = 0; i < 8; i++) Song(id: '$i', sourceId: 'local', name: '歌曲 $i', artists: [ArtistRef('a', '歌手 $i')])];
+    final songs = [
+      for (var i = 0; i < 8; i++) Song(id: '$i', sourceId: 'local', name: '歌曲 $i', artists: [ArtistRef('a', '歌手 $i')]),
+    ];
     final player = PlayerController(SourceManager([LocalSource(LocalLibrary())]), settings)..debugSetQueue(songs, 2);
     tester.view.physicalSize = size * 3;
     tester.view.devicePixelRatio = 3;

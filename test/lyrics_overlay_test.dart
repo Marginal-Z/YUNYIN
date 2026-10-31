@@ -13,7 +13,9 @@ void main() {
     await settings.init();
     settings.setFlag('desktopLyrics', true);
     final player = PlayerController(SourceManager(const []), settings)
-      ..debugSetQueue([const Song(id: '1', sourceId: 'x', name: '晴天', artists: [ArtistRef('a', '周杰伦')])], 0);
+      ..debugSetQueue([
+        const Song(id: '1', sourceId: 'x', name: '晴天', artists: [ArtistRef('a', '周杰伦')]),
+      ], 0);
     final overlay = LyricsOverlay.attach(player, settings);
     expect(overlay.line, '晴天');
     expect(overlay.next, '周杰伦');
