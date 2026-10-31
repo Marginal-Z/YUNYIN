@@ -100,6 +100,13 @@ install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/runner/resources/app_icon.png" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 
+# flutter_js（洛雪音源）的 QuickJS 动态库只提供 x86_64 版本，插件把它安装到插件自己的目录；
+# 这里复制到应用的 lib 目录，运行时才能加载。arm64 上没有可用的库，洛雪音源会提示不可用。
+set(QUICKJSC_LIB "${CMAKE_CURRENT_SOURCE_DIR}/flutter/ephemeral/.plugin_symlinks/flutter_js/linux/shared/libquickjs_c_bridge_plugin.so")
+if(EXISTS "${QUICKJSC_LIB}" AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
+  install(FILES "${QUICKJSC_LIB}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
+endif()
+
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 

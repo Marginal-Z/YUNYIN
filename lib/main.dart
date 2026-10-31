@@ -8,6 +8,7 @@ import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'debug/lx_selftest.dart';
 import 'core/app_icon.dart';
 import 'core/data_cache.dart';
 import 'core/lyrics_overlay.dart';
@@ -59,6 +60,10 @@ Future<void> main() async {
     }
   }
 
+  if (lxSelfTestRequested) {
+    await runLxSelfTest();
+    return;
+  }
   await LiquidGlassShader.init();
   // 液态玻璃着色器的第三方许可证，显示在“开源许可”中。
   LicenseRegistry.addLicense(() async* {

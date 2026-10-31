@@ -335,6 +335,9 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   home();
   nav.push(SettingsRoute());
   await shot('mobile-settings', settle: 1500);
+  home();
+  nav.push(LxSourcesRoute());
+  await shot('mobile-lx', settle: 1500);
   settings.setHomeLayout(HomeLayout.photoWall);
   home();
   await shot('mobile-home-wall', settle: 3000);

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -33,6 +34,7 @@ class LxRuntime {
 
   /// 启动脚本并等待它声明支持的平台（最多 [timeout]）。
   static Future<LxRuntime> start(String script, {Duration timeout = const Duration(seconds: 8), Map<String, String> info = const {}}) async {
+    _preloadLinux();
     final js = getJavascriptRuntime(xhr: false);
     final rt = LxRuntime._(js, script);
     rt._bind();
@@ -52,6 +54,17 @@ class LxRuntime {
       throw Exception('音源脚本没有完成初始化（未调用 lx.send(\'inited\')）');
     }
     return rt;
+  }
+
+  /// Linux 上 QuickJS 动态库放在可执行文件旁的 lib 目录：先按绝对路径加载一次，
+  /// flutter_js 之后按文件名加载时就会使用已加载的这份。
+  static bool _preloaded = false;
+  static void _preloadLinux() {
+    if (_preloaded || kIsWeb || !Platform.isLinux || Platform.environment['FLUTTER_TEST'] == 'true') return;
+    final f = File('${File(Platform.resolvedExecutable).parent.path}/lib/libquickjs_c_bridge_plugin.so');
+    if (!f.existsSync()) throw Exception('当前系统架构暂不支持洛雪音源（缺少 QuickJS 运行库）');
+    DynamicLibrary.open(f.path);
+    _preloaded = true;
   }
 
   void _jobs() {
