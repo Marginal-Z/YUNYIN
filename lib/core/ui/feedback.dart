@@ -393,11 +393,14 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
       child = KeyedSubtree(key: const ValueKey('loading'), child: widget.loading ?? const SkeletonList());
     }
     // 骨架屏与内容之间短暂淡入淡出，避免内容突然“蹦”出来。
+    // 内容直接显示在下层，上面的骨架屏淡出：内容里可能有模糊滤镜与液态玻璃，
+    // 给它们套透明度在 Impeller 上无法生效（会以不透明状态突然出现），所以只让骨架屏做淡出。
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 220),
       switchInCurve: Curves.easeOut,
       switchOutCurve: Curves.easeIn,
-      layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, children: [...previous, ?current]),
+      transitionBuilder: (child, animation) => child.key == const ValueKey('data') ? child : FadeTransition(opacity: animation, child: child),
+      layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, children: [?current, ...previous]),
       child: child,
     );
   }
