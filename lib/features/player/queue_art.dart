@@ -145,13 +145,16 @@ class _QueueFlowState extends State<QueueFlow> {
       final Matrix4 m;
       double x = d * step;
       if (_cover) {
-        // 3D 封面流：中心正对，两侧最多翻转约 62° 并紧密叠放。
+        // 3D 封面流：中心正对，两侧翻转约 55° 后退并紧密叠放。透视强度按卡片大小换算，
+        // 大屏上两侧封面不会因为离镜头太近而被放得过大（Flutter 中 z 为正表示远离观察者）。
         final t = d.clamp(-1.0, 1.0);
-        x = t * card * 0.62 + (d - t) * card * 0.26;
+        x = t * card * 0.6 + (d - t) * card * 0.22;
+        final s = 1 - math.min(a, 1) * 0.14;
         m = Matrix4.identity()
-          ..setEntry(3, 2, 0.0012)
-          ..translateByDouble(x, 0, a < 1 ? -a * 60 : -60, 1)
-          ..rotateY(-t * 1.08);
+          ..setEntry(3, 2, 0.5 / card)
+          ..translateByDouble(x, 0, math.min(a, 1) * card * 0.32 + math.max(0, a - 1) * card * 0.04, 1)
+          ..rotateY(-t * 0.96)
+          ..scaleByDouble(s, s, 1, 1);
       } else {
         // 卡片流：两侧卡片缩小、向内倾斜并部分被中心卡片遮住。
         final s = math.max(0.58, 1 - a * 0.16);

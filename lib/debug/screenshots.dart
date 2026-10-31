@@ -309,6 +309,8 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
     for (final (name, spec) in [('mobile', _mobile), ('land', _landscape), ('desktop', _desktop)]) {
       _spec.value = spec;
       home();
+      // 等布局切换（移动 / 桌面）生效后再打开播放页。
+      await wait(600);
       openPlayer(ctx());
       await shot('$name-player-${st.name}', settle: 3000);
       navKey.currentState!.pop();

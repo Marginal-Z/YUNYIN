@@ -158,7 +158,8 @@ class _PlatformTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    source.name,
+                    // 平台按钮较窄，使用简称。
+                    const {'netease': '网易云'}[source.id] ?? source.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: ts(15, weight: w700, color: selected ? Colors.white : p.text),
