@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'package:provider/provider.dart';
 
@@ -725,8 +727,21 @@ class _BarsPainter extends CustomPainter {
 }
 
 /// 进度条：4px 轨道 + 可选 12px 圆点，支持拖动。
+///
+/// [wave] 为 true 且 [playing] 时，已播放部分是一条流动的正弦波；暂停、拖动或系统减少动态效果时
+/// 波幅平滑收回为直线（停止后不再逐帧重绘）。
 class SeekBar extends StatefulWidget {
-  const SeekBar({super.key, required this.value, this.onSeek, this.thumb = true, this.track, this.fill, this.height = 12});
+  const SeekBar({
+    super.key,
+    required this.value,
+    this.onSeek,
+    this.thumb = true,
+    this.track,
+    this.fill,
+    this.height = 12,
+    this.wave = false,
+    this.playing = false,
+  });
 
   final double value;
   final ValueChanged<double>? onSeek;
@@ -734,16 +749,72 @@ class SeekBar extends StatefulWidget {
   final Color? track;
   final Color? fill;
   final double height;
+  final bool wave;
+  final bool playing;
 
   @override
   State<SeekBar> createState() => _SeekBarState();
 }
 
-class _SeekBarState extends State<SeekBar> {
+class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
   double? _drag;
+  late final AnimationController _amp = AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
+  final ValueNotifier<double> _phase = ValueNotifier(0);
+  Ticker? _ticker;
+  Duration _last = Duration.zero;
+
+  bool get _waving => widget.wave && widget.playing && _drag == null && !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncWave();
+  }
+
+  @override
+  void didUpdateWidget(SeekBar old) {
+    super.didUpdateWidget(old);
+    _syncWave();
+  }
+
+  void _syncWave() {
+    if (!widget.wave) return;
+    if (_waving) {
+      _amp.animateTo(1, curve: Curves.easeOut);
+      _ticker ??= createTicker((t) {
+        final dt = (t - _last).inMicroseconds / 1e6;
+        _last = t;
+        _phase.value = (_phase.value + dt * 2 * math.pi * 0.9) % (2 * math.pi);
+        if (_amp.value == 0 && !_amp.isAnimating) {
+          _ticker?.stop();
+        }
+      });
+      if (!_ticker!.isActive) {
+        _last = Duration.zero;
+        _ticker!.start();
+      }
+    } else {
+      _amp.animateTo(0, curve: Curves.easeIn);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.dispose();
+    _amp.dispose();
+    _phase.dispose();
+    super.dispose();
+  }
 
   void _update(Offset local, double width) {
     setState(() => _drag = (local.dx / width).clamp(0.0, 1.0));
+    _syncWave();
+  }
+
+  void _end(double v) {
+    widget.onSeek!(_drag ?? v);
+    setState(() => _drag = null);
+    _syncWave();
   }
 
   @override
@@ -751,6 +822,7 @@ class _SeekBarState extends State<SeekBar> {
     final p = Palette.of(context);
     final v = (_drag ?? widget.value).clamp(0.0, 1.0);
     final fill = widget.fill ?? p.trackFill;
+    final track = widget.track ?? p.track;
     return LayoutBuilder(
       builder: (context, c) {
         final w = c.maxWidth;
@@ -759,43 +831,43 @@ class _SeekBarState extends State<SeekBar> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapDown: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
-            onTapUp: widget.onSeek == null
-                ? null
-                : (_) {
-                    widget.onSeek!(_drag ?? v);
-                    setState(() => _drag = null);
-                  },
+            onTapUp: widget.onSeek == null ? null : (_) => _end(v),
             onHorizontalDragStart: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
             onHorizontalDragUpdate: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
-            onHorizontalDragEnd: widget.onSeek == null
-                ? null
-                : (_) {
-                    widget.onSeek!(_drag ?? v);
-                    setState(() => _drag = null);
-                  },
+            onHorizontalDragEnd: widget.onSeek == null ? null : (_) => _end(v),
             child: SizedBox(
               height: widget.height,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: (widget.height - 4) / 2,
-                    height: 4,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(color: widget.track ?? p.track, borderRadius: BorderRadius.circular(2)),
+                  if (widget.wave)
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _WavePainter(value: v, amp: _amp, phase: _phase, fill: fill, track: track),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: (widget.height - 4) / 2,
+                      height: 4,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(color: track, borderRadius: BorderRadius.circular(2)),
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    width: w * v,
-                    top: (widget.height - 4) / 2,
-                    height: 4,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(2)),
+                    Positioned(
+                      left: 0,
+                      width: w * v,
+                      top: (widget.height - 4) / 2,
+                      height: 4,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(2)),
+                      ),
                     ),
-                  ),
+                  ],
                   if (widget.thumb)
                     Positioned(
                       left: w * v - 6,
@@ -814,6 +886,52 @@ class _SeekBarState extends State<SeekBar> {
       },
     );
   }
+}
+
+/// 波浪进度：已播放部分为正弦波（波长 26px，振幅 3px × [amp]），未播放部分为直线轨道。
+class _WavePainter extends CustomPainter {
+  _WavePainter({required this.value, required this.amp, required this.phase, required this.fill, required this.track})
+    : super(repaint: Listenable.merge([amp, phase]));
+
+  final double value;
+  final Animation<double> amp;
+  final ValueListenable<double> phase;
+  final Color fill;
+  final Color track;
+
+  static const _wavelength = 26.0;
+  static const _amplitude = 3.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final mid = size.height / 2;
+    final x = size.width * value;
+    final stroke = Paint()
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    if (x < size.width - 2) {
+      canvas.drawLine(Offset(math.min(x + 4, size.width - 2), mid), Offset(size.width - 2, mid), stroke..color = track);
+    }
+    if (x <= 2) return;
+    final a = _amplitude * amp.value;
+    stroke.color = fill;
+    if (a < 0.05) {
+      canvas.drawLine(Offset(2, mid), Offset(x, mid), stroke);
+      return;
+    }
+    final path = Path()..moveTo(2, mid);
+    for (var px = 2.0; px <= x; px += 1.5) {
+      // 两端波幅收窄，起点与圆点处都回到中线。
+      final edge = math.min(1.0, math.min(px - 2, x - px) / (_wavelength / 2));
+      path.lineTo(px, mid + a * edge * math.sin(2 * math.pi * px / _wavelength - phase.value));
+    }
+    path.lineTo(x, mid);
+    canvas.drawPath(path, stroke);
+  }
+
+  @override
+  bool shouldRepaint(_WavePainter old) => old.value != value || old.fill != fill || old.track != track;
 }
 
 /// 设置页里的一行：图标块 + 标题 + 右侧值/开关 + 箭头。

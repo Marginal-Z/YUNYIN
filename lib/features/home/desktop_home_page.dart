@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/data_cache.dart';
+import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/feedback.dart';
 import '../../core/ui/text.dart';
@@ -14,6 +15,7 @@ import '../common/layout.dart';
 import '../common/song_row.dart';
 import '../discover/discover_page.dart';
 import '../shell/nav.dart';
+import 'home_layouts.dart';
 import 'home_page.dart';
 
 /// 网易云“私人雷达”歌单。
@@ -27,6 +29,52 @@ class DesktopHomePage extends StatelessWidget {
     final p = Palette.of(context);
     final sources = context.watch<SourceManager>();
     final source = sources.current;
+    final layout = context.select<AppSettings, HomeLayout>((s) => s.homeLayout);
+    Future<HomeFeed> load() async {
+      final feed = await source.homeFeed();
+      DataCache.saveHome(source.id, source.user?.id, feed);
+      return feed;
+    }
+
+    if (layout != HomeLayout.standard) {
+      final wall = layout == HomeLayout.photoWall;
+      final view = AsyncView<HomeFeed>(
+        keyValue: sources.generation,
+        cacheKey: DataCache.homeKey(source.id),
+        load: load,
+        loading: wall ? const SizedBox.expand() : const SkeletonHome(desktop: true),
+        builder: (context, feed, _) => wall
+            ? Stack(
+                children: [
+                  // 照片墙铺满整个窗口，侧边栏与播放条的玻璃折射其后的封面。
+                  Positioned.fill(child: PhotoWall(feed: feed, tile: 156)),
+                  Positioned(
+                    left: DesktopPage.left,
+                    top: 74,
+                    child: PhotoWallHeader(title: greeting(), subtitle: todayText(), feed: feed),
+                  ),
+                ],
+              )
+            : WaterfallFeed(feed: feed, minColumnWidth: 190, gap: 18),
+      );
+      if (wall) return view;
+      return DesktopPage(
+        top: 74,
+        children: [
+          Text(
+            todayText(),
+            style: ts(13, weight: w600, color: p.text2),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            greeting(),
+            style: ts(40, weight: w700, em: -0.02, height: 1.1, color: p.text),
+          ),
+          const SizedBox(height: 18),
+          view,
+        ],
+      );
+    }
     return DesktopPage(
       top: 74,
       children: [

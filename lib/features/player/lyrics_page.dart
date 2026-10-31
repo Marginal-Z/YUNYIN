@@ -235,7 +235,7 @@ class _LyricsPageState extends State<LyricsPage> {
                           final remain = total - pos;
                           return Column(
                             children: [
-                              SeekBar(value: f, onSeek: player.seekFraction),
+                              SeekBar(value: f, onSeek: player.seekFraction, wave: settings.waveProgress, playing: player.playing),
                               const SizedBox(height: 6),
                               Row(
                                 children: [

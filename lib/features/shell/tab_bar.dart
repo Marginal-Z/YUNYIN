@@ -257,7 +257,7 @@ class _Item extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            YIcon(item.icon, size: 22, color: color),
+            YIcon(item.icon, size: 23, strokeWidth: 2.3, color: color),
             const SizedBox(height: 3),
             Text(
               item.label,

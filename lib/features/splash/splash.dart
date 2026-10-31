@@ -12,7 +12,7 @@ import '../../core/ui/text.dart';
 /// “云音”逐字弹入，标语淡入；云里的三根均衡条一直跳动。播完后整体向上淡出（0.3 秒）露出首页。
 ///
 /// - 首次启动播完整版（约 2.4 秒）；之后冷启动只播缩短版（约 1 秒，只有落地与字标）；
-/// - 移动端右上角可“跳过”，底部是跳动圆点；桌面端底部是进度条；
+/// - 移动端底部是跳动圆点，桌面端底部是进度条；
 /// - 系统开启“减少动态效果”时不播放动画，直接显示最终画面后淡出。
 ///
 /// 关键帧沿用设计稿中 5.2 秒循环的百分比，按 [_ms] 换算为毫秒。
@@ -384,38 +384,6 @@ class _SplashState extends State<Splash> with TickerProviderStateMixin {
             '版本 ${widget.version}',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, letterSpacing: 12 * 0.08, color: Color(0xEBFFFFFF)),
-          ),
-        ),
-      );
-    }
-
-    // 跳过（移动端）。
-    if (!desktop) {
-      children.add(
-        Positioned(
-          right: 16,
-          top: pad.top + 22,
-          child: Semantics(
-            button: true,
-            label: '跳过启动动画',
-            excludeSemantics: true,
-            child: GestureDetector(
-              onTap: _leave,
-              child: Container(
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0x47780014),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0x4DFFFFFF)),
-                ),
-                child: const Text(
-                  '跳过',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
-                ),
-              ),
-            ),
           ),
         ),
       );

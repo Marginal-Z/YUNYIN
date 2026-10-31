@@ -39,6 +39,7 @@ class _MobileShellState extends State<MobileShell> {
 
     // 横屏或平板上导航栏与迷你播放条不必铺满整行，限制在 560 宽并居中。
     final barInset = math.max(0.0, (MediaQuery.sizeOf(context).width - 560) / 2);
+    final land = isPhoneLandscape(context);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -72,25 +73,48 @@ class _MobileShellState extends State<MobileShell> {
               ],
             ),
           ),
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutCubic,
-            left: 12 + barInset,
-            right: 12 + barInset,
-            bottom: chrome == Chrome.miniOnly ? bottom + 2 : bottom + 74,
-            child: IgnorePointer(
-              ignoring: !showMini,
-              child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const MiniPlayer()),
+          if (land) ...[
+            // 横屏：导航栏（含搜索）在左，迷你播放条在右，同一行。
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              left: 16,
+              width: 340,
+              bottom: showNav ? bottom : -100,
+              child: const _BottomBar(),
             ),
-          ),
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutCubic,
-            left: 16 + barInset,
-            right: 16 + barInset,
-            bottom: showNav ? bottom : -100,
-            child: const _BottomBar(),
-          ),
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              left: showNav ? 16 + 340 + 12 : 16,
+              right: 16,
+              bottom: bottom + 3,
+              child: IgnorePointer(
+                ignoring: !showMini,
+                child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const MiniPlayer()),
+              ),
+            ),
+          ] else ...[
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              left: 12 + barInset,
+              right: 12 + barInset,
+              bottom: chrome == Chrome.miniOnly ? bottom + 2 : bottom + 74,
+              child: IgnorePointer(
+                ignoring: !showMini,
+                child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const MiniPlayer()),
+              ),
+            ),
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              left: 16 + barInset,
+              right: 16 + barInset,
+              bottom: showNav ? bottom : -100,
+              child: const _BottomBar(),
+            ),
+          ],
         ],
       ),
     );
@@ -127,7 +151,7 @@ class _BottomBar extends StatelessWidget {
             width: 64,
             height: 64,
             alignment: Alignment.center,
-            child: YIcon(YIcons.search, size: 24, color: p.text),
+            child: YIcon(YIcons.search, size: 24, strokeWidth: 2.3, color: p.text),
           ),
         ),
       ],

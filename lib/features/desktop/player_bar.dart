@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/settings.dart';
+
 import '../../core/theme/palette.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/icons.dart';
@@ -112,7 +114,7 @@ class DesktopPlayerBar extends StatelessWidget {
                           Text(formatDuration(pos), style: ts(12, color: p.text4, tabular: true)),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: SeekBar(value: f, thumb: false, onSeek: player.seekFraction),
+                            child: SeekBar(value: f, thumb: false, onSeek: player.seekFraction, wave: context.select<AppSettings, bool>((s) => s.waveProgress), playing: player.playing),
                           ),
                           const SizedBox(width: 10),
                           Text(formatDuration(total), style: ts(12, color: p.text4, tabular: true)),

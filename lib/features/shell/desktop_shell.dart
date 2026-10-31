@@ -339,7 +339,7 @@ class _SideItem extends StatelessWidget {
         decoration: BoxDecoration(color: active ? p.sidebarActive : Colors.transparent, borderRadius: BorderRadius.circular(12)),
         child: Row(
           children: [
-            if (icon != null) YIcon(icon!, size: 18, color: color) else Cover(cover, size: 22, radius: 6),
+            if (icon != null) YIcon(icon!, size: 18, strokeWidth: 2.1, color: color) else Cover(cover, size: 22, radius: 6),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

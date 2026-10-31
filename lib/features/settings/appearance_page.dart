@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +22,8 @@ class AppearancePage extends StatelessWidget {
     final s = context.watch<AppSettings>();
     final desktop = LayoutScope.isDesktop(context);
     const scales = [0.85, 1.0, 1.15];
+    // 屏幕方向只对手机与平板有意义。
+    final showOrientation = !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
     return AdaptivePage(
       chrome: Chrome.navOnly,
       mobileTop: 78,
@@ -137,6 +140,50 @@ class AppearancePage extends StatelessWidget {
             ),
           ),
         ),
+        const GroupLabel('首页样式'),
+        CardList(
+          indent: 14,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Segmented(
+                    labels: [for (final m in HomeLayout.values) m.label],
+                    index: s.homeLayout.index,
+                    onChanged: (i) => s.setHomeLayout(HomeLayout.values[i]),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(s.homeLayout.description, style: ts(13, height: 1.45, color: p.text2)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (showOrientation) ...[
+          const GroupLabel('屏幕方向'),
+          CardList(
+            indent: 14,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Segmented(
+                      labels: [for (final o in ScreenOrientation.values) o.label],
+                      index: s.orientation.index,
+                      onChanged: (i) => s.setOrientation(ScreenOrientation.values[i]),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('横屏时界面切换为横屏布局：首页卡片按更多列排列，播放页封面与歌词左右并排。', style: ts(13, height: 1.45, color: p.text2)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
         const GroupLabel('图标与播放页'),
         CardList(
           indent: 56,
@@ -146,6 +193,12 @@ class AppearancePage extends StatelessWidget {
               tile: TileColor.values[s.accent.index],
               title: '应用图标跟随主题色',
               trailing: YSwitch(value: s.iconFollowsAccent, label: '应用图标跟随主题色', onChanged: (v) => s.setFlag('iconFollowsAccent', v)),
+            ),
+            SettingsRow(
+              icon: YIcons.equalizer,
+              tile: TileColor.blue,
+              title: '进度条波浪动画',
+              trailing: YSwitch(value: s.waveProgress, label: '进度条波浪动画', onChanged: (v) => s.setFlag('waveProgress', v)),
             ),
             SettingsRow(
               icon: YIcons.target,

@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/data_cache.dart';
+import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
+import '../../core/ui/app_background.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/feedback.dart';
@@ -20,6 +22,7 @@ import '../common/actions.dart';
 import '../common/layout.dart';
 import '../common/song_row.dart';
 import '../shell/nav.dart';
+import 'home_layouts.dart';
 
 String todayText([DateTime? now]) {
   final d = now ?? DateTime.now();
@@ -56,8 +59,42 @@ class HomePage extends StatelessWidget {
     final sources = context.watch<SourceManager>();
     final source = sources.current;
     final user = source.user;
+    final layout = context.select<AppSettings, HomeLayout>((s) => s.homeLayout);
+    Future<HomeFeed> load() async {
+      final feed = await source.homeFeed();
+      DataCache.saveHome(source.id, source.user?.id, feed);
+      return feed;
+    }
+
+    if (layout == HomeLayout.photoWall) {
+      final safeTop = MediaQuery.paddingOf(context).top;
+      return Stack(
+        children: [
+          const Positioned.fill(child: AppBackground()),
+          Positioned.fill(
+            child: AsyncView<HomeFeed>(
+              keyValue: sources.generation,
+              cacheKey: DataCache.homeKey(source.id),
+              load: load,
+              loading: const SizedBox.expand(),
+              builder: (context, feed, _) => Stack(
+                children: [
+                  Positioned.fill(child: PhotoWall(feed: feed)),
+                  Positioned(
+                    left: 16,
+                    top: safeTop + 14,
+                    child: PhotoWallHeader(title: greeting(), subtitle: todayText(), feed: feed),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     return MobilePage(
       top: 22,
+      wide: layout == HomeLayout.waterfall,
       children: [
         // 日期与问候语和头像同一行，头像与文字块垂直居中。
         Row(
@@ -94,13 +131,14 @@ class HomePage extends StatelessWidget {
         AsyncView<HomeFeed>(
           keyValue: sources.generation,
           cacheKey: DataCache.homeKey(source.id),
-          load: () async {
-            final feed = await source.homeFeed();
-            DataCache.saveHome(source.id, source.user?.id, feed);
-            return feed;
-          },
+          load: load,
           loading: const SkeletonHome(),
-          builder: (context, feed, _) => _HomeBody(feed: feed),
+          builder: (context, feed, _) => layout == HomeLayout.waterfall
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 20),
+                  child: WaterfallFeed(feed: feed),
+                )
+              : _HomeBody(feed: feed),
         ),
       ],
     );

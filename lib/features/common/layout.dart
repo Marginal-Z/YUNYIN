@@ -28,11 +28,17 @@ double chromeBottom(BuildContext context) {
   return 22 + math.max(0, inset - 10);
 }
 
+/// 手机横屏：导航栏与迷你播放条并排在同一行，内容居中限宽。
+bool isPhoneLandscape(BuildContext context) {
+  final size = MediaQuery.sizeOf(context);
+  return size.width > size.height * 1.2 && size.height < 600;
+}
+
 /// 内容需要为悬浮控件留出的底部空间。
 double chromeClearance(BuildContext context, Chrome chrome) {
   final b = chromeBottom(context);
   return switch (chrome) {
-    Chrome.full => b + 64 + 10 + 58 + 24,
+    Chrome.full => isPhoneLandscape(context) ? b + 64 + 24 : b + 64 + 10 + 58 + 24,
     Chrome.navOnly => b + 64 + 24,
     Chrome.miniOnly => b + 58 + 24,
     Chrome.none => b + 12,
@@ -51,6 +57,7 @@ class MobilePage extends StatelessWidget {
     this.overlay = const [],
     this.player = false,
     this.controller,
+    this.wide = false,
   });
 
   final List<Widget> children;
@@ -68,9 +75,14 @@ class MobilePage extends StatelessWidget {
   final bool player;
   final ScrollController? controller;
 
+  /// 横屏时内容铺满整个宽度（瀑布流、照片墙）；否则内容居中、最宽 760。
+  final bool wide;
+
   @override
   Widget build(BuildContext context) {
     final safeTop = MediaQuery.paddingOf(context).top;
+    final width = MediaQuery.sizeOf(context).width;
+    final horizontal = wide ? this.horizontal : math.max(this.horizontal, (width - 760) / 2);
     final bg = player ? GlowBackground.player(context) : const AppBackground();
     return Stack(
       children: [

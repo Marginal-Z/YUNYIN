@@ -49,6 +49,32 @@ enum BackgroundMode {
   final String label;
 }
 
+/// 屏幕方向（手机与平板）。
+enum ScreenOrientation {
+  portrait('竖屏'),
+  auto('自动旋转'),
+  landscape('横屏');
+
+  const ScreenOrientation(this.label);
+  final String label;
+}
+
+/// 首页样式。
+enum HomeLayout {
+  /// 推荐、歌单、最近播放分区。
+  standard('标准', '推荐、歌单与最近播放分区'),
+
+  /// 歌单与歌曲卡片按列交错排列（横屏时列数更多）。
+  waterfall('瀑布流', '卡片按列交错排列，横屏时自动增加列数'),
+
+  /// 封面铺满的无限照片墙，可以向任意方向拖动。
+  photoWall('照片墙', '封面铺满屏幕，向任意方向无限拖动');
+
+  const HomeLayout(this.label, this.description);
+  final String label;
+  final String description;
+}
+
 /// 用户设置，持久化在 SharedPreferences。
 class AppSettings extends ChangeNotifier {
   late SharedPreferences _p;
@@ -86,6 +112,15 @@ class AppSettings extends ChangeNotifier {
 
   /// 播放页样式。
   PlayerStyle playerStyle = PlayerStyle.cover;
+
+  /// 首页样式。
+  HomeLayout homeLayout = HomeLayout.standard;
+
+  /// 屏幕方向。
+  ScreenOrientation orientation = ScreenOrientation.auto;
+
+  /// 播放进度条的波浪动画。
+  bool waveProgress = true;
 
   /// 自定义背景图片（应用数据目录中的副本）。
   String? backgroundImage;
@@ -130,6 +165,9 @@ class AppSettings extends ChangeNotifier {
     autoUpdate = _p.getBool('autoUpdate') ?? true;
     glassMaterial = GlassMaterial.values[(_p.getInt('glassMaterial') ?? 0).clamp(0, GlassMaterial.values.length - 1)];
     playerStyle = PlayerStyle.values[(_p.getInt('playerStyle') ?? 0).clamp(0, PlayerStyle.values.length - 1)];
+    homeLayout = HomeLayout.values[(_p.getInt('homeLayout') ?? 0).clamp(0, HomeLayout.values.length - 1)];
+    orientation = ScreenOrientation.values[(_p.getInt('orientation') ?? ScreenOrientation.auto.index).clamp(0, ScreenOrientation.values.length - 1)];
+    waveProgress = _p.getBool('waveProgress') ?? true;
     background = BackgroundMode.values[(_p.getInt('background') ?? 0).clamp(0, BackgroundMode.values.length - 1)];
     backgroundImage = _p.getString('backgroundImage');
     backgroundBlur = _p.getBool('backgroundBlur') ?? false;
@@ -195,6 +233,8 @@ class AppSettings extends ChangeNotifier {
         autoUpdate = v;
       case 'backgroundBlur':
         backgroundBlur = v;
+      case 'waveProgress':
+        waveProgress = v;
     }
     _p.setBool(key, v);
     notifyListeners();
@@ -203,6 +243,18 @@ class AppSettings extends ChangeNotifier {
   void setPlayerStyle(PlayerStyle v) {
     playerStyle = v;
     _p.setInt('playerStyle', v.index);
+    notifyListeners();
+  }
+
+  void setHomeLayout(HomeLayout v) {
+    homeLayout = v;
+    _p.setInt('homeLayout', v.index);
+    notifyListeners();
+  }
+
+  void setOrientation(ScreenOrientation v) {
+    orientation = v;
+    _p.setInt('orientation', v.index);
     notifyListeners();
   }
 
