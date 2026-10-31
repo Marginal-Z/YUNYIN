@@ -165,7 +165,8 @@ class PlayerPage extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 20),
-              header,
+              // 标题栏压在封面上：无论深浅色模式都用浅色文字与图标。
+              PaletteScope(palette: context.read<AppSettings>().palette(true), child: header),
               const Spacer(),
               const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
               const SizedBox(height: 18),

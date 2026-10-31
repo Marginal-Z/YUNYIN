@@ -183,7 +183,7 @@ class _SplashGate extends StatefulWidget {
 }
 
 class _SplashGateState extends State<_SplashGate> {
-  bool _done = benchmarkRequested;
+  bool _done = benchmarkRequested || screenshotsRequested;
   late final bool _full = !context.read<AppSettings>().splashSeen;
 
   void _finish() {

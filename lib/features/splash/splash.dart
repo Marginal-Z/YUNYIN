@@ -176,17 +176,11 @@ class _SplashState extends State<Splash> with TickerProviderStateMixin {
         top: logoTop + 196 * k,
         width: 130 * k,
         height: 18 * k,
-        child: Opacity(
-          opacity: shadowOp,
-          child: Transform.scale(
-            scale: shadowS,
-            child: ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 6 * k, sigmaY: 6 * k),
-              child: const DecoratedBox(
-                decoration: ShapeDecoration(color: Color(0x8C5A000F), shape: OvalBorder()),
-              ),
-            ),
-          ),
+        // 透明度直接乘到颜色上、模糊用画笔的遮罩模糊：外面不能再套 Opacity，否则 Impeller 无法把透明度
+        // 应用到滤镜内容上（会在日志中报错，阴影以不透明的状态出现）。
+        child: Transform.scale(
+          scale: shadowS,
+          child: CustomPaint(painter: _GroundShadowPainter(shadowOp, 6 * k)),
         ),
       ),
     );
@@ -259,13 +253,10 @@ class _SplashState extends State<Splash> with TickerProviderStateMixin {
         top: logoTop,
         width: logoW,
         height: logoH,
-        child: Opacity(
-          opacity: logoOp,
-          child: Transform(
-            alignment: Alignment.bottomCenter,
-            transform: Matrix4.translationValues(0, y * k, 0)..scaleByDouble(sx, sy, 1, 1),
-            child: CustomPaint(painter: _CloudPainter(t / 1000)),
-          ),
+        child: Transform(
+          alignment: Alignment.bottomCenter,
+          transform: Matrix4.translationValues(0, y * k, 0)..scaleByDouble(sx, sy, 1, 1),
+          child: CustomPaint(painter: _CloudPainter(t / 1000, logoOp)),
         ),
       ),
     );
@@ -506,10 +497,35 @@ class _BackgroundPainter extends CustomPainter {
 }
 
 /// 白色云朵 Logo：1 个圆角矩形 + 2 个圆，镂空 3 根跳动的均衡条（72 × 62 画布）。
+/// 落地阴影：椭圆 + 遮罩模糊，透明度乘到颜色上。
+class _GroundShadowPainter extends CustomPainter {
+  _GroundShadowPainter(this.opacity, this.sigma);
+
+  final double opacity;
+  final double sigma;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (opacity <= 0) return;
+    canvas.drawOval(
+      Offset.zero & size,
+      Paint()
+        ..color = const Color(0xFF5A000F).withValues(alpha: 0.55 * opacity.clamp(0.0, 1.0))
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, sigma),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GroundShadowPainter old) => old.opacity != opacity || old.sigma != sigma;
+}
+
 class _CloudPainter extends CustomPainter {
-  _CloudPainter(this.seconds);
+  _CloudPainter(this.seconds, [this.opacity = 1]);
 
   final double seconds;
+
+  /// 整体透明度（淡入），作为图层透明度在绘制时应用。
+  final double opacity;
 
   static const _bars = [(38.0, 49.0, 14.0, 0.0), (47.0, 44.0, 24.0, 0.15), (56.0, 47.0, 18.0, 0.3)];
 
@@ -525,10 +541,10 @@ class _CloudPainter extends CustomPainter {
     canvas.drawPath(
       cloud.shift(const Offset(0, 14)),
       Paint()
-        ..color = const Color.fromRGBO(110, 0, 20, 0.35)
+        ..color = Color.fromRGBO(110, 0, 20, 0.35 * opacity)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 11),
     );
-    canvas.saveLayer(Offset.zero & size, Paint());
+    canvas.saveLayer(Offset.zero & size, Paint()..color = Color.fromRGBO(0, 0, 0, opacity));
     canvas.drawPath(cloud, Paint()..color = Colors.white);
     final clear = Paint()..blendMode = BlendMode.clear;
     for (final (x, y, h, delay) in _bars) {
@@ -545,5 +561,5 @@ class _CloudPainter extends CustomPainter {
   static const _bounce = Cubic(0.3, 1.4, 0.5, 1);
 
   @override
-  bool shouldRepaint(_CloudPainter old) => old.seconds != seconds;
+  bool shouldRepaint(_CloudPainter old) => old.seconds != seconds || old.opacity != opacity;
 }

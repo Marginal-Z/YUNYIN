@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 import '../settings.dart';
 import 'adaptive_scale.dart';
@@ -37,7 +37,8 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      RenderLiquidGlass(radius, material, MediaQuery.devicePixelRatioOf(context), BackdropGroup.of(context)?.backdropKey, AdaptiveScale.of(context));
+      RenderLiquidGlass(radius, material, MediaQuery.devicePixelRatioOf(context), BackdropGroup.of(context)?.backdropKey, AdaptiveScale.of(context))
+        ..dark = Theme.of(context).brightness == Brightness.dark;
 
   @override
   void updateRenderObject(BuildContext context, RenderLiquidGlass renderObject) {
@@ -46,7 +47,8 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
       ..material = material
       ..dpr = MediaQuery.devicePixelRatioOf(context)
       ..backdropKey = BackdropGroup.of(context)?.backdropKey
-      ..uiScale = AdaptiveScale.of(context);
+      ..uiScale = AdaptiveScale.of(context)
+      ..dark = Theme.of(context).brightness == Brightness.dark;
   }
 }
 
@@ -85,6 +87,14 @@ class RenderLiquidGlass extends RenderProxyBox {
   set dpr(double v) {
     if (v == _dpr) return;
     _dpr = v;
+    markNeedsPaint();
+  }
+
+  bool _dark = false;
+
+  set dark(bool v) {
+    if (v == _dark) return;
+    _dark = v;
     markNeedsPaint();
   }
 
@@ -129,7 +139,8 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(20); // 边缘厚度
     f(1); // 折射强度 100%
     f(7); // 色散
-    f(0.9); // 边缘高光 90%
+    // 边缘高光 90%；深色背景上同样强度的高光会形成一圈亮边、看起来像两层叠在一起，减到 55%。
+    f(_dark ? 0.55 : 0.9);
     f(regular ? 0.11 : 0); // 色调
     // 圆角一律用正圆弧，与关闭液态玻璃时的圆角矩形完全一致（原版面板的超椭圆圆角看起来偏方）。
     f(2);
