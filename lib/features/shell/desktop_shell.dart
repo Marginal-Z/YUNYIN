@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../core/lyrics_overlay.dart';
+import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
@@ -37,6 +39,7 @@ class _DesktopShellState extends State<DesktopShell> {
   final _searchFocus = FocusNode();
   final _navKey = GlobalKey<NavigatorState>();
   bool _mini = false;
+  bool _lyrics = false;
   Size? _restoreSize;
 
   @override
@@ -65,6 +68,29 @@ class _DesktopShellState extends State<DesktopShell> {
     }
   }
 
+  /// 桌面歌词：窗口变为置顶、透明背景的歌词条（设置中的“桌面歌词”开关或 Ctrl+L）。
+  Future<void> _setLyrics(bool on) async {
+    if (on == _lyrics) return;
+    if (_mini && on) await _toggleMini();
+    if (!isDesktopPlatform) {
+      setState(() => _lyrics = on);
+      return;
+    }
+    if (on) {
+      _restoreSize = await windowManager.getSize();
+      setState(() => _lyrics = true);
+      await windowManager.setMinimumSize(const Size(420, 96));
+      await windowManager.setSize(const Size(820, 124));
+      await windowManager.setBackgroundColor(Colors.transparent);
+      await windowManager.setAlwaysOnTop(true);
+    } else {
+      setState(() => _lyrics = false);
+      await windowManager.setAlwaysOnTop(false);
+      await windowManager.setMinimumSize(const Size(960, 640));
+      await windowManager.setSize(_restoreSize ?? const Size(1280, 820));
+    }
+  }
+
   /// 播放相关快捷键在应用层处理（见 PlaybackShortcuts），这里只处理搜索与迷你模式。
   KeyEventResult _onKey(FocusNode node, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
@@ -79,16 +105,27 @@ class _DesktopShellState extends State<DesktopShell> {
       _toggleMini();
       return KeyEventResult.handled;
     }
+    if (e.logicalKey == LogicalKeyboardKey.keyL) {
+      final s = context.read<AppSettings>();
+      s.setFlag('desktopLyrics', !s.desktopLyrics);
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
   @override
   Widget build(BuildContext context) {
     final nav = context.watch<AppNav>();
+    final lyrics = context.select<AppSettings, bool>((s) => s.desktopLyrics);
+    if (lyrics != _lyrics) WidgetsBinding.instance.addPostFrameCallback((_) => _setLyrics(lyrics));
     return Focus(
       autofocus: true,
       onKeyEvent: _onKey,
-      child: _mini ? _MiniWindow(onRestore: _toggleMini) : _full(context, nav),
+      child: _lyrics
+          ? _LyricsWindow(onClose: () => context.read<AppSettings>().setFlag('desktopLyrics', false))
+          : _mini
+          ? _MiniWindow(onRestore: _toggleMini)
+          : _full(context, nav),
     );
   }
 
@@ -459,6 +496,94 @@ class _MiniWindow extends StatelessWidget {
                 YIconButton(YIcons.miniMode, size: 32, iconSize: 20, color: p.text3, label: '退出迷你模式', onTap: onRestore),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 桌面歌词窗口：透明背景上的当前句（主题色）与下一句；鼠标移入时显示底板与播放控制，可拖动窗口。
+class _LyricsWindow extends StatefulWidget {
+  const _LyricsWindow({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  State<_LyricsWindow> createState() => _LyricsWindowState();
+}
+
+class _LyricsWindowState extends State<_LyricsWindow> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final lyrics = context.watch<LyricsOverlay>();
+    final player = context.watch<PlayerController>();
+    const shadow = [Shadow(color: Color(0xCC000000), blurRadius: 6, offset: Offset(0, 1))];
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: WindowDragArea(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.all(6),
+          padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            // 不支持透明窗口的系统上也能看清：始终保留一层很淡的底板。
+            color: Color.fromRGBO(0, 0, 0, _hover ? 0.55 : 0.18),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 260),
+                      child: Text(
+                        lyrics.line,
+                        key: ValueKey(lyrics.line),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: ts(30, weight: w700, color: p.accent.base).copyWith(shadows: shadow),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      lyrics.next,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: ts(17, weight: w500, color: const Color(0xE6FFFFFF)).copyWith(shadows: shadow),
+                    ),
+                  ],
+                ),
+              ),
+              AnimatedOpacity(
+                opacity: _hover ? 1 : 0,
+                duration: const Duration(milliseconds: 200),
+                child: IgnorePointer(
+                  ignoring: !_hover,
+                  child: Row(
+                    children: [
+                      YIconButton(YIcons.prev, size: 34, iconSize: 20, color: Colors.white, label: '上一首', onTap: player.previous),
+                      YIconButton(
+                        player.playing ? YIcons.pause : YIcons.play,
+                        size: 34,
+                        iconSize: 20,
+                        color: Colors.white,
+                        label: player.playing ? '暂停' : '播放',
+                        onTap: player.toggle,
+                      ),
+                      YIconButton(YIcons.next, size: 34, iconSize: 20, color: Colors.white, label: '下一首', onTap: player.next),
+                      YIconButton(YIcons.close, size: 34, iconSize: 18, color: Colors.white, label: '关闭桌面歌词', onTap: widget.onClose),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

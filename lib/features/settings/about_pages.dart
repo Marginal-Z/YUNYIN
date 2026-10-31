@@ -217,6 +217,7 @@ class _PermissionsPageState extends State<PermissionsPage> with WidgetsBindingOb
             ('notifications', YIcons.bell, TileColor.red, '通知', '在通知栏与锁屏显示播放控制。关闭后仍可后台播放，但看不到媒体通知。'),
             ('audio', YIcons.library, TileColor.teal, '音乐与音频', '“扫描本机歌曲”读取设备中的音乐文件。不扫描时不需要。'),
             ('install', YIcons.download, TileColor.orange, '安装未知应用', '应用内更新时安装新版本。只在你确认更新后使用。'),
+            ('overlay', YIcons.lyrics, TileColor.red, '显示在其他应用上层', '桌面歌词与状态栏歌词的悬浮窗。只在你开启这两项功能时需要。'),
             ('background', YIcons.play, TileColor.graphite, '后台播放', '前台服务与唤醒锁，保证锁屏与切到后台时继续播放。安装时自动授予。'),
           ]
         : const [

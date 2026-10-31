@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/lyrics_overlay.dart';
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
@@ -145,6 +146,37 @@ class PlaybackGroup extends StatelessWidget {
           title: '音量均衡',
           trailing: YSwitch(value: s.normalize, label: '音量均衡', onChanged: (v) => s.setFlag('normalize', v)),
         ),
+        SettingsRow(
+          icon: YIcons.volume,
+          tile: TileColor.orange,
+          title: '音量增强',
+          value: s.volumeBoost == 0 ? '关闭' : '+${s.volumeBoost} dB',
+          onTap: () async {
+            final v = await showOptions<int>(
+              context,
+              title: '音量增强',
+              selected: s.volumeBoost,
+              options: const [(0, '关闭'), (3, '+3 dB（约 1.4 倍）'), (6, '+6 dB（约 2 倍，响亮的歌曲可能失真）')],
+            );
+            if (v != null) s.setVolumeBoost(v);
+          },
+        ),
+        if (!kIsWeb && Platform.isAndroid)
+          SettingsRow(
+            icon: YIcons.equalizer,
+            tile: TileColor.teal,
+            title: '高解析输出',
+            value: s.hiResOutput ? '32 位浮点' : null,
+            trailing: YSwitch(value: s.hiResOutput, label: '高解析输出', onChanged: (v) => s.setFlag('hiResOutput', v)),
+          ),
+        if (!kIsWeb && (Platform.isWindows || Platform.isMacOS))
+          SettingsRow(
+            icon: YIcons.equalizer,
+            tile: TileColor.teal,
+            title: '独占音频输出',
+            value: s.exclusiveAudio ? '原始采样率' : null,
+            trailing: YSwitch(value: s.exclusiveAudio, label: '独占音频输出', onChanged: (v) => s.setFlag('exclusiveAudio', v)),
+          ),
         // 个别 Android 设备（部分平板）上默认的 AudioTrack 输出没有声音，可改用 OpenSL ES。
         if (!kIsWeb && Platform.isAndroid)
           SettingsRow(
@@ -154,6 +186,29 @@ class PlaybackGroup extends StatelessWidget {
             value: s.openSles ? 'OpenSL ES' : null,
             trailing: YSwitch(value: s.openSles, label: '兼容音频输出', onChanged: (v) => s.setFlag('openSles', v)),
           ),
+        SettingsRow(
+          icon: YIcons.lyrics,
+          tile: TileColor.red,
+          title: '桌面歌词',
+          value: desktop ? 'Ctrl+L' : null,
+          trailing: YSwitch(value: s.desktopLyrics, label: '桌面歌词', onChanged: (v) => _overlayFlag(context, 'desktopLyrics', v)),
+        ),
+        if (!kIsWeb && Platform.isAndroid) ...[
+          if (s.desktopLyrics)
+            SettingsRow(
+              icon: YIcons.lock,
+              tile: TileColor.graphite,
+              title: '锁定桌面歌词',
+              value: s.lyricsLocked ? '点按穿透' : '可拖动位置',
+              trailing: YSwitch(value: s.lyricsLocked, label: '锁定桌面歌词', onChanged: (v) => s.setFlag('lyricsLocked', v)),
+            ),
+          SettingsRow(
+            icon: YIcons.lyrics,
+            tile: TileColor.orange,
+            title: '状态栏歌词',
+            trailing: YSwitch(value: s.statusBarLyrics, label: '状态栏歌词', onChanged: (v) => _overlayFlag(context, 'statusBarLyrics', v)),
+          ),
+        ],
         SettingsRow(
           icon: desktop ? YIcons.clock : YIcons.timer,
           tile: TileColor.orange,
@@ -464,6 +519,7 @@ class _ShortcutsGroup extends StatelessWidget {
         row('音量增减', ['Ctrl', '↑ / ↓']),
         row('搜索', ['Ctrl', 'F']),
         row('迷你模式', ['Ctrl', 'M']),
+        row('桌面歌词', ['Ctrl', 'L']),
       ],
     );
   }
@@ -508,4 +564,22 @@ class _DesktopSettings extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 开启桌面歌词 / 状态栏歌词：Android 需要“显示在其他应用上层”权限，没有时先打开系统设置。
+Future<void> _overlayFlag(BuildContext context, String key, bool v) async {
+  final s = context.read<AppSettings>();
+  if (v && !await LyricsOverlay.canDraw()) {
+    if (!context.mounted) return;
+    final ok = await showConfirm(
+      context,
+      title: '需要悬浮窗权限',
+      message: '桌面歌词与状态栏歌词需要“显示在其他应用上层”权限。在系统设置中允许后，回到云音再打开开关。',
+      confirm: '去设置',
+      destructive: false,
+    );
+    if (ok) await LyricsOverlay.requestPermission();
+    return;
+  }
+  s.setFlag(key, v);
 }

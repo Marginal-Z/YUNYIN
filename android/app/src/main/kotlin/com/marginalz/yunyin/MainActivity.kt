@@ -32,6 +32,17 @@ class MainActivity : AudioServiceActivity() {
      * 在应用退到后台时切换桌面图标。许多桌面（ZUI、MIUI、ColorOS 等）在应用位于前台时不会刷新
      * activity-alias 的启用状态，桌面上会一直显示旧图标；退到后台后切换，桌面回到前台时即可重新加载。
      */
+    // 云音在前台时隐藏桌面歌词与状态栏歌词。
+    override fun onResume() {
+        super.onResume()
+        LyricsOverlay.setAppVisible(this, true)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        LyricsOverlay.setAppVisible(this, false)
+    }
+
     override fun onStop() {
         super.onStop()
         pendingIcon?.let {
@@ -72,6 +83,32 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/lyrics_overlay").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "canDraw" -> result.success(LyricsOverlay.canDraw(this))
+                "requestPermission" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                    }
+                    result.success(null)
+                }
+                "configure" -> {
+                    LyricsOverlay.configure(
+                        this,
+                        call.argument<Boolean>("desktop") ?: false,
+                        call.argument<Boolean>("status") ?: false,
+                        call.argument<Boolean>("locked") ?: false,
+                        call.argument<Number>("accent")?.toInt(),
+                    )
+                    result.success(null)
+                }
+                "update" -> {
+                    LyricsOverlay.update(this, call.argument<String>("line") ?: "", call.argument<String>("next") ?: "")
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/system").setMethodCallHandler { call, result ->
             when (call.method) {
                 "permissionStatus" -> result.success(
@@ -81,6 +118,7 @@ class MainActivity : AudioServiceActivity() {
                         "notifications" to NotificationManagerCompat.from(this).areNotificationsEnabled(),
                         "audio" to (ContextCompat.checkSelfPermission(this, audioPermission) == PackageManager.PERMISSION_GRANTED),
                         "install" to (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()),
+                        "overlay" to LyricsOverlay.canDraw(this),
                     ),
                 )
                 "openAppSettings" -> {

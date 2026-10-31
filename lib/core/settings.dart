@@ -93,7 +93,7 @@ class AppSettings extends ChangeNotifier {
 
   ThemeMode themeMode = ThemeMode.light;
   AccentColor accent = AccentColor.red;
-  AudioQuality quality = AudioQuality.lossless;
+  AudioQuality quality = AudioQuality.hires;
   AudioQuality downloadQuality = AudioQuality.higher;
   bool crossfade = true;
   bool normalize = true;
@@ -134,6 +134,24 @@ class AppSettings extends ChangeNotifier {
   /// 播放进度条的波浪动画。
   bool waveProgress = true;
 
+  /// 音量增强（dB）：0 / 3 / 6。
+  int volumeBoost = 0;
+
+  /// Android：以 32 位浮点 PCM 输出，保留完整动态范围（个别平板的音频驱动不支持，默认关闭）。
+  bool hiResOutput = false;
+
+  /// Windows / macOS：独占音频设备，绕过系统混音，按音源原始采样率输出。
+  bool exclusiveAudio = false;
+
+  /// 桌面歌词（Android 为悬浮窗，桌面端为置顶的歌词条窗口）。
+  bool desktopLyrics = false;
+
+  /// 状态栏歌词（Android）。
+  bool statusBarLyrics = false;
+
+  /// 桌面歌词锁定：不接收触摸，点按穿透到下方应用。
+  bool lyricsLocked = false;
+
   /// 自定义背景图片（应用数据目录中的副本）。
   String? backgroundImage;
 
@@ -160,7 +178,7 @@ class AppSettings extends ChangeNotifier {
     _p = await SharedPreferences.getInstance();
     themeMode = ThemeMode.values[_p.getInt('themeMode') ?? ThemeMode.light.index];
     accent = AccentColor.values[_p.getInt('accent') ?? 0];
-    quality = AudioQuality.values[_p.getInt('quality') ?? AudioQuality.lossless.index];
+    quality = AudioQuality.values[_p.getInt('quality') ?? AudioQuality.hires.index];
     downloadQuality = AudioQuality.values[_p.getInt('downloadQuality') ?? AudioQuality.higher.index];
     crossfade = _p.getBool('crossfade') ?? true;
     normalize = _p.getBool('normalize') ?? true;
@@ -180,6 +198,12 @@ class AppSettings extends ChangeNotifier {
     homeLayout = HomeLayout.values[(_p.getInt('homeLayout') ?? 0).clamp(0, HomeLayout.values.length - 1)];
     orientation = ScreenOrientation.values[(_p.getInt('orientation') ?? ScreenOrientation.auto.index).clamp(0, ScreenOrientation.values.length - 1)];
     waveProgress = _p.getBool('waveProgress') ?? true;
+    volumeBoost = _p.getInt('volumeBoost') ?? 0;
+    hiResOutput = _p.getBool('hiResOutput') ?? false;
+    exclusiveAudio = _p.getBool('exclusiveAudio') ?? false;
+    desktopLyrics = _p.getBool('desktopLyrics') ?? false;
+    statusBarLyrics = _p.getBool('statusBarLyrics') ?? false;
+    lyricsLocked = _p.getBool('lyricsLocked') ?? false;
     background = BackgroundMode.values[(_p.getInt('background') ?? 0).clamp(0, BackgroundMode.values.length - 1)];
     backgroundImage = _p.getString('backgroundImage');
     backgroundBlur = _p.getBool('backgroundBlur') ?? false;
@@ -247,6 +271,16 @@ class AppSettings extends ChangeNotifier {
         backgroundBlur = v;
       case 'waveProgress':
         waveProgress = v;
+      case 'hiResOutput':
+        hiResOutput = v;
+      case 'exclusiveAudio':
+        exclusiveAudio = v;
+      case 'desktopLyrics':
+        desktopLyrics = v;
+      case 'statusBarLyrics':
+        statusBarLyrics = v;
+      case 'lyricsLocked':
+        lyricsLocked = v;
     }
     _p.setBool(key, v);
     notifyListeners();
@@ -255,6 +289,12 @@ class AppSettings extends ChangeNotifier {
   void setPlayerStyle(PlayerStyle v) {
     playerStyle = v;
     _p.setInt('playerStyle', v.index);
+    notifyListeners();
+  }
+
+  void setVolumeBoost(int db) {
+    volumeBoost = db;
+    _p.setInt('volumeBoost', db);
     notifyListeners();
   }
 

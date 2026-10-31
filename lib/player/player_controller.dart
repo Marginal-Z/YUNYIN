@@ -141,6 +141,7 @@ class PlayerController extends ChangeNotifier {
       }),
     ]);
     if (!kIsWeb && Platform.isAndroid) await _configureAndroidAudio(p);
+    await _configureOutput(p);
     await _applyVolume();
   }
 
@@ -151,20 +152,56 @@ class PlayerController extends ChangeNotifier {
   /// 这里统一以 16 位立体声交给系统混音，这是所有 Android 设备都支持的格式，手机上听感相同。
   Future<void> _configureAndroidAudio(Player p) async {
     if (!await setMpvProperty(p, 'audio-channels', 'stereo')) return;
-    await setMpvProperty(p, 'audiotrack-pcm-float', 'no');
+    // “高解析输出”打开时以 32 位浮点交给系统，保留解码后的完整动态范围。
+    await setMpvProperty(p, 'audiotrack-pcm-float', settings.hiResOutput ? 'yes' : 'no');
     if (settings.openSles) await setMpvProperty(p, 'ao', 'opensles');
     _openSles = settings.openSles;
+    _hiRes = settings.hiResOutput;
   }
 
-  bool _openSles = false;
+  /// 各平台通用的输出设置：
+  /// - 软件音量上限提高到 200%，用于“音量增强”；
+  /// - 本地文件带 ReplayGain 标签时按标签均衡音量（与“音量均衡”开关一致）；
+  /// - Windows / macOS 可独占音频设备（WASAPI / Core Audio 独占模式），绕过系统混音与重采样。
+  Future<void> _configureOutput(Player p) async {
+    if (!await setMpvProperty(p, 'volume-max', '200')) return;
+    await setMpvProperty(p, 'replaygain', settings.normalize ? 'track' : 'no');
+    await setMpvProperty(p, 'replaygain-clip', 'no');
+    if (_exclusiveSupported) await setMpvProperty(p, 'audio-exclusive', settings.exclusiveAudio ? 'yes' : 'no');
+    _exclusive = settings.exclusiveAudio;
+    _normalize = settings.normalize;
+  }
 
-  /// 设置中切换“兼容音频输出”：改用 / 取消 OpenSL ES 并在原位置重新加载当前歌曲。
+  static bool get _exclusiveSupported => !kIsWeb && (Platform.isWindows || Platform.isMacOS);
+
+  bool _openSles = false;
+  bool _hiRes = false;
+  bool _exclusive = false;
+  bool _normalize = true;
+
+  /// 设置中切换输出相关选项（兼容输出、高解析输出、独占输出、音量均衡）：更新 mpv 属性，
+  /// 需要重新打开音频设备的选项在原位置重新加载当前歌曲。
   Future<void> _applyOutput() async {
-    if (kIsWeb || !Platform.isAndroid || settings.openSles == _openSles) return;
-    _openSles = settings.openSles;
     final p = _player;
-    if (p == null || !await setMpvProperty(p, 'ao', _openSles ? 'opensles' : 'audiotrack,opensles')) return;
-    if (current != null) await _load(autoplay: playing, keepPosition: true);
+    if (kIsWeb || p == null) return;
+    var reload = false;
+    if (settings.normalize != _normalize) {
+      _normalize = settings.normalize;
+      await setMpvProperty(p, 'replaygain', _normalize ? 'track' : 'no');
+    }
+    if (Platform.isAndroid && settings.openSles != _openSles) {
+      _openSles = settings.openSles;
+      reload = await setMpvProperty(p, 'ao', _openSles ? 'opensles' : 'audiotrack,opensles');
+    }
+    if (Platform.isAndroid && settings.hiResOutput != _hiRes) {
+      _hiRes = settings.hiResOutput;
+      reload = await setMpvProperty(p, 'audiotrack-pcm-float', _hiRes ? 'yes' : 'no') || reload;
+    }
+    if (_exclusiveSupported && settings.exclusiveAudio != _exclusive) {
+      _exclusive = settings.exclusiveAudio;
+      reload = await setMpvProperty(p, 'audio-exclusive', _exclusive ? 'yes' : 'no') || reload;
+    }
+    if (reload && current != null) await _load(autoplay: playing, keepPosition: true);
   }
 
   /// 已经尝试过的音频输出兜底次数。
@@ -217,10 +254,19 @@ class PlayerController extends ChangeNotifier {
 
   static double gainFactor(double? gainDb) {
     if (gainDb == null || gainDb == 0) return 1;
-    return math.pow(10, (gainDb + 8) / 20).toDouble().clamp(0.3, 1.0);
+    // 最多衰减 6 dB：响度很高的歌曲也不会比其他歌曲明显偏小。
+    return math.pow(10, (gainDb + 8) / 20).toDouble().clamp(0.5, 1.0);
   }
 
-  double get _effectiveVolume => settings.volume * _fade * (settings.normalize ? _gain : 1) * 100;
+  /// 手机与平板没有应用内音量条，音量完全由系统音量键控制，应用内始终满音量输出；
+  /// 桌面端使用播放条上的音量。
+  static bool get _systemVolumeOnly => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+  double get _effectiveVolume {
+    final base = _systemVolumeOnly ? 1.0 : settings.volume;
+    final boost = math.pow(10, settings.volumeBoost / 20).toDouble();
+    return (base * _fade * (settings.normalize ? _gain : 1) * boost * 100).clamp(0, 200).toDouble();
+  }
 
   Future<void> _applyVolume() async {
     await _player?.setVolume(_effectiveVolume);

@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'core/app_icon.dart';
 import 'core/data_cache.dart';
+import 'core/lyrics_overlay.dart';
 import 'core/widget_bridge.dart';
 import 'data/listen_stats.dart';
 import 'core/ui/liquid_glass_filter.dart';
@@ -95,6 +96,8 @@ Future<void> main() async {
   stats.attach(player);
   // Android 桌面小组件显示正在播放的歌曲。
   WidgetBridge.attach(player);
+  // 桌面歌词与状态栏歌词。
+  final lyricsOverlay = LyricsOverlay.attach(player, settings);
   final downloads = DownloadManager(sources, settings);
   await downloads.init();
   player.localLookup = downloads.local;
@@ -104,7 +107,7 @@ Future<void> main() async {
   await updater.init();
 
   if (splashShotsRequested) prepareSplashShots();
-  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, drives: drives, updater: updater, stats: stats));
+  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, drives: drives, updater: updater, stats: stats, lyricsOverlay: lyricsOverlay));
   if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
   if (screenshotsRequested) unawaited(runScreenshots(rootNavigatorKey));
   if (splashShotsRequested) unawaited(runSplashShots());

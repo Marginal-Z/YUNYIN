@@ -27,6 +27,7 @@ import 'features/splash/splash.dart';
 import 'features/shell/nav.dart';
 import 'player/player_controller.dart';
 import 'core/update/updater.dart';
+import 'core/lyrics_overlay.dart';
 import 'data/cloud/cloud_drives.dart';
 import 'data/listen_stats.dart';
 
@@ -43,6 +44,7 @@ class YunyinApp extends StatelessWidget {
     required this.drives,
     required this.updater,
     required this.stats,
+    required this.lyricsOverlay,
   });
 
   final AppSettings settings;
@@ -53,6 +55,7 @@ class YunyinApp extends StatelessWidget {
   final CloudDrives drives;
   final UpdateManager updater;
   final ListenStats stats;
+  final LyricsOverlay lyricsOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +69,7 @@ class YunyinApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: drives),
         ChangeNotifierProvider.value(value: updater),
         ChangeNotifierProvider.value(value: stats),
+        ChangeNotifierProvider.value(value: lyricsOverlay),
         ChangeNotifierProvider(create: (_) => AppNav()),
       ],
       child: Consumer<AppSettings>(

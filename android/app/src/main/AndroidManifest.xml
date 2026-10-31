@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- 桌面歌词与状态栏歌词（悬浮窗）。 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <!-- 扫描本机歌曲：Android 13 起为 READ_MEDIA_AUDIO，之前为读取外部存储。 -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
