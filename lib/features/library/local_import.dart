@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -11,6 +13,7 @@ import '../../data/local_library.dart';
 import '../../data/models.dart';
 import '../common/actions.dart';
 import '../common/song_row.dart';
+import '../shell/nav.dart';
 
 Future<void> runImport(BuildContext context, {bool folder = false, bool scan = false}) async {
   final lib = context.read<LocalLibrary>();
@@ -89,10 +92,11 @@ class LocalMusicList extends StatelessWidget {
     final dl = context.watch<DownloadManager>();
     final local = lib.songs;
     final downloads = dl.items;
-    Widget list(List<Song> songs, String title) => CardList(
+    // 只构建前 [limit] 行，点按时仍以完整列表作为播放队列。
+    Widget list(List<Song> songs, String title, {int limit = 50}) => CardList(
       indent: 70,
       children: [
-        for (var i = 0; i < songs.length; i++)
+        for (var i = 0; i < math.min(limit, songs.length); i++)
           SongRow(
             song: songs[i],
             onTap: () => playAll(context, songs, start: i, title: title),
@@ -132,7 +136,18 @@ class LocalMusicList extends StatelessWidget {
                 ),
               ),
             ),
+            // 乐库里只显示前 50 首；完整列表在“本地音乐”页面中按需构建，几千首歌也不卡顿。
             list(local, '本地音乐'),
+            if (local.length > 50)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: SecondaryButton(
+                  label: '查看全部 ${local.length} 首',
+                  height: 44,
+                  fontSize: 15,
+                  onTap: () => go(context, CollectionRoute(PlaylistKind.local)),
+                ),
+              ),
           ],
           if (downloads.isNotEmpty) ...[SectionHeader('已下载 · ${downloads.length} 首'), list(downloads, '已下载')],
         ],

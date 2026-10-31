@@ -155,6 +155,7 @@ Future<void> showSongMenu(BuildContext context, Song song) async {
           if (context.mounted) Toast.show(context, n > 0 ? '已更新歌词与封面' : '没有找到匹配的歌曲', icon: n > 0 ? YIcons.check : YIcons.info);
         },
       ),
+      (YIcons.search, '手动选择匹配的歌曲', () => go(context, LocalMatchRoute(song))),
       (
         YIcons.trash,
         '从本地音乐移除',

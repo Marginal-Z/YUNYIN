@@ -85,8 +85,10 @@ Future<void> main() async {
   final drives = CloudDrives();
   await drives.init();
   final sources = SourceManager(SourceRegistry.create(local, drives));
-  // 本地歌曲联网补全封面与歌词使用网易云。
-  local.online = sources.sources.where((s) => s.id == 'netease').firstOrNull;
+  // 本地歌曲联网补全封面与歌词：依次在网易云、QQ 音乐、酷狗中匹配。
+  local.onlineSources = [
+    for (final id in const ['netease', 'qq', 'kugou']) ...sources.sources.where((s) => s.id == id),
+  ];
   await sources.init();
   // 平台模式彼此独立：切换平台时一并切换该平台的界面样式；是否允许其他平台补位播放由设置决定。
   settings.initPlatform(sources.current.id);

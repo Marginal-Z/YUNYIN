@@ -161,6 +161,16 @@ class StatsRoute extends AppRoute {
   String get sideKey => 'stats';
 }
 
+/// 本地歌曲手动匹配歌词与封面。
+class LocalMatchRoute extends AppRoute {
+  LocalMatchRoute(this.song);
+
+  final Song song;
+
+  @override
+  Chrome get chrome => Chrome.none;
+}
+
 /// 个人中心。
 class ProfileRoute extends AppRoute {
   @override

@@ -7,6 +7,7 @@ import '../home/desktop_home_page.dart';
 import '../home/home_page.dart';
 import '../library/collections_page.dart';
 import '../library/library_page.dart';
+import '../library/local_match_page.dart';
 import '../login/login_page.dart';
 import '../playlist/playlist_page.dart';
 import '../profile/profile_page.dart';
@@ -34,6 +35,7 @@ Widget buildMobileRoute(AppRoute r) => switch (r) {
   StatsRoute() => const StatsPage(),
   AboutRoute(:final page) => buildAboutPage(page),
   ProfileRoute() => const ProfilePage(),
+  LocalMatchRoute(:final song) => LocalMatchPage(song: song),
   CloudDrivesRoute() => const CloudDrivesPage(),
   CloudEditRoute(:final driveId) => CloudEditPage(driveId: driveId),
   CloudBrowseRoute() => CloudBrowsePage(key: ValueKey(r.uid), route: r),
