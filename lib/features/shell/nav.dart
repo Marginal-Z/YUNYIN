@@ -174,7 +174,7 @@ class CloudEditRoute extends AppRoute {
   final String? driveId;
 
   @override
-  Chrome get chrome => Chrome.navOnly;
+  Chrome get chrome => Chrome.none;
 
   @override
   String get sideKey => 'cloud';

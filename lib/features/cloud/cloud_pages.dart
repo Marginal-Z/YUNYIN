@@ -262,7 +262,7 @@ class _CloudEditPageState extends State<CloudEditPage> {
     return _Frame(
       title: widget.driveId == null ? '添加网盘' : '编辑网盘',
       subtitle: '通过 WebDAV 挂载',
-      chrome: Chrome.navOnly,
+      chrome: Chrome.none,
       children: [
         ChipBar(labels: [for (final k in CloudKind.values) k.label], index: _kind.index, scroll: true, onChanged: (i) => _pickKind(CloudKind.values[i])),
         const SizedBox(height: 12),
