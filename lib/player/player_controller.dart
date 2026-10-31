@@ -275,7 +275,7 @@ class PlayerController extends ChangeNotifier {
     final boost = math.pow(10, settings.volumeBoost / 20).toDouble();
     // 音量均衡强度：按比例应用响度增益（强度 0.5 时衰减量减半）。
     final norm = settings.normalize ? math.pow(_gain, settings.normalizeStrength).toDouble() : 1.0;
-    return (base * _fade * norm * boost * 100).clamp(0, 200).toDouble();
+    return (base * _fade * norm * boost * _eqHeadroom * 100).clamp(0, 200).toDouble();
   }
 
   // ── 均衡器 ──────────────────────────────────────────
@@ -287,17 +287,23 @@ class PlayerController extends ChangeNotifier {
   /// 均衡器在当前设备上不可用（滤镜创建失败）。
   bool eqUnsupported = false;
 
-  /// 由 10 个频段的增益生成 mpv 的 lavfi 滤镜：每个频段一个倍频程宽的峰值均衡器，
-  /// 有提升时先整体降低一部分电平，减少削波。所有频段为 0 时返回空字符串（不加滤镜）。
+  /// 由 10 个频段的增益生成 mpv 的 lavfi 滤镜：每个频段一个倍频程宽的峰值均衡器。
+  /// 只使用 equalizer：Android / Windows / macOS 的精简版 FFmpeg 只带有它（没有 volume、bass 等滤镜，
+  /// 用了会导致音频链初始化失败）。所有频段为 0 时返回空字符串（不加滤镜）。
   static String eqFilter(List<double> gains) {
     if (gains.every((g) => g.abs() < 0.05)) return '';
-    final peak = gains.reduce(math.max);
     final parts = <String>[
-      if (peak > 0) 'volume=${(-peak * 0.6).toStringAsFixed(1)}dB',
       for (var i = 0; i < gains.length && i < kEqBands.length; i++)
         if (gains[i].abs() >= 0.05) 'equalizer=f=${kEqBands[i]}:width_type=o:width=1:g=${gains[i].toStringAsFixed(1)}',
     ];
     return 'lavfi=[${parts.join(',')}]';
+  }
+
+  /// 均衡器有提升时整体降低一部分电平（通过播放器音量，而不是 volume 滤镜），减少削波。
+  double get _eqHeadroom {
+    if (_eqApplied.isEmpty) return 1;
+    final peak = settings.eqGains.reduce(math.max);
+    return peak > 0 ? math.pow(10, -peak * 0.6 / 20).toDouble() : 1;
   }
 
   /// 拖动滑块时连续变化：合并为每 120ms 最多更新一次滤镜。
@@ -314,6 +320,7 @@ class PlayerController extends ChangeNotifier {
     final want = settings.eqEnabled && !eqUnsupported ? eqFilter(settings.eqGains) : '';
     if (want == _eqApplied) return;
     if (await setMpvProperty(p, 'af', want)) _eqApplied = want;
+    await _applyVolume();
   }
 
   Future<void> _onEqFailed() async {
