@@ -190,6 +190,14 @@ class PlayerController extends ChangeNotifier {
     _notices.add(const PlayerNotice('无法打开音频设备', message: '系统没有可用的音频输出，请检查音量、蓝牙耳机或其他占用音频的应用后重新播放。'));
   }
 
+  /// 测试用：直接设置播放队列与当前歌曲（不加载音频）。
+  @visibleForTesting
+  void debugSetQueue(List<Song> songs, int index) {
+    _queue = List.of(songs);
+    _index = index;
+    notifyListeners();
+  }
+
   /// 底层播放器，供集成测试检查音频输出状态。
   @visibleForTesting
   Player? get engine => _player;

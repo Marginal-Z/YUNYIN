@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../core/ui/text.dart';
+
 /// 启动动画（按《云音 · 启动页设计稿》的“启动动画”“桌面端启动窗口”“动效关键帧与参数”实现）。
 ///
 /// 品牌红背景上，白色云朵 Logo 下落、挤压、二次弹跳，落地时扩散三圈波纹并弹出六个彩色碎片；
@@ -111,7 +113,12 @@ class _SplashState extends State<Splash> with TickerProviderStateMixin {
           ignoring: _leaving,
           child: Opacity(
             opacity: 1 - e,
-            child: Transform.translate(offset: Offset(0, -14 * e), child: _frame(size, pad, _clock.value)),
+            child: Transform.translate(
+              offset: Offset(0, -14 * e),
+              // 启动画面位于 MaterialApp.builder 中、应用外壳的 DefaultTextStyle 之外，
+              // 不指定文字样式会继承 MaterialApp 的“缺少 Material”样式（黄色双下划线 + 等宽字体）。
+              child: DefaultTextStyle(style: ts(15, color: Colors.white), child: _frame(size, pad, _clock.value)),
+            ),
           ),
         );
       },

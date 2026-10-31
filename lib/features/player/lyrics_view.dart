@@ -404,7 +404,9 @@ class _RenderLyrics extends RenderBox with ContainerRenderObjectMixin<RenderBox,
         final d = child.parentData! as _LineData;
         d
           ..y += delta
-          ..target += delta;
+          ..target += delta
+          // 绘制位置随之更新：否则在没有弹簧动画的帧里，歌词不会跟随手指移动。
+          ..offset = Offset(0, d.y);
         child = d.nextSibling;
       }
       markNeedsPaint();

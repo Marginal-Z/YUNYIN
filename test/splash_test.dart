@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yunyin/features/splash/splash.dart';
 
@@ -69,5 +70,25 @@ void main() {
     for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
+  });
+
+  testWidgets('启动动画：在 MaterialApp.builder 中的文字没有“缺少 Material”的黄色下划线', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const SizedBox(),
+        builder: (context, child) => Stack(children: [child!, Splash(full: true, desktop: false, version: '1.0.0', onDone: () {})]),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1800));
+    final paragraphs = tester.allRenderObjects.whereType<RenderParagraph>().toList();
+    expect(paragraphs, isNotEmpty);
+    for (final r in paragraphs) {
+      final style = r.text.style;
+      expect(style?.decoration ?? TextDecoration.none, TextDecoration.none, reason: r.text.toPlainText());
+      expect(style?.fontFamily, isNot('monospace'), reason: r.text.toPlainText());
+    }
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
   });
 }

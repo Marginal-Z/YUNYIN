@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../artist/artist_page.dart';
+import '../cloud/cloud_pages.dart';
 import '../discover/discover_page.dart';
 import '../home/desktop_home_page.dart';
 import '../home/home_page.dart';
@@ -31,6 +32,9 @@ Widget buildMobileRoute(AppRoute r) => switch (r) {
   AppearanceRoute() => const AppearancePage(),
   StatsRoute() => const StatsPage(),
   AboutRoute(:final page) => buildAboutPage(page),
+  CloudDrivesRoute() => const CloudDrivesPage(),
+  CloudEditRoute(:final driveId) => CloudEditPage(driveId: driveId),
+  CloudBrowseRoute() => CloudBrowsePage(key: ValueKey(r.uid), route: r),
   LoginRoute() => const LoginPage(),
 };
 

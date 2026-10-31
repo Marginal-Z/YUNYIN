@@ -161,6 +161,37 @@ class StatsRoute extends AppRoute {
   String get sideKey => 'stats';
 }
 
+/// 网盘列表。
+class CloudDrivesRoute extends AppRoute {
+  @override
+  String get sideKey => 'cloud';
+}
+
+/// 添加或编辑网盘（[driveId] 为空时添加）。
+class CloudEditRoute extends AppRoute {
+  CloudEditRoute([this.driveId]);
+
+  final String? driveId;
+
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'cloud';
+}
+
+/// 浏览网盘中的文件夹。
+class CloudBrowseRoute extends AppRoute {
+  CloudBrowseRoute(this.driveId, {this.href = '', this.title});
+
+  final String driveId;
+  final String href;
+  final String? title;
+
+  @override
+  String get sideKey => 'cloud';
+}
+
 class LoginRoute extends AppRoute {
   @override
   Chrome get chrome => Chrome.none;

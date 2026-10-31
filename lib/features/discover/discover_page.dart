@@ -8,6 +8,7 @@ import '../../core/ui/feedback.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
+import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
@@ -30,15 +31,24 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Widget build(BuildContext context) {
     final desktop = LayoutScope.isDesktop(context);
     final sources = context.watch<SourceManager>();
+    final source = sources.current;
+    // 只显示当前播放源支持的分区（例如酷狗没有电台与新碟）；_tab 仍是“推荐 / 排行榜 / 电台 / 新碟”的固定编号。
+    final tabs = [
+      (0, '推荐'),
+      if (source.supports(SourceFeature.charts)) (1, '排行榜'),
+      if (source.supports(SourceFeature.radio)) (2, '电台'),
+      if (source.supports(SourceFeature.newAlbums)) (3, '新碟'),
+    ];
+    final current = tabs.any((t) => t.$1 == _tab) ? _tab : 0;
     return AdaptivePage(
       mobileTop: 30,
       children: [
-        PageTitle('发现', subtitle: '新歌 · 榜单 · 电台', size: desktop ? 40 : 36),
+        PageTitle('发现', subtitle: [for (final t in tabs.skip(1)) t.$2].join(' · '), size: desktop ? 40 : 36),
         const SizedBox(height: 18),
-        ChipBar(labels: const ['推荐', '排行榜', '电台', '新碟'], index: _tab, onChanged: (i) => setState(() => _tab = i)),
+        ChipBar(labels: [for (final t in tabs) t.$2], index: tabs.indexWhere((t) => t.$1 == current), onChanged: (i) => setState(() => _tab = tabs[i].$1)),
         EntranceFade(
-          key: ValueKey('${sources.generation}-$_tab'),
-          child: switch (_tab) {
+          key: ValueKey('${sources.generation}-$current'),
+          child: switch (current) {
             0 => const _Recommend(),
             1 => const _Charts(),
             2 => const _Radios(),
@@ -61,19 +71,20 @@ class _Recommend extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 20),
-        AsyncView<List<AlbumInfo>>(
-          cacheKey: 'newAlbums:6',
-          load: () => source.newAlbums(limit: 6),
-          loading: const SizedBox(height: 160),
-          builder: (context, albums, _) {
-            if (albums.isEmpty) return const SizedBox.shrink();
-            final a = albums.first;
-            return NewAlbumBanner(
-              album: a,
-              onTap: () => go(context, AlbumRoute(a.id, preview: a)),
-            );
-          },
-        ),
+        if (source.supports(SourceFeature.newAlbums))
+          AsyncView<List<AlbumInfo>>(
+            cacheKey: 'newAlbums:6',
+            load: () => source.newAlbums(limit: 6),
+            loading: const SizedBox(height: 160),
+            builder: (context, albums, _) {
+              if (albums.isEmpty) return const SizedBox.shrink();
+              final a = albums.first;
+              return NewAlbumBanner(
+                album: a,
+                onTap: () => go(context, AlbumRoute(a.id, preview: a)),
+              );
+            },
+          ),
         AsyncView<PlaylistInfo>(
           cacheKey: 'soaring',
           load: source.soaringChart,

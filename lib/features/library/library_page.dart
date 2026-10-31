@@ -12,6 +12,7 @@ import '../../data/models.dart';
 import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
+import '../cloud/cloud_pages.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
 import '../common/song_row.dart';
@@ -54,14 +55,15 @@ class _LibraryPageState extends State<LibraryPage> {
           ],
         ),
         const SizedBox(height: 18),
-        ChipBar(labels: const ['歌单', '专辑', '歌手', '本地'], index: _tab, onChanged: (i) => setState(() => _tab = i)),
+        ChipBar(labels: const ['歌单', '专辑', '歌手', '本地', '网盘'], index: _tab, scroll: true, onChanged: (i) => setState(() => _tab = i)),
         EntranceFade(
           key: ValueKey('${sources.generation}-$_tab'),
           child: switch (_tab) {
             0 => const LibraryOverview(),
             1 => const SubscribedAlbums(),
             2 => const FollowedArtists(),
-            _ => const LocalMusicList(),
+            3 => const LocalMusicList(),
+            _ => const Padding(padding: EdgeInsets.only(top: 20), child: CloudDriveList()),
           },
         ),
       ],

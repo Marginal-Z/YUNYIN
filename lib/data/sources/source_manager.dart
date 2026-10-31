@@ -1,15 +1,24 @@
 import 'package:flutter/foundation.dart';
+
 import '../../core/data_cache.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../cloud/cloud_drives.dart';
 import '../local_library.dart';
+import 'cloud/cloud_source.dart';
 import 'local/local_source.dart';
 import 'music_source.dart';
+import 'kugou/kugou_source.dart';
 import 'netease/netease_source.dart';
 
 /// 已注册的播放源。新增平台：实现 [MusicSource] 并加入 [SourceRegistry.create]。
 abstract final class SourceRegistry {
-  static List<MusicSource> create(LocalLibrary library) => [NeteaseSource(), LocalSource(library)];
+  static List<MusicSource> create(LocalLibrary library, CloudDrives drives) {
+    final netease = NeteaseSource();
+    // 酷狗无法直接播放的歌曲换用网易云的同一首歌播放；网盘歌曲没有歌词文件时用网易云的歌词。
+    return [netease, KugouSource(netease), LocalSource(library), CloudSource(drives, fallback: netease)];
+  }
 }
 
 /// 管理当前播放源，并负责按 [Song.sourceId] 找回对应的源。
@@ -22,7 +31,10 @@ class SourceManager extends ChangeNotifier {
   late MusicSource _current = sources.first;
 
   /// 可以切换为当前源的播放源。
-  List<MusicSource> get selectable => [for (final s in sources) if (s.selectable) s];
+  List<MusicSource> get selectable => [
+    for (final s in sources)
+      if (s.selectable) s,
+  ];
 
   MusicSource get current => _current;
 

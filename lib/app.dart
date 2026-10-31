@@ -27,6 +27,7 @@ import 'features/splash/splash.dart';
 import 'features/shell/nav.dart';
 import 'player/player_controller.dart';
 import 'core/update/updater.dart';
+import 'data/cloud/cloud_drives.dart';
 import 'data/listen_stats.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -39,6 +40,7 @@ class YunyinApp extends StatelessWidget {
     required this.player,
     required this.downloads,
     required this.local,
+    required this.drives,
     required this.updater,
     required this.stats,
   });
@@ -48,6 +50,7 @@ class YunyinApp extends StatelessWidget {
   final PlayerController player;
   final DownloadManager downloads;
   final LocalLibrary local;
+  final CloudDrives drives;
   final UpdateManager updater;
   final ListenStats stats;
 
@@ -60,6 +63,7 @@ class YunyinApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: player),
         ChangeNotifierProvider.value(value: downloads),
         ChangeNotifierProvider.value(value: local),
+        ChangeNotifierProvider.value(value: drives),
         ChangeNotifierProvider.value(value: updater),
         ChangeNotifierProvider.value(value: stats),
         ChangeNotifierProvider(create: (_) => AppNav()),
@@ -81,6 +85,7 @@ class YunyinApp extends StatelessWidget {
                 desktopBreakpoint: kDesktopBreakpoint,
                 child: Builder(builder: (context) => _shell(context, child!, s, light, dark)),
               );
+              if (splashShotsRequested) return ShotFrame(builder: (context) => _SplashGate(child: scaled(context)));
               return screenshotsRequested ? ShotFrame(builder: scaled) : _SplashGate(child: scaled(context));
             },
             home: const _Root(),
@@ -206,7 +211,7 @@ class _SplashGateState extends State<_SplashGate> {
             child: Splash(
               full: _full,
               desktop: MediaQuery.sizeOf(context).width >= kDesktopBreakpoint,
-              systemSplash: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+              systemSplash: splashShotsRequested || (!kIsWeb && defaultTargetPlatform == TargetPlatform.android),
               uiScale: AdaptiveScale.of(context),
               version: context.read<UpdateManager>().current,
               onDone: _finish,

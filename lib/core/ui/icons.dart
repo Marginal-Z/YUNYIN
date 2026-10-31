@@ -102,6 +102,7 @@ abstract final class YIcons {
     '<circle cx="15" cy="12" r="1.6" fill="currentColor"/><circle cx="10" cy="17" r="1.6" fill="currentColor"/>',
   );
   static const folder = YIconData('<path d="M4 7a1 1 0 0 1 1-1h5l2 2h7a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/>');
+  static const cloud = YIconData('<path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.8 8.6 4.7 4.7 0 0 1 17 18z"/>');
   static const miniMode = YIconData('<rect x="4" y="6" width="16" height="12" rx="2"/><rect x="11" y="12" width="7" height="4" rx="1"/>');
 }
 

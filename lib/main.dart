@@ -18,6 +18,7 @@ import 'core/smooth_wheel.dart';
 import 'debug/benchmark.dart';
 import 'debug/screenshots.dart';
 import 'data/downloads.dart';
+import 'data/cloud/cloud_drives.dart';
 import 'data/local_library.dart';
 import 'data/sources/source_manager.dart';
 import 'features/desktop/window_controls.dart';
@@ -63,7 +64,9 @@ Future<void> main() async {
   await settings.init();
   final local = LocalLibrary();
   await local.init();
-  final sources = SourceManager(SourceRegistry.create(local));
+  final drives = CloudDrives();
+  await drives.init();
+  final sources = SourceManager(SourceRegistry.create(local, drives));
   // 本地歌曲联网补全封面与歌词使用网易云。
   local.online = sources.sources.where((s) => s.id == 'netease').firstOrNull;
   await sources.init();
@@ -84,7 +87,9 @@ Future<void> main() async {
   final updater = UpdateManager();
   await updater.init();
 
-  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, updater: updater, stats: stats));
+  if (splashShotsRequested) prepareSplashShots();
+  runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, drives: drives, updater: updater, stats: stats));
   if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
   if (screenshotsRequested) unawaited(runScreenshots(rootNavigatorKey));
+  if (splashShotsRequested) unawaited(runSplashShots());
 }

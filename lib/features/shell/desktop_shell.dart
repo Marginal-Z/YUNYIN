@@ -274,6 +274,7 @@ class _Sidebar extends StatelessWidget {
                     onTap: () => open(CollectionRoute(PlaylistKind.downloaded)),
                   ),
                   _SideItem(icon: YIcons.folder, label: '本地音乐', active: active == 'collection:local', onTap: () => open(CollectionRoute(PlaylistKind.local))),
+                  _SideItem(icon: YIcons.cloud, label: '网盘', active: active == 'cloud', onTap: () => open(CloudDrivesRoute())),
                   _SideItem(icon: YIcons.library, label: '专辑与歌手', active: active == 'collections', onTap: () => open(MyCollectionsRoute())),
                   _SideItem(icon: YIcons.equalizer, label: '听歌统计', active: active == 'stats', onTap: () => open(StatsRoute())),
                   label('我的歌单', 18),

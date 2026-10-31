@@ -25,6 +25,35 @@ String? get screenshotDir {
 
 bool get screenshotsRequested => screenshotDir != null;
 
+/// 启动动画逐帧截图：设置 YUNYIN_SPLASH_SHOTS=<输出目录>，以手机尺寸播放完整版启动动画（模拟 Android 系统启动图衔接），
+/// 每 120 毫秒保存一帧后退出。用于在真实的 Impeller 渲染下检查启动动画。
+String? get splashShotDir {
+  if (kIsWeb) return null;
+  final d = Platform.environment['YUNYIN_SPLASH_SHOTS'];
+  return d == null || d.isEmpty ? null : d;
+}
+
+bool get splashShotsRequested => splashShotDir != null;
+
+/// 启动动画截图模式下，在第一帧之前就使用手机尺寸画布。
+void prepareSplashShots() => _spec.value = _mobile;
+
+Future<void> runSplashShots() async {
+  final out = Directory(splashShotDir!)..createSync(recursive: true);
+  await WidgetsBinding.instance.endOfFrame;
+  for (var i = 0; i < 28; i++) {
+    final boundary = _boundary.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary != null) {
+      final image = await boundary.toImage(pixelRatio: 2);
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      await File('${out.path}/splash_${(i * 120).toString().padLeft(4, '0')}.png').writeAsBytes(png!.buffer.asUint8List());
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+  }
+  stderr.writeln('splash shots: 完成 → ${out.path}');
+  exit(0);
+}
+
 /// 截图时的逻辑尺寸、安全区与像素倍率。
 class ShotSpec {
   const ShotSpec(this.size, this.pixelRatio, {this.padding = EdgeInsets.zero, this.textScale = 1});
