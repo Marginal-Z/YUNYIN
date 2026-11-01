@@ -186,7 +186,7 @@ class AppearancePage extends StatelessWidget {
                       onChanged: (i) => s.setOrientation(ScreenOrientation.values[i]),
                     ),
                     const SizedBox(height: 8),
-                    Text('横屏时界面切换为横屏布局：首页卡片按更多列排列，播放页封面与歌词左右并排。', style: ts(13, height: 1.45, color: p.text2)),
+                    Text('横屏时界面切换为横屏布局：首页使用照片墙，播放页封面与歌词左右并排。', style: ts(13, height: 1.45, color: p.text2)),
                   ],
                 ),
               ),

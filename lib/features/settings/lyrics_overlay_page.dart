@@ -241,7 +241,7 @@ class ColorChoiceRow extends StatelessWidget {
               children: [
                 dot(
                   color: defaultColor,
-                  selected: value == 0,
+                  selected: value == 0 || value == defaultColor.toARGB32(),
                   label: defaultLabel,
                   onTap: () => onChanged(0),
                   child: Text(
@@ -249,7 +249,9 @@ class ColorChoiceRow extends StatelessWidget {
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: defaultColor.computeLuminance() > 0.6 ? Colors.black87 : Colors.white),
                   ),
                 ),
-                for (final c in presets) dot(color: Color(c), selected: value == c, label: '颜色', onTap: () => onChanged(c)),
+                // 与默认色相同的预设不再重复显示（状态栏歌词默认就是白色）。
+                for (final c in presets)
+                  if (c != defaultColor.toARGB32()) dot(color: Color(c), selected: value == c, label: '颜色', onTap: () => onChanged(c)),
                 dot(
                   color: custom ? Color(value) : p.field,
                   selected: custom,

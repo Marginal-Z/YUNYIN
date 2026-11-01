@@ -89,6 +89,8 @@ class MobilePage extends StatelessWidget {
         Positioned.fill(child: bg),
         Positioned.fill(
           child: _StatusBarScrim(
+            // 顶部有悬浮按钮（返回等）时渐隐区域延伸到按钮下方，滚上去的标题不会从按钮底下穿过。
+            extended: overlay.isNotEmpty,
             child: slivers == null
                 ? ListView(
                     controller: controller,
@@ -129,9 +131,10 @@ class MobilePage extends StatelessWidget {
 
 /// 页面向上滚动后，在系统状态栏下方加一层与页面背景同色的渐隐，状态栏的时间与图标不会直接压在封面图片上。
 class _StatusBarScrim extends StatefulWidget {
-  const _StatusBarScrim({required this.child});
+  const _StatusBarScrim({required this.child, this.extended = false});
 
   final Widget child;
+  final bool extended;
 
   @override
   State<_StatusBarScrim> createState() => _StatusBarScrimState();
@@ -166,7 +169,7 @@ class _StatusBarScrimState extends State<_StatusBarScrim> {
             left: 0,
             right: 0,
             top: 0,
-            height: top + 10,
+            height: top + (widget.extended ? 76 : 10),
             child: IgnorePointer(
               child: ValueListenableBuilder<bool>(
                 valueListenable: _scrolled,
@@ -178,8 +181,8 @@ class _StatusBarScrimState extends State<_StatusBarScrim> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [bg.withValues(alpha: 0.92), bg.withValues(alpha: 0.75), bg.withValues(alpha: 0)],
-                        stops: const [0, 0.65, 1],
+                        colors: [bg.withValues(alpha: 0.92), bg.withValues(alpha: 0.8), bg.withValues(alpha: 0)],
+                        stops: [0, widget.extended ? 0.55 : 0.65, 1],
                       ),
                     ),
                   ),

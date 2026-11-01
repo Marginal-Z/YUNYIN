@@ -62,11 +62,27 @@ object LyricsOverlay {
         refresh(context)
     }
 
+    /** 设置歌词并在一行放不下时缩小字号（最小为原来的 70%），长句不再被截成“…”。 */
+    private fun setFitted(view: TextView, text: String, maxSp: Float) {
+        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, maxSp)
+        view.text = text
+        view.post {
+            val avail = view.width - view.paddingLeft - view.paddingRight
+            if (avail <= 0 || text.isEmpty()) return@post
+            var sp = maxSp
+            val min = maxSp * 0.7f
+            while (sp > min && view.paint.measureText(text) > avail) {
+                sp -= 0.5f
+                view.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
+            }
+        }
+    }
+
     fun update(context: Context, current: String, upcoming: String) {
         line = current
         next = upcoming
-        desktopLine?.text = line
-        desktopNext?.text = next
+        desktopLine?.let { setFitted(it, line, 21f) }
+        desktopNext?.let { setFitted(it, next, 14f) }
         statusView?.text = line
         refresh(context)
     }
@@ -113,8 +129,8 @@ object LyricsOverlay {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER
-            text = line
         }
+        setFitted(current, line, 21f)
         val upcoming = TextView(context).apply {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             setTextColor(Color.argb(220, 255, 255, 255))
@@ -122,8 +138,8 @@ object LyricsOverlay {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER
-            text = next
         }
+        setFitted(upcoming, next, 14f)
         root.addView(current)
         root.addView(upcoming)
         root.alpha = opacity
