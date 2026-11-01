@@ -43,8 +43,14 @@ class LandscapeHome extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(todayText(), style: ts(12, weight: w600, color: p.text2)),
-                  Text(greeting(), style: ts(26, weight: w700, em: -0.02, height: 1.15, color: p.text)),
+                  Text(
+                    todayText(),
+                    style: ts(12, weight: w600, color: p.text2),
+                  ),
+                  Text(
+                    greeting(),
+                    style: ts(26, weight: w700, em: -0.02, height: 1.15, color: p.text),
+                  ),
                 ],
               ),
             ),
@@ -89,14 +95,27 @@ class _Body extends StatelessWidget {
             children: [
               Expanded(
                 flex: 9,
-                child: _FeatureCard(songs: feed.daily, onOpen: () => openPlaylist(context, daily), onPlay: () => playAll(context, feed.daily, title: '每日推荐')),
+                child: _FeatureCard(
+                  songs: feed.daily,
+                  onOpen: () => openPlaylist(context, daily),
+                  onPlay: () => playAll(context, feed.daily, title: '每日推荐'),
+                ),
               ),
               const SizedBox(width: 12),
-              Expanded(flex: 3, child: _QuickTile(icon: YIcons.heart, label: '我喜欢', onTap: () => go(context, CollectionRoute(PlaylistKind.liked)))),
+              Expanded(
+                flex: 3,
+                child: _QuickTile(icon: YIcons.heart, label: '我喜欢', onTap: () => go(context, CollectionRoute(PlaylistKind.liked))),
+              ),
               const SizedBox(width: 12),
-              Expanded(flex: 3, child: _QuickTile(icon: YIcons.clock, label: '最近播放', onTap: () => go(context, CollectionRoute(PlaylistKind.recent)))),
+              Expanded(
+                flex: 3,
+                child: _QuickTile(icon: YIcons.clock, label: '最近播放', onTap: () => go(context, CollectionRoute(PlaylistKind.recent))),
+              ),
               const SizedBox(width: 12),
-              Expanded(flex: 3, child: _QuickTile(icon: YIcons.download, label: '本地音乐', onTap: () => go(context, CollectionRoute(PlaylistKind.local)))),
+              Expanded(
+                flex: 3,
+                child: _QuickTile(icon: YIcons.download, label: '本地音乐', onTap: () => go(context, CollectionRoute(PlaylistKind.local))),
+              ),
             ],
           ),
         ),
@@ -107,7 +126,14 @@ class _Body extends StatelessWidget {
             count: feed.playlists.length,
             builder: (context, i, width) {
               final pl = feed.playlists[i];
-              return PlaylistTile(width: width, cover: pl.cover, title: pl.name, subtitle: playlistSubtitle(pl), radius: 16, onTap: () => openPlaylist(context, pl));
+              return PlaylistTile(
+                width: width,
+                cover: pl.cover,
+                title: pl.name,
+                subtitle: playlistSubtitle(pl),
+                radius: 16,
+                onTap: () => openPlaylist(context, pl),
+              );
             },
           ),
         ] else if (feed.daily.isNotEmpty) ...[
@@ -116,7 +142,14 @@ class _Body extends StatelessWidget {
             count: feed.daily.length,
             builder: (context, i, width) {
               final s = feed.daily[i];
-              return PlaylistTile(width: width, cover: s.coverUrl, title: s.name, subtitle: s.artistText, radius: 16, onTap: () => playAll(context, feed.daily, start: i, title: '热门歌曲'));
+              return PlaylistTile(
+                width: width,
+                cover: s.coverUrl,
+                title: s.name,
+                subtitle: s.artistText,
+                radius: 16,
+                onTap: () => playAll(context, feed.daily, start: i, title: '热门歌曲'),
+              );
             },
           ),
         ],
@@ -138,70 +171,81 @@ class _FeatureCard extends StatelessWidget {
     final p = Palette.of(context);
     final covers = [for (final s in songs) ?s.coverUrl];
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    return Pressable(
-      onTap: onOpen,
-      scale: 0.99,
-      child: YBox(
-        clip: true,
-        radius: BorderRadius.circular(24),
-        color: p.skeleton,
-        shadows: const [Shadow2(0, 12, 28, Color.fromRGBO(0, 0, 0, 0.18))],
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (covers.isNotEmpty)
-              ImageFiltered(
-                imageFilter: ui.ImageFilter.blur(sigmaX: 26, sigmaY: 26, tileMode: TileMode.clamp),
-                child: Transform.scale(scale: 1.3, child: CoverImage(covers.first, imageSize: (120 * dpr).round())),
-              ),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [Color(0xA6000000), Color(0x40000000)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-              ),
+    // 卡片本身与播放按钮分开处理点按：外层不能再套一层点按，否则会抢走播放按钮的点按（变成打开歌单）。
+    return YBox(
+      clip: true,
+      radius: BorderRadius.circular(24),
+      color: p.skeleton,
+      shadows: const [Shadow2(0, 12, 28, Color.fromRGBO(0, 0, 0, 0.18))],
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (covers.isNotEmpty)
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 26, sigmaY: 26, tileMode: TileMode.clamp),
+              child: Transform.scale(scale: 1.3, child: CoverImage(covers.first, imageSize: (120 * dpr).round())),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
-              child: Row(
-                children: [
-                  if (covers.isNotEmpty) ...[
-                    Cover(covers.first, size: 92, radius: 16, imageSize: (184 * dpr).round()),
-                    const SizedBox(width: 16),
-                  ],
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [Color(0xA6000000), Color(0x40000000)], begin: Alignment.centerLeft, end: Alignment.centerRight),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Pressable(
+                    onTap: onOpen,
+                    scale: 0.99,
+                    semanticLabel: '打开每日推荐',
+                    child: Row(
                       children: [
-                        Text('DAILY MIX', style: ts(11, weight: w700, em: 0.1, color: const Color(0xCCFFFFFF))),
-                        const SizedBox(height: 4),
-                        Text('每日推荐', style: ts(24, weight: w700, em: -0.02, color: Colors.white)),
-                        const SizedBox(height: 4),
-                        Text(
-                          songs.isEmpty ? '新歌与老朋友，每天更新' : songs.take(3).map((s) => s.name).join(' · '),
-                          style: ts(13, color: const Color(0xD9FFFFFF)),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        if (covers.isNotEmpty) ...[Cover(covers.first, size: 92, radius: 16, imageSize: (184 * dpr).round()), const SizedBox(width: 16)],
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'DAILY MIX',
+                                style: ts(11, weight: w700, em: 0.1, color: const Color(0xCCFFFFFF)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '每日推荐',
+                                style: ts(24, weight: w700, em: -0.02, color: Colors.white),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                songs.isEmpty ? '新歌与老朋友，每天更新' : songs.take(3).map((s) => s.name).join(' · '),
+                                style: ts(13, color: const Color(0xD9FFFFFF)),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Pressable(
-                    onTap: onPlay,
-                    semanticLabel: '播放全部',
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                      alignment: Alignment.center,
-                      child: const YIcon(YIcons.play, size: 20, color: Color(0xFF1D1D1F)),
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Pressable(
+                  onTap: onPlay,
+                  semanticLabel: '播放全部',
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: const YIcon(YIcons.play, size: 20, color: Color(0xFF1D1D1F)),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -229,7 +273,12 @@ class _QuickTile extends StatelessWidget {
           children: [
             YIcon(icon, size: 30, strokeWidth: 2, color: p.accentText),
             const SizedBox(height: 10),
-            Text(label, style: ts(15, weight: w600, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              label,
+              style: ts(15, weight: w600, color: p.text),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
