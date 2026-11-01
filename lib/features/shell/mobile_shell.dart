@@ -161,7 +161,6 @@ class _BottomBar extends StatelessWidget {
 }
 
 /// 玻璃上的文字描边：与背景相反的柔和光晕，保证在任何内容上都清晰。
-List<Shadow> _halo(Palette p) => [Shadow(color: p.isDark ? const Color(0x99000000) : const Color(0xCCFFFFFF), blurRadius: 4)];
 
 /// 迷你播放条（高 58，玻璃）。
 class MiniPlayer extends StatelessWidget {
@@ -194,14 +193,14 @@ class MiniPlayer extends StatelessWidget {
                       children: [
                         Text(
                           song?.name ?? '',
-                          style: ts(14, weight: w600, color: p.text).copyWith(shadows: _halo(p)),
+                          style: ts(14, weight: w600, color: p.text).copyWith(shadows: legibleHalo(p)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
                           song?.artistText ?? '',
-                          style: ts(12, weight: w500, color: p.text2).copyWith(shadows: _halo(p)),
+                          style: ts(12, weight: w500, color: p.text2).copyWith(shadows: legibleHalo(p)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),

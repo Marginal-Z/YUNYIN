@@ -726,10 +726,10 @@ class _BarsPainter extends CustomPainter {
   bool shouldRepaint(_BarsPainter old) => !identical(old.heights, heights) || old.color != color;
 }
 
-/// 进度条：4px 轨道 + 可选 12px 圆点，支持拖动。
+/// 进度条，支持点按与拖动，样式见 [ProgressStyle]。
 ///
-/// [wave] 为 true 且 [playing] 时，已播放部分是一条流动的正弦波；暂停、拖动或系统减少动态效果时
-/// 波幅平滑收回为直线（停止后不再逐帧重绘）。
+/// 波浪、节拍点、声波柱与流光在 [playing] 时有动效；暂停、拖动或系统减少动态效果时动效平滑收回
+/// （停止后不再逐帧重绘）。[seed] 决定声波柱的形状（同一首歌固定）。
 class SeekBar extends StatefulWidget {
   const SeekBar({
     super.key,
@@ -739,8 +739,9 @@ class SeekBar extends StatefulWidget {
     this.track,
     this.fill,
     this.height = 12,
-    this.wave = false,
+    this.style = ProgressStyle.line,
     this.playing = false,
+    this.seed = 0,
   });
 
   final double value;
@@ -749,37 +750,42 @@ class SeekBar extends StatefulWidget {
   final Color? track;
   final Color? fill;
   final double height;
-  final bool wave;
+  final ProgressStyle style;
   final bool playing;
+  final int seed;
 
   @override
   State<SeekBar> createState() => _SeekBarState();
 }
 
-class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
+class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
   double? _drag;
   late final AnimationController _amp = AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
   final ValueNotifier<double> _phase = ValueNotifier(0);
   Ticker? _ticker;
   Duration _last = Duration.zero;
 
-  bool get _waving => widget.wave && widget.playing && _drag == null && !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+  bool get _animated => switch (widget.style) {
+    ProgressStyle.wave || ProgressStyle.dots || ProgressStyle.bars || ProgressStyle.glow => true,
+    _ => false,
+  };
+
+  bool get _moving => _animated && widget.playing && _drag == null && !(MediaQuery.maybeDisableAnimationsOf(context) ?? false);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncWave();
+    _sync();
   }
 
   @override
   void didUpdateWidget(SeekBar old) {
     super.didUpdateWidget(old);
-    _syncWave();
+    _sync();
   }
 
-  void _syncWave() {
-    if (!widget.wave) return;
-    if (_waving) {
+  void _sync() {
+    if (_moving) {
       _amp.animateTo(1, curve: Curves.easeOut);
       _ticker ??= createTicker((t) {
         final dt = (t - _last).inMicroseconds / 1e6;
@@ -793,7 +799,7 @@ class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
         _last = Duration.zero;
         _ticker!.start();
       }
-    } else {
+    } else if (_amp.value > 0) {
       _amp.animateTo(0, curve: Curves.easeIn);
     }
   }
@@ -808,13 +814,13 @@ class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
 
   void _update(Offset local, double width) {
     setState(() => _drag = (local.dx / width).clamp(0.0, 1.0));
-    _syncWave();
+    _sync();
   }
 
   void _end(double v) {
     widget.onSeek!(_drag ?? v);
     setState(() => _drag = null);
-    _syncWave();
+    _sync();
   }
 
   @override
@@ -823,6 +829,9 @@ class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
     final v = (_drag ?? widget.value).clamp(0.0, 1.0);
     final fill = widget.fill ?? p.trackFill;
     final track = widget.track ?? p.track;
+    // 声波柱需要更高的空间；其余样式与原来的高度一致，不改变各处的布局。
+    final height = widget.style == ProgressStyle.bars ? math.max(widget.height, 20.0) : widget.height;
+    final thumb = widget.thumb && (widget.style == ProgressStyle.line || widget.style == ProgressStyle.wave || widget.style == ProgressStyle.glow);
     return LayoutBuilder(
       builder: (context, c) {
         final w = c.maxWidth;
@@ -836,46 +845,38 @@ class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
             onHorizontalDragUpdate: widget.onSeek == null ? null : (d) => _update(d.localPosition, w),
             onHorizontalDragEnd: widget.onSeek == null ? null : (_) => _end(v),
             child: SizedBox(
-              height: widget.height,
+              height: height,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  if (widget.wave)
-                    Positioned.fill(
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          painter: _WavePainter(value: v, amp: _amp, phase: _phase, fill: fill, track: track),
+                  Positioned.fill(
+                    child: RepaintBoundary(
+                      child: CustomPaint(
+                        painter: _ProgressPainter(
+                          style: widget.style,
+                          value: v,
+                          amp: _amp,
+                          phase: _phase,
+                          fill: fill,
+                          track: track,
+                          seed: widget.seed,
+                          dragging: _drag != null,
                         ),
                       ),
-                    )
-                  else ...[
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: (widget.height - 4) / 2,
-                      height: 4,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(color: track, borderRadius: BorderRadius.circular(2)),
-                      ),
                     ),
-                    Positioned(
-                      left: 0,
-                      width: w * v,
-                      top: (widget.height - 4) / 2,
-                      height: 4,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(2)),
-                      ),
-                    ),
-                  ],
-                  if (widget.thumb)
+                  ),
+                  if (thumb)
                     Positioned(
                       left: w * v - 6,
-                      top: (widget.height - 12) / 2,
+                      top: (height - 12) / 2,
                       child: Container(
                         width: 12,
                         height: 12,
-                        decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                          color: fill,
+                          shape: BoxShape.circle,
+                          boxShadow: widget.style == ProgressStyle.glow ? [BoxShadow(color: fill.withValues(alpha: 0.6), blurRadius: 10)] : null,
+                        ),
                       ),
                     ),
                 ],
@@ -888,28 +889,67 @@ class _SeekBarState extends State<SeekBar> with SingleTickerProviderStateMixin {
   }
 }
 
-/// 波浪进度：已播放部分为正弦波（波长 26px，振幅 3px × [amp]），未播放部分为直线轨道。
-class _WavePainter extends CustomPainter {
-  _WavePainter({required this.value, required this.amp, required this.phase, required this.fill, required this.track})
-    : super(repaint: Listenable.merge([amp, phase]));
+/// 进度条各样式的绘制。[amp] 为动效强度（0 时静止），[phase] 随时间循环。
+class _ProgressPainter extends CustomPainter {
+  _ProgressPainter({
+    required this.style,
+    required this.value,
+    required this.amp,
+    required this.phase,
+    required this.fill,
+    required this.track,
+    required this.seed,
+    required this.dragging,
+  }) : super(repaint: Listenable.merge([amp, phase]));
 
+  final ProgressStyle style;
   final double value;
   final Animation<double> amp;
   final ValueListenable<double> phase;
   final Color fill;
   final Color track;
+  final int seed;
+  final bool dragging;
 
   static const _wavelength = 26.0;
   static const _amplitude = 3.0;
 
   @override
   void paint(Canvas canvas, Size size) {
+    switch (style) {
+      case ProgressStyle.wave:
+        _wave(canvas, size);
+      case ProgressStyle.line:
+        _line(canvas, size, 4);
+      case ProgressStyle.capsule:
+        _capsule(canvas, size);
+      case ProgressStyle.dots:
+        _dots(canvas, size);
+      case ProgressStyle.bars:
+        _bars(canvas, size);
+      case ProgressStyle.glow:
+        _glow(canvas, size);
+    }
+  }
+
+  Paint _stroke(double width) => Paint()
+    ..strokeWidth = width
+    ..strokeCap = StrokeCap.round
+    ..style = PaintingStyle.stroke;
+
+  void _line(Canvas canvas, Size size, double width) {
     final mid = size.height / 2;
     final x = size.width * value;
-    final stroke = Paint()
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
+    final r = width / 2;
+    canvas.drawLine(Offset(r, mid), Offset(size.width - r, mid), _stroke(width)..color = track);
+    if (x > r) canvas.drawLine(Offset(r, mid), Offset(math.min(x, size.width - r), mid), _stroke(width)..color = fill);
+  }
+
+  /// 波浪：已播放部分为正弦波（波长 26px，振幅 3px × amp），未播放部分为直线轨道。
+  void _wave(Canvas canvas, Size size) {
+    final mid = size.height / 2;
+    final x = size.width * value;
+    final stroke = _stroke(4);
     if (x < size.width - 2) {
       canvas.drawLine(Offset(math.min(x + 4, size.width - 2), mid), Offset(size.width - 2, mid), stroke..color = track);
     }
@@ -930,8 +970,93 @@ class _WavePainter extends CustomPainter {
     canvas.drawPath(path, stroke);
   }
 
+  /// 胶囊：粗圆角条，拖动时加粗。
+  void _capsule(Canvas canvas, Size size) {
+    final h = math.min(size.height, dragging ? 12.0 : 7.0);
+    final top = (size.height - h) / 2;
+    final r = Radius.circular(h / 2);
+    canvas.drawRRect(RRect.fromLTRBR(0, top, size.width, top + h, r), Paint()..color = track);
+    final x = size.width * value;
+    if (x <= 0) return;
+    canvas.save();
+    canvas.clipRRect(RRect.fromLTRBR(0, top, size.width, top + h, r));
+    canvas.drawRRect(RRect.fromLTRBR(0, top, math.max(x, h), top + h, r), Paint()..color = fill);
+    canvas.restore();
+  }
+
+  /// 节拍点：间隔 7px 的圆点，已播放的点填色，当前位置的圆点放大并随播放跳动。
+  void _dots(Canvas canvas, Size size) {
+    const gap = 7.0;
+    final mid = size.height / 2;
+    final count = math.max(2, (size.width / gap).floor());
+    final step = (size.width - 4) / (count - 1);
+    final head = value * (count - 1);
+    final paint = Paint();
+    for (var i = 0; i < count; i++) {
+      final played = i <= head;
+      final near = (i - head).abs();
+      // 当前位置附近的几个点随节拍起伏。
+      final pulse = played && near < 3 ? amp.value * (1 - near / 3) * (0.5 + 0.5 * math.sin(phase.value * 2 + i)) : 0.0;
+      final r = played ? 1.9 + pulse * 1.4 : 1.5;
+      canvas.drawCircle(Offset(2 + i * step, mid), r, paint..color = played ? fill : track);
+    }
+    final hx = 2 + head * step;
+    canvas.drawCircle(Offset(hx, mid), 4 + amp.value * 0.8 * (0.5 + 0.5 * math.sin(phase.value * 2)), paint..color = fill);
+  }
+
+  /// 声波柱：宽 3px、间隔 2px 的竖条，高度由 [seed] 决定；播放时当前位置附近的柱子轻轻起伏。
+  void _bars(Canvas canvas, Size size) {
+    const bar = 3.0, gap = 2.0;
+    final count = math.max(1, ((size.width + gap) / (bar + gap)).floor());
+    final step = (size.width - bar) / math.max(1, count - 1);
+    final x = size.width * value;
+    final rnd = math.Random(seed);
+    final paint = Paint();
+    for (var i = 0; i < count; i++) {
+      // 平滑的随机起伏：两个低频正弦叠加少量随机，像一段真实的音频包络。
+      final t = i / count;
+      final env = 0.45 + 0.3 * math.sin(t * math.pi * 3 + seed % 7) * math.sin(t * math.pi * 1.3 + 1) + 0.25 * rnd.nextDouble();
+      final left = i * step;
+      final played = left + bar / 2 <= x;
+      final near = (left - x).abs() / 24;
+      final live = played && near < 1 ? amp.value * (1 - near) * 0.25 * math.sin(phase.value * 3 + i) : 0.0;
+      final h = (size.height * (env + live).clamp(0.18, 1.0)).clamp(3.0, size.height);
+      final top = (size.height - h) / 2;
+      canvas.drawRRect(RRect.fromLTRBR(left, top, left + bar, top + h, const Radius.circular(1.5)), paint..color = played ? fill : track);
+    }
+  }
+
+  /// 流光：渐变的发光线条，播放时一道高光从左到右掠过已播放部分。
+  void _glow(Canvas canvas, Size size) {
+    final mid = size.height / 2;
+    final x = size.width * value;
+    canvas.drawLine(Offset(2, mid), Offset(size.width - 2, mid), _stroke(4)..color = track);
+    if (x <= 2) return;
+    final rect = Rect.fromLTRB(0, mid - 2, x, mid + 2);
+    final shader = LinearGradient(colors: [fill.withValues(alpha: 0.35), fill]).createShader(rect);
+    canvas.drawLine(
+      Offset(2, mid),
+      Offset(x, mid),
+      _stroke(6)
+        ..color = fill.withValues(alpha: 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+    canvas.drawLine(Offset(2, mid), Offset(x, mid), _stroke(4)..shader = shader);
+    final a = amp.value;
+    if (a > 0.02 && x > 24) {
+      final c = 2 + (x - 2) * (phase.value / (2 * math.pi));
+      final shine = Paint()
+        ..shader = RadialGradient(colors: [Colors.white.withValues(alpha: 0.75 * a), Colors.white.withValues(alpha: 0)]).createShader(Rect.fromCircle(center: Offset(c, mid), radius: 14));
+      canvas.save();
+      canvas.clipRRect(RRect.fromLTRBR(2, mid - 2, x, mid + 2, const Radius.circular(2)));
+      canvas.drawRect(Rect.fromLTRB(c - 14, mid - 3, c + 14, mid + 3), shine);
+      canvas.restore();
+    }
+  }
+
   @override
-  bool shouldRepaint(_WavePainter old) => old.value != value || old.fill != fill || old.track != track;
+  bool shouldRepaint(_ProgressPainter old) =>
+      old.style != style || old.value != value || old.fill != fill || old.track != track || old.seed != seed || old.dragging != dragging;
 }
 
 /// 设置页里的一行：图标块 + 标题 + 右侧值/开关 + 箭头。

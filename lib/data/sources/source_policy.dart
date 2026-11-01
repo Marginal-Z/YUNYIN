@@ -23,15 +23,19 @@ Future<StreamInfo> resolveStream(MusicSource source, Song song, AudioQuality qua
   }
   if (own?.url != null && !own!.trial) return own;
   final custom = SourcePolicy.custom;
+  Object? lxError;
   if (custom != null) {
     try {
       final c = await custom(song, quality);
       if (c?.url != null) return c!;
     } catch (e) {
       debugPrint('lx ${song.name}: $e');
-      error ??= e;
+      lxError = e;
     }
   }
   if (own != null) return own;
-  throw error ?? Exception('无法播放这首歌');
+  String text(Object e) => e.toString().replaceFirst('Exception: ', '');
+  // 平台与洛雪音源都失败时两边的原因都给出，便于判断是账号问题还是音源失效。
+  if (error != null && lxError != null) throw Exception('${text(error)}；洛雪音源也没有取到：${text(lxError)}');
+  throw error ?? lxError ?? Exception('无法播放这首歌');
 }

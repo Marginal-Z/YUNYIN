@@ -388,6 +388,11 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> playSongs(List<Song> songs, {int start = 0, bool shuffle = false, String? title}) async {
     if (songs.isEmpty) return;
+    // 歌单、榜单里偶尔有重复的歌曲：队列中每首只保留一次，否则按歌曲查找位置（切歌、移除）会落到另一处。
+    final want = songs[start.clamp(0, songs.length - 1)];
+    final seen = <String>{};
+    songs = [for (final s in songs) if (seen.add(s.key)) s];
+    start = songs.indexOf(want);
     _queue = List.of(songs);
     queueTitle = title;
     if (shuffle) {
@@ -554,6 +559,12 @@ class PlayerController extends ChangeNotifier {
   Future<void> jumpTo(Song song) async {
     final i = _queue.indexOf(song);
     if (i < 0) return;
+    await jumpToIndex(i);
+  }
+
+  /// 切到队列中第 [i] 首（卡片流、照片墙按位置切歌）。
+  Future<void> jumpToIndex(int i) async {
+    if (i < 0 || i >= _queue.length || (i == _index && _player?.state.playlist.medias.isNotEmpty == true)) return;
     _index = i;
     await _load(autoplay: true);
   }
@@ -588,7 +599,23 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
+  /// 正在打开新歌曲（从开始加载到播放器打开媒体）：这期间上一首的“播放结束”事件不能触发切歌。
+  bool _opening = false;
+
+  /// 最近一次打开媒体的时间。
+  DateTime _openedAt = DateTime.fromMillisecondsSinceEpoch(0);
+
   void _onCompleted() {
+    if (_opening) return;
+    // 刚打开就“播放结束”且几乎没有播放：多半是地址失效或网络错误，提示一次后再切到下一首，而不是连续跳过好几首。
+    if (DateTime.now().difference(_openedAt) < const Duration(seconds: 2) && position.value < const Duration(seconds: 1)) {
+      final token = _loadToken;
+      _notices.add(const PlayerNotice('这首歌无法播放', message: '播放地址暂时不可用，已切到下一首。'));
+      Future<void>.delayed(const Duration(milliseconds: 800), () {
+        if (token == _loadToken && _queue.length > 1) next(auto: true);
+      });
+      return;
+    }
     if (mode == PlayMode.repeatOne) {
       seek(Duration.zero).then((_) => _player?.play());
     } else {
@@ -600,6 +627,7 @@ class PlayerController extends ChangeNotifier {
     final song = current;
     if (song == null) return;
     final token = ++_loadToken;
+    _opening = true;
     final resume = keepPosition ? position.value : Duration.zero;
     if (!keepPosition) position.value = Duration.zero;
     duration = song.duration;
@@ -621,6 +649,7 @@ class PlayerController extends ChangeNotifier {
       }
     } catch (e) {
       if (token != _loadToken) return;
+      _opening = false;
       buffering = false;
       notifyListeners();
       _notices.add(PlayerNotice('播放失败', message: e.toString()));
@@ -628,6 +657,7 @@ class PlayerController extends ChangeNotifier {
     }
     if (token != _loadToken) return;
 
+    if (_player == null || info.url == null) _opening = false;
     if (_player == null) {
       buffering = false;
       notifyListeners();
@@ -646,10 +676,18 @@ class PlayerController extends ChangeNotifier {
     }
     if (info.trial) _notices.add(const PlayerNotice('当前为试听片段'));
     final p = _player!;
+    // 每次等待之后都检查是否已经切到别的歌：快速连续切歌时，较早的请求不能在之后打开自己的地址，
+    // 否则界面显示的是新歌，实际播放的却是上一首。
     if (settings.crossfade && playing) await _rampFade(0, 260);
+    if (token != _loadToken) return;
     _gain = gainFactor(info.gainDb);
+    _opening = true;
     await p.open(Media(info.url!, httpHeaders: info.headers), play: false);
+    _openedAt = DateTime.now();
+    if (token != _loadToken) return;
+    _opening = false;
     if (resume > Duration.zero) await p.seek(resume);
+    if (token != _loadToken) return;
     if (autoplay) {
       if (settings.crossfade) {
         await _setFade(0);

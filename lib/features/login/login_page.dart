@@ -597,25 +597,33 @@ class _QrSheetState extends State<_QrSheet> {
       final t = await source.createQrLogin();
       if (!mounted) return;
       setState(() => _ticket = t);
-      _poll = Timer.periodic(const Duration(seconds: 2), (_) async {
+      var busy = false;
+      late final Timer poll;
+      poll = _poll = Timer.periodic(const Duration(seconds: 2), (_) async {
+        // 上一次查询还没返回时跳过：确认登录后还要换取平台凭据（QQ 音乐需要依次请求几个接口，超过 2 秒），
+        // 重叠的查询会拿同一个二维码再查一次，得到“已过期”或重复使用一次性的授权地址，导致登录失败。
+        if (busy) return;
+        busy = true;
         try {
           final s = await source.checkQrLogin(t);
-          if (!mounted) return;
+          if (!mounted || _poll != poll) return;
           setState(() => _state = s);
           if (s == QrState.confirmed) {
-            _poll?.cancel();
+            poll.cancel();
             Navigator.of(context).pop(true);
           } else if (s == QrState.expired) {
-            _poll?.cancel();
+            poll.cancel();
           }
           _failures = 0;
         } catch (e) {
-          // 连续失败（例如触发风控）时把原因展示出来，而不是一直停在“等待扫码”。
-          if (!mounted) return;
-          if (++_failures >= 3) {
-            _poll?.cancel();
+          // 连续失败（例如触发风控）时把原因展示出来，而不是一直停在“等待扫码”；确认后换取凭据失败时直接显示原因。
+          if (!mounted || _poll != poll) return;
+          if (_state == QrState.scanned || ++_failures >= 3) {
+            poll.cancel();
             setState(() => _error = e);
           }
+        } finally {
+          busy = false;
         }
       });
     } catch (e) {

@@ -8,6 +8,7 @@ import '../../core/ui/app_background.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
+import '../common/actions.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
 import 'settings_page.dart';
@@ -163,7 +164,7 @@ class AppearancePage extends StatelessWidget {
                     onChanged: (i) => s.setHomeLayout(HomeLayout.values[i]),
                   ),
                   const SizedBox(height: 8),
-                  Text(s.homeLayout.description, style: ts(13, height: 1.45, color: p.text2)),
+                  Text('${s.homeLayout.description}${showOrientation ? '。手机横屏时首页自动使用照片墙' : ''}', style: ts(13, height: 1.45, color: p.text2)),
                 ],
               ),
             ),
@@ -205,8 +206,22 @@ class AppearancePage extends StatelessWidget {
             SettingsRow(
               icon: YIcons.equalizer,
               tile: TileColor.blue,
-              title: '进度条波浪动画',
-              trailing: YSwitch(value: s.waveProgress, label: '进度条波浪动画', onChanged: (v) => s.setFlag('waveProgress', v)),
+              title: '进度条样式',
+              value: s.progressStyle.label,
+              onTap: () async {
+                final v = await showOptions<ProgressStyle>(
+                  context,
+                  title: '进度条样式',
+                  selected: s.progressStyle,
+                  options: [for (final o in ProgressStyle.values) (o, o.label)],
+                );
+                if (v != null) s.setProgressStyle(v);
+              },
+            ),
+            // 当前样式的预览（播放中的效果）。
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+              child: SeekBar(value: 0.42, style: s.progressStyle, playing: true, seed: 7),
             ),
             SettingsRow(
               icon: YIcons.target,

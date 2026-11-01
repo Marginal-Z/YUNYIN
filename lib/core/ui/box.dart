@@ -270,6 +270,12 @@ class YBox extends StatelessWidget {
   }
 }
 
+/// 清透玻璃上文字的光晕：紧贴字形的一层把笔画和背后的内容分开，外面一层更柔和的光晕压低周围的杂乱细节。
+/// 只作用在文字上，玻璃本身保持清透。
+List<Shadow> legibleHalo(Palette p) => p.isDark
+    ? const [Shadow(color: Color(0xCC000000), blurRadius: 1.5), Shadow(color: Color(0x8C000000), blurRadius: 7)]
+    : const [Shadow(color: Color(0xF2FFFFFF), blurRadius: 1.5), Shadow(color: Color(0xB3FFFFFF), blurRadius: 7)];
+
 /// Liquid Glass 材质。
 class Glass extends StatelessWidget {
   const Glass({

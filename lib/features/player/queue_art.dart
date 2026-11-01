@@ -96,7 +96,7 @@ class _QueueFlowState extends State<QueueFlow> {
                 final p = (pc.page ?? 0).round().clamp(0, queue.length - 1);
                 if (p != player.index) {
                   _index = p;
-                  player.jumpTo(queue[p]);
+                  player.jumpToIndex(p);
                 }
               }
               return false;
@@ -126,7 +126,7 @@ class _QueueFlowState extends State<QueueFlow> {
                         } else {
                           pc.animateToPage(i, duration: const Duration(milliseconds: 420), curve: Curves.easeOutCubic);
                           _index = i;
-                          player.jumpTo(queue[i]);
+                          player.jumpToIndex(i);
                         }
                       },
                     ),
@@ -487,7 +487,7 @@ class _WallTile extends StatelessWidget {
         final w = c.maxWidth;
         final small = w < 90;
         return Pressable(
-          onTap: () => current ? openLyrics(context) : context.read<PlayerController>().jumpTo(song),
+          onTap: () => current ? openLyrics(context) : context.read<PlayerController>().jumpToIndex(index),
           scale: 0.96,
           semanticLabel: current ? '${song.name}，正在播放' : '播放${song.name}',
           child: AnimatedScale(

@@ -431,7 +431,8 @@ class _Progress extends StatelessWidget {
     final player = context.read<PlayerController>();
     final total = context.select<PlayerController, Duration>((c) => c.duration);
     final playing = context.select<PlayerController, bool>((c) => c.playing);
-    final wave = context.select<AppSettings, bool>((s) => s.waveProgress);
+    final style = context.select<AppSettings, ProgressStyle>((s) => s.progressStyle);
+    final seed = context.select<PlayerController, int>((c) => c.current?.key.hashCode ?? 0);
     return ValueListenableBuilder<Duration>(
       valueListenable: player.position,
       builder: (context, pos, _) {
@@ -439,7 +440,7 @@ class _Progress extends StatelessWidget {
         final remain = total - pos;
         return Column(
           children: [
-            SeekBar(value: f, onSeek: player.seekFraction, wave: wave, playing: playing),
+            SeekBar(value: f, onSeek: player.seekFraction, style: style, playing: playing, seed: seed),
             const SizedBox(height: 8),
             Row(
               children: [

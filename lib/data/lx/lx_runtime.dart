@@ -148,6 +148,16 @@ class LxRuntime {
       final data = _bytes(m['data']);
       return m['op'] == 'inflate' ? ZLibCodec().decode(data) : ZLibCodec().encode(data);
     });
+    _js.onMessage('lx_timer', (args) {
+      final m = args as Map;
+      final id = (m['id'] as num).toInt();
+      final t = Timer(Duration(milliseconds: (m['ms'] as num).toInt()), () {
+        _timers.remove(id);
+        _eval('__lx_timer($id)');
+      });
+      _timers[id] = t;
+      return 'ok';
+    });
     _js.onMessage('lx_log', (args) {
       debugPrint('lx: $args');
       return 'ok';
@@ -259,9 +269,16 @@ class LxRuntime {
     );
   }
 
+  /// 脚本中未到期的定时器（停止音源时一并取消）。
+  final _timers = <int, Timer>{};
+
   void dispose() {
     _disposed = true;
     _pump?.cancel();
+    for (final t in _timers.values) {
+      t.cancel();
+    }
+    _timers.clear();
     for (final c in _pending.values) {
       if (!c.isCompleted) c.completeError(Exception('音源已停止'));
     }
@@ -377,6 +394,26 @@ const _prelude = r'''
       sendMessage('lx_request', JSON.stringify({ id: id, url: url, opts: options || {} }));
       return function () { delete callbacks[id]; };
     },
+  };
+  // 定时器：flutter_js 自带的 setTimeout 不返回编号、不传额外参数，也没有 clearTimeout / setInterval，
+  // 而音源脚本常用它们给请求加超时；这里完整实现一套，由云音按时回调。
+  var timers = {};
+  var timerSeq = 0;
+  var startTimer = function (fn, ms, args, repeat) {
+    var id = ++timerSeq;
+    timers[id] = { fn: fn, args: args, repeat: repeat, ms: Math.max(0, Number(ms) || 0) };
+    sendMessage('lx_timer', JSON.stringify({ id: id, ms: timers[id].ms }));
+    return id;
+  };
+  g.setTimeout = function (fn, ms) { return startTimer(fn, ms, Array.prototype.slice.call(arguments, 2), false); };
+  g.setInterval = function (fn, ms) { return startTimer(fn, ms, Array.prototype.slice.call(arguments, 2), true); };
+  g.clearTimeout = g.clearInterval = function (id) { delete timers[id]; };
+  g.__lx_timer = function (id) {
+    var t = timers[id];
+    if (!t) return;
+    if (t.repeat) sendMessage('lx_timer', JSON.stringify({ id: id, ms: t.ms }));
+    else delete timers[id];
+    if (typeof t.fn === 'function') t.fn.apply(null, t.args);
   };
   g.console = g.console || {};
   ['log', 'info', 'warn', 'error', 'debug'].forEach(function (k) {

@@ -101,7 +101,8 @@ class QQMusicSource extends MusicSource {
   /// musicu.fcg 统一接口：一次请求可以带多个模块调用（[reqs] 的键为调用名）。
   Future<Map<String, dynamic>> _call(Map<String, Map<String, dynamic>> reqs) async {
     final body = {
-      'comm': {'ct': '19', 'cv': '1859', 'uin': _uin ?? '0', if (_key != null) 'authst': _key, 'format': 'json'},
+      // 已登录时 tmeLoginType 为 2 表示 QQ 账号登录（1 为微信），musickey 需要与之匹配才会被认可。
+      'comm': {'ct': '19', 'cv': '1859', 'uin': _uin ?? '0', if (_key != null) ...{'authst': _key, 'qq': _uin, 'tmeLoginType': '2'}, 'format': 'json'},
       ...reqs,
     };
     final res = await _dio.post<String>(
@@ -720,19 +721,65 @@ class QQMusicSource extends MusicSource {
       case '65':
         return QrState.expired;
       case '0':
-        await _finishLogin(args.length > 2 ? args[2] : '');
+        // 同一张二维码只换取一次凭据。
+        if (_finishing != null && _finishing!.$1 == ticket.key) {
+          await _finishing!.$2;
+        } else {
+          final f = _finishLogin(args.length > 2 ? args[2] : '');
+          _finishing = (ticket.key, f);
+          await f;
+        }
         return QrState.confirmed;
       default:
         throw Exception(args.length > 4 && args[4].isNotEmpty ? args[4] : '登录失败（$code）');
     }
   }
 
+  /// 正在换取凭据的二维码与过程（避免重复换取）。
+  (String, Future<void>)? _finishing;
+
+  static String _uuid() {
+    final r = math.Random.secure();
+    final b = List<int>.generate(16, (_) => r.nextInt(256));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    final h = b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
+    return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
+  }
+
   /// 扫码确认后：访问 check_sig 拿到 p_skey → QQ 互联授权拿到 code → 用 code 登录 QQ 音乐拿到 musickey。
   Future<void> _finishLogin(String checkSig) async {
-    if (checkSig.isEmpty) throw Exception('登录失败：没有返回授权地址');
+    final link = Uri.tryParse(checkSig);
+    final qqUin = link?.queryParameters['uin'];
+    final sigx = link?.queryParameters['ptsigx'];
+    if (link == null || qqUin == null || sigx == null) throw Exception('登录失败：没有返回授权地址');
     final sig = await _dio.get<String>(
-      checkSig,
-      options: Options(followRedirects: false, validateStatus: (s) => s != null && s < 400, headers: {'Cookie': _loginCookieHeader}),
+      'https://ssl.ptlogin2.graph.qq.com/check_sig',
+      queryParameters: {
+        'uin': qqUin,
+        'pttype': 1,
+        'service': 'ptqrlogin',
+        'nodirect': 0,
+        'ptsigx': sigx,
+        's_url': 'https://graph.qq.com/oauth2.0/login_jump',
+        'ptlang': 2052,
+        'ptredirect': 100,
+        'aid': _appid,
+        'daid': 383,
+        'j_later': 0,
+        'low_login_hour': 0,
+        'regmaster': 0,
+        'pt_login_type': 3,
+        'pt_aid': 0,
+        'pt_aaid': 16,
+        'pt_light': 0,
+        'pt_3rd_aid': _thirdAid,
+      },
+      options: Options(
+        followRedirects: false,
+        validateStatus: (s) => s != null && s < 400,
+        headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://xui.ptlogin2.qq.com/'},
+      ),
     );
     _absorb(sig.headers);
     final pSkey = _loginCookies['p_skey'];
@@ -751,8 +798,8 @@ class QQMusicSource extends MusicSource {
         'update_auth': 1,
         'openapi': '1010_1030',
         'g_tk': _hash33(pSkey, 5381),
-        'auth_time': DateTime.now().millisecondsSinceEpoch,
-        'ui': '${math.Random().nextInt(1 << 31)}',
+        'auth_time': DateTime.now().millisecondsSinceEpoch ~/ 1000 * 1000,
+        'ui': _uuid(),
       },
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
@@ -762,12 +809,12 @@ class QQMusicSource extends MusicSource {
       ),
     );
     final location = auth.headers.value('location') ?? '';
-    final code = Uri.tryParse(location)?.queryParameters['code'];
+    final code = Uri.tryParse(location)?.queryParameters['code'] ?? RegExp(r'[?&]code=([^&]+)').firstMatch(location)?.group(1);
     if (code == null || code.isEmpty) throw Exception('登录失败：QQ 互联没有返回授权码');
     final login = await _dio.post<String>(
       _api,
       data: jsonEncode({
-        'comm': {'g_tk': 5381, 'platform': 'yqq', 'ct': 24, 'cv': 0},
+        'comm': {'g_tk': 5381, 'platform': 'yqq', 'ct': 24, 'cv': 0, 'tmeLoginType': '2'},
         'req': {
           'module': 'QQConnectLogin.LoginServer',
           'method': 'QQLogin',

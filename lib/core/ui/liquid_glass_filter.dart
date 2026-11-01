@@ -35,7 +35,8 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
   final double radius;
   final GlassMaterial material;
 
-  /// 承载文字的玻璃（导航栏、迷你播放条）：「清透」材质下也加一层轻度模糊与色调，背后的内容不会和文字叠在一起。
+  /// 承载文字的玻璃（导航栏、迷你播放条）：「清透」材质仍然不模糊，只加一层很淡的色调，压低背后内容的对比度；
+  /// 文字本身另有光晕（见 [legibleHalo]），保持清透的观感。
   final bool legible;
 
   @override
@@ -143,7 +144,6 @@ class RenderLiquidGlass extends RenderProxyBox {
     _shader?.dispose();
     final shader = _shader = LiquidGlassShader._program!.fragmentShader();
     final regular = _material == GlassMaterial.regular;
-    final frosted = regular || _legible;
     var i = 2; // 0、1 是输入纹理尺寸，由引擎填写。
     void f(double v) => shader.setFloat(i++, v);
     f(size.width * _dpr);
@@ -155,7 +155,7 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(7); // 色散
     // 边缘高光 90%；深色背景上同样强度的高光会形成一圈亮边、看起来像两层叠在一起，减到 55%。
     f(_dark ? 0.55 : 0.9);
-    f(_dark ? (regular ? 0.75 : (_legible ? 0.66 : 0.55)) : (regular ? 0.11 : (_legible ? 0.32 : 0))); // 色调强度
+    f(_dark ? (regular ? 0.75 : (_legible ? 0.6 : 0.55)) : (regular ? 0.11 : (_legible ? 0.12 : 0))); // 色调强度
     // 圆角一律用正圆弧，与关闭液态玻璃时的圆角矩形完全一致（原版面板的超椭圆圆角看起来偏方）。
     f(2);
     f(global.dx * _dpr / _uiScale);
@@ -178,7 +178,7 @@ class RenderLiquidGlass extends RenderProxyBox {
     final layer = _glass.layer ??= BackdropFilterLayer();
     final glass = ui.ImageFilter.shader(shader);
     layer
-      ..filter = frosted
+      ..filter = regular
           // 原版「柔和」：半径 16 的高斯模糊（sigma = 16 / 3），再由着色器读取模糊结果。原版以 1 倍屏像素设计，这里按逻辑像素换算。
           ? ui.ImageFilter.compose(
               outer: glass,

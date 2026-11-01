@@ -60,7 +60,9 @@ class HomePage extends StatelessWidget {
     final sources = context.watch<SourceManager>();
     final source = sources.current;
     final user = source.user;
-    final layout = context.select<AppSettings, HomeLayout>((s) => s.homeLayout);
+    // 手机横屏（屏幕方向设为横屏，或自动旋转到横屏）时首页默认使用照片墙，竖屏时恢复所选的首页样式。
+    final landscape = MediaQuery.orientationOf(context) == Orientation.landscape;
+    final layout = landscape ? HomeLayout.photoWall : context.select<AppSettings, HomeLayout>((s) => s.homeLayout);
     Future<HomeFeed> load() async {
       final feed = await source.homeFeed();
       DataCache.saveHome(source.id, source.user?.id, feed);

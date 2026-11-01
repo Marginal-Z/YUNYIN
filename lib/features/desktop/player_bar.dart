@@ -51,14 +51,14 @@ class DesktopPlayerBar extends StatelessWidget {
                       children: [
                         Text(
                           song?.name ?? '云音',
-                          style: ts(14, weight: w600, color: p.text),
+                          style: ts(14, weight: w600, color: p.text).copyWith(shadows: legibleHalo(p)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
                           song?.subtitle ?? '听见好音乐',
-                          style: ts(12, color: p.text4),
+                          style: ts(12, color: p.text4).copyWith(shadows: legibleHalo(p)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -112,13 +112,20 @@ class DesktopPlayerBar extends StatelessWidget {
                       final f = total.inMilliseconds == 0 ? 0.0 : pos.inMilliseconds / total.inMilliseconds;
                       return Row(
                         children: [
-                          Text(formatDuration(pos), style: ts(12, color: p.text4, tabular: true)),
+                          Text(formatDuration(pos), style: ts(12, color: p.text4, tabular: true).copyWith(shadows: legibleHalo(p))),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: SeekBar(value: f, thumb: false, onSeek: player.seekFraction, wave: context.select<AppSettings, bool>((s) => s.waveProgress), playing: player.playing),
+                            child: SeekBar(
+                              value: f,
+                              thumb: false,
+                              onSeek: player.seekFraction,
+                              style: context.select<AppSettings, ProgressStyle>((s) => s.progressStyle),
+                              playing: player.playing,
+                              seed: player.current?.key.hashCode ?? 0,
+                            ),
                           ),
                           const SizedBox(width: 10),
-                          Text(formatDuration(total), style: ts(12, color: p.text4, tabular: true)),
+                          Text(formatDuration(total), style: ts(12, color: p.text4, tabular: true).copyWith(shadows: legibleHalo(p))),
                         ],
                       );
                     },

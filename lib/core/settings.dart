@@ -76,6 +76,30 @@ enum ScreenOrientation {
   final String label;
 }
 
+/// 播放进度条的样式。
+enum ProgressStyle {
+  /// 已播放部分是流动的正弦波。
+  wave('波浪'),
+
+  /// 细直线加圆点。
+  line('直线'),
+
+  /// 粗圆角条，拖动时变粗。
+  capsule('胶囊'),
+
+  /// 一串圆点，当前位置的圆点随播放跳动。
+  dots('节拍点'),
+
+  /// 高低错落的声波柱（每首歌的形状固定）。
+  bars('声波柱'),
+
+  /// 渐变的发光线条，播放时有流光掠过。
+  glow('流光');
+
+  const ProgressStyle(this.label);
+  final String label;
+}
+
 /// 首页样式。
 enum HomeLayout {
   /// 推荐、歌单、最近播放分区。
@@ -166,7 +190,7 @@ class AppSettings extends ChangeNotifier {
   ScreenOrientation orientation = ScreenOrientation.auto;
 
   /// 播放进度条的波浪动画。
-  bool waveProgress = true;
+  ProgressStyle progressStyle = ProgressStyle.wave;
 
   /// 音量增强（dB）：0–6。
   int volumeBoost = 0;
@@ -263,7 +287,9 @@ class AppSettings extends ChangeNotifier {
     playerStyle = PlayerStyle.values[(_p.getInt('playerStyle') ?? 0).clamp(0, PlayerStyle.values.length - 1)];
     homeLayout = HomeLayout.values[(_p.getInt('homeLayout') ?? 0).clamp(0, HomeLayout.values.length - 1)];
     orientation = ScreenOrientation.values[(_p.getInt('orientation') ?? ScreenOrientation.auto.index).clamp(0, ScreenOrientation.values.length - 1)];
-    waveProgress = _p.getBool('waveProgress') ?? true;
+    // 旧版本只有“波浪动画”开关：关闭时迁移为直线。
+    final ps = _p.getInt('progressStyle');
+    progressStyle = ps != null ? ProgressStyle.values[ps.clamp(0, ProgressStyle.values.length - 1)] : (_p.getBool('waveProgress') ?? true ? ProgressStyle.wave : ProgressStyle.line);
     volumeBoost = _p.getInt('volumeBoost') ?? 0;
     eqEnabled = _p.getBool('eqEnabled') ?? false;
     eqPreset = EqPreset.values[(_p.getInt('eqPreset') ?? 0).clamp(0, EqPreset.values.length - 1)];
@@ -374,8 +400,6 @@ class AppSettings extends ChangeNotifier {
         autoUpdate = v;
       case 'backgroundBlur':
         backgroundBlur = v;
-      case 'waveProgress':
-        waveProgress = v;
       case 'eqEnabled':
         eqEnabled = v;
       case 'hiResOutput':
@@ -458,6 +482,12 @@ class AppSettings extends ChangeNotifier {
   void setHomeLayout(HomeLayout v) {
     homeLayout = v;
     _p.setInt('homeLayout', v.index);
+    notifyListeners();
+  }
+
+  void setProgressStyle(ProgressStyle v) {
+    progressStyle = v;
+    _p.setInt('progressStyle', v.index);
     notifyListeners();
   }
 
