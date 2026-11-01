@@ -408,13 +408,18 @@ class _SidePlaylistsState extends State<_SidePlaylists> {
   void initState() {
     super.initState();
     if (!widget.source.loggedIn && widget.source.supports(SourceFeature.login)) return;
+    if (!widget.source.supports(SourceFeature.userPlaylists)) return;
     widget.source
         .userPlaylists()
         .then((l) {
           if (mounted) setState(() => _lists = l.where((x) => !x.isLikedList).toList());
         })
-        .catchError((_) {});
+        .catchError((_) {
+          if (mounted) setState(() => _failed = true);
+        });
   }
+
+  bool _failed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -423,7 +428,16 @@ class _SidePlaylistsState extends State<_SidePlaylists> {
     if (lists == null) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
-        child: Text(widget.source.loggedIn ? '加载中…' : '登录后显示你的歌单', style: ts(13, color: p.text2)),
+        child: Text(
+          !widget.source.loggedIn
+              ? '登录后显示你的歌单'
+              : !widget.source.supports(SourceFeature.userPlaylists)
+              ? '${widget.source.name}暂不支持同步歌单'
+              : _failed
+              ? '歌单加载失败'
+              : '加载中…',
+          style: ts(13, color: p.text2),
+        ),
       );
     }
     return Column(

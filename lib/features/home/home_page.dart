@@ -43,7 +43,8 @@ PlaylistInfo dailyPlaylist(MusicSource source, List<Song> songs) => PlaylistInfo
   sourceId: source.id,
   name: '每日推荐',
   cover: songs.firstOrNull?.coverUrl,
-  creator: source.loggedIn ? '根据你的口味生成' : '飙升榜精选',
+  // 只有网易云登录后是个性化日推；其他平台与未登录时取自飙升榜。
+  creator: source.loggedIn && source.id == 'netease' ? '根据你的口味生成' : '飙升榜精选',
   description: '新歌与老朋友，每天清晨更新',
   trackCount: songs.length,
   kind: PlaylistKind.daily,

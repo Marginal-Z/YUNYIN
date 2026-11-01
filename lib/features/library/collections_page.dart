@@ -48,11 +48,23 @@ class _CollectionsPageState extends State<CollectionsPage> {
           key: ValueKey('${sources.generation}-$_tab'),
           child: needLogin
               ? LoginPrompt(source: source)
+              // 平台没有对应的同步接口（QQ 音乐的收藏专辑与歌手、酷狗的歌单等）时给出说明，而不是报错。
+              : !source.supports(_tab == 0 ? SourceFeature.userPlaylists : SourceFeature.followArtist)
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 20),
+                  child: YCard(
+                    child: StateView.empty(
+                      title: '暂不支持同步',
+                      message: '${source.name}暂不支持在云音中查看收藏的${const ['歌单', '专辑', '歌手'][_tab]}。',
+                      icon: YIcons.library,
+                    ),
+                  ),
+                )
               : switch (_tab) {
                   0 => Padding(
                     padding: const EdgeInsets.only(top: 20),
                     child: AsyncView<List<PlaylistInfo>>(
-                      cacheKey: 'userPlaylists',
+                      cacheKey: 'userPlaylists:${source.id}:${source.user?.id}',
                       maxAge: Duration.zero,
                       load: source.userPlaylists,
                       builder: (context, lists, _) {

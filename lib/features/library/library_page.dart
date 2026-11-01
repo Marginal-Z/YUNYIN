@@ -100,17 +100,28 @@ class LibraryOverview extends StatelessWidget {
     final source = context.read<SourceManager>().current;
     final downloads = context.watch<DownloadManager>();
     final history = context.select<PlayerController, int>((p) => p.history.length);
+    // 没有账号“喜欢”功能的平台：喜欢的歌曲保存在本机。
+    final localLiked = source.supports(SourceFeature.likeSong) ? null : context.select<PlayerController, int>((p) => p.localLikedSongs(source.id).length);
     if (!source.loggedIn && source.supports(SourceFeature.login)) {
       return Column(
         children: [
           const SizedBox(height: 20),
-          _QuickGrid(liked: null, recent: history, downloaded: downloads.items.length, subscribed: null),
+          _QuickGrid(liked: localLiked, recent: history, downloaded: downloads.items.length, subscribed: null),
           LoginPrompt(source: source),
         ],
       );
     }
+    // 平台没有“我的歌单”接口（酷狗）：只显示常用入口。
+    if (!source.supports(SourceFeature.userPlaylists)) {
+      return Column(
+        children: [
+          const SizedBox(height: 20),
+          _QuickGrid(liked: localLiked, recent: history, downloaded: downloads.items.length, subscribed: null),
+        ],
+      );
+    }
     return AsyncView<List<PlaylistInfo>>(
-      cacheKey: 'userPlaylists',
+      cacheKey: 'userPlaylists:${source.id}:${source.user?.id}',
       maxAge: Duration.zero,
       load: source.userPlaylists,
       loading: const Padding(padding: EdgeInsets.only(top: 20), child: SkeletonList()),
@@ -122,7 +133,7 @@ class LibraryOverview extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 20),
-            _QuickGrid(liked: liked?.trackCount, recent: history, downloaded: downloads.items.length, subscribed: subscribed, likedList: liked),
+            _QuickGrid(liked: liked?.trackCount ?? localLiked, recent: history, downloaded: downloads.items.length, subscribed: subscribed, likedList: liked),
             SectionHeader('我创建的歌单', action: '管理', onAction: () => go(context, MyCollectionsRoute())),
             if (created.isEmpty)
               YCard(
