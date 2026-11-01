@@ -712,6 +712,9 @@ class QQMusicSource extends MusicSource {
     }
   }
 
+  /// 扫码过程中收到的全部 Cookie（不区分域名）。
+  String get _allLoginCookies => [for (final e in _jar.entries) '${e.key.substring(e.key.indexOf('|') + 1)}=${e.value.$2}'].join('; ');
+
   /// 发往 [to] 的 Cookie 请求头：只包含域名与目标主机匹配的 Cookie。
   String _cookiesFor(Uri to) {
     final host = to.host.toLowerCase();
@@ -720,7 +723,6 @@ class QQMusicSource extends MusicSource {
         if (host == e.value.$1 || host.endsWith('.${e.value.$1}')) '${e.key.substring(e.key.indexOf('|') + 1)}=${e.value.$2}',
     ].join('; ');
   }
-
 
   @override
   Future<QrTicket> createQrLogin() async {
@@ -870,7 +872,8 @@ class QQMusicSource extends MusicSource {
         options: Options(
           followRedirects: false,
           validateStatus: (s) => s != null && s < 500,
-          headers: {'Cookie': _cookiesFor(current), 'Referer': 'https://xui.ptlogin2.qq.com/', 'User-Agent': ua},
+          // check_sig 与扫码接口不在同一个域名，但需要带上扫码时收到的全部 Cookie（与可用的 Swift 客户端一致）。
+          headers: {'Cookie': _allLoginCookies, 'Referer': 'https://xui.ptlogin2.qq.com/', 'User-Agent': ua},
         ),
       );
       _checkLoginGeneration(generation);
@@ -882,58 +885,81 @@ class QQMusicSource extends MusicSource {
     }
     final pSkey = _loginCookies['p_skey'];
     if (pSkey == null || pSkey.isEmpty) throw Exception('登录失败：没有获得 QQ 互联授权凭据（p_skey），请重新扫码');
-    final auth = await _dio.post<String>(
-      'https://graph.qq.com/oauth2.0/authorize',
-      data: {
-        'response_type': 'code',
-        'client_id': _thirdAid,
-        'redirect_uri': 'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/',
-        'scope': 'get_user_info,get_app_friends',
-        'state': 'state',
-        'switch': '',
-        'from_ptlogin': 1,
-        'src': 1,
-        'update_auth': 1,
-        'openapi': '1010_1030',
-        'g_tk': _hash33(pSkey, 5381),
-        'auth_time': DateTime.now().millisecondsSinceEpoch,
-        'ui': _uuid(),
-      },
-      options: Options(
-        contentType: Headers.formUrlEncodedContentType,
-        followRedirects: false,
-        validateStatus: (s) => s != null && s < 500,
-        headers: {'Cookie': _cookiesFor(Uri.https('graph.qq.com', '/oauth2.0/authorize')), 'Referer': 'https://graph.qq.com/', 'User-Agent': ua},
-      ),
-    );
-    _checkLoginGeneration(generation);
-    _absorb(auth.headers, Uri.https('graph.qq.com', '/oauth2.0/authorize'));
-    final location = auth.headers.value('location') ?? '';
-    final code = Uri.tryParse(location)?.queryParameters['code'];
-    if (code == null || code.isEmpty) throw Exception('登录失败：QQ 互联没有返回授权码，请重新扫码');
-    final login = await _dio.post<String>(
-      _api,
-      data: jsonEncode({
-        'comm': {'g_tk': 5381, 'platform': 'yqq', 'ct': 24, 'cv': 0, 'tmeLoginType': 2},
-        'req': {
-          'module': 'QQConnectLogin.LoginServer',
-          'method': 'QQLogin',
-          'param': {'code': code},
+    // QQ 互联授权码只能用一次：按顺序尝试两种已知可用的交换方式，每次重新取一个授权码。
+    // 1. 按域名发送 Cookie、tmeLoginType 2（Go / Rust / Python 客户端）；2. 发送全部 Cookie、不带 tmeLoginType（Swift 客户端）。
+    final failures = <String>[];
+    Map<String, dynamic>? j;
+    for (final scoped in const [true, false]) {
+      final auth = await _dio.post<String>(
+        'https://graph.qq.com/oauth2.0/authorize',
+        data: {
+          'response_type': 'code',
+          'client_id': _thirdAid,
+          'redirect_uri': 'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/',
+          'scope': 'get_user_info,get_app_friends',
+          'state': 'state',
+          'switch': '',
+          'from_ptlogin': 1,
+          'src': 1,
+          'update_auth': 1,
+          'openapi': '1010_1030',
+          'g_tk': _hash33(pSkey, 5381),
+          'auth_time': DateTime.now().millisecondsSinceEpoch,
+          'ui': _uuid(),
         },
-      }),
-      options: Options(headers: {'Cookie': _cookiesFor(Uri.parse(_api)), 'Referer': 'https://y.qq.com/', 'User-Agent': ua, 'Content-Type': 'application/json'}),
-    );
-    _checkLoginGeneration(generation);
-    _absorb(login.headers, Uri.parse(_api));
-    final j = jsonDecode(login.data ?? '{}') as Map<String, dynamic>;
-    final resultCode = int.tryParse('${(j['req'] as Map?)?['code'] ?? j['code'] ?? -1}') ?? -1;
-    if (resultCode != 0) {
-      final r = j['req'] as Map? ?? const {};
-      final data = r['data'] as Map? ?? const {};
-      final why = ['${r['msg'] ?? r['message'] ?? ''}', '${data['errMsg'] ?? data['errtip'] ?? ''}'].map((t) => t.trim()).firstWhere((t) => t.isNotEmpty, orElse: () => '');
-      debugPrint('qq login exchange failed: ${login.data}');
-      throw Exception('QQ 音乐凭据交换失败（$resultCode${why.isEmpty ? '' : '：$why'}），请重新扫码');
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          followRedirects: false,
+          validateStatus: (s) => s != null && s < 500,
+          headers: {'Cookie': _allLoginCookies, 'Referer': 'https://graph.qq.com/', 'Origin': 'https://graph.qq.com', 'User-Agent': ua},
+        ),
+      );
+      _checkLoginGeneration(generation);
+      _absorb(auth.headers, Uri.https('graph.qq.com', '/oauth2.0/authorize'));
+      final location = auth.headers.value('location') ?? '';
+      final code = Uri.tryParse(location)?.queryParameters['code'];
+      if (code == null || code.isEmpty) {
+        debugPrint('qq login authorize: status ${auth.statusCode} location $location');
+        failures.add('授权码（HTTP ${auth.statusCode}）');
+        continue;
+      }
+      final login = await _dio.post<String>(
+        _api,
+        data: jsonEncode({
+          'comm': {'g_tk': 5381, 'platform': 'yqq', 'ct': 24, 'cv': 0, if (scoped) 'tmeLoginType': 2},
+          'req': {
+            'module': 'QQConnectLogin.LoginServer',
+            'method': 'QQLogin',
+            'param': {'code': code},
+          },
+        }),
+        options: Options(
+          headers: {
+            'Cookie': scoped ? _cookiesFor(Uri.parse(_api)) : _allLoginCookies,
+            'Referer': 'https://y.qq.com/',
+            'User-Agent': ua,
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+      _checkLoginGeneration(generation);
+      final body = jsonDecode(login.data ?? '{}') as Map<String, dynamic>;
+      final resultCode = int.tryParse('${(body['req'] as Map?)?['code'] ?? body['code'] ?? -1}') ?? -1;
+      debugPrint('qq login exchange (${scoped ? 'scoped' : 'all'}): ${login.data}');
+      if (resultCode == 0) {
+        _absorb(login.headers, Uri.parse(_api));
+        j = body;
+        break;
+      }
+      final r = body['req'] as Map? ?? const {};
+      final d = r['data'] as Map? ?? const {};
+      final why = [
+        '${r['msg'] ?? r['message'] ?? ''}',
+        '${d['errMsg'] ?? d['errtip'] ?? ''}',
+      ].map((t) => t.trim()).firstWhere((t) => t.isNotEmpty, orElse: () => '');
+      failures.add('$resultCode${why.isEmpty ? '' : '：$why'}');
     }
+    if (j == null) throw Exception('QQ 音乐凭据交换失败（${failures.join('；')}），请重新扫码');
     final data = (j['req'] as Map?)?['data'] as Map? ?? const {};
     // 部分账号的 musickey 放在 Set-Cookie 里而不是 JSON 中。
     var uin = '${data['musicid'] ?? data['uin'] ?? ''}'.replaceAll(RegExp(r'^0+$'), '');
