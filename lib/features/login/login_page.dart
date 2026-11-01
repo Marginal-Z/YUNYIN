@@ -20,6 +20,7 @@ import '../../data/sources/source_manager.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
 import '../settings/about_pages.dart';
+import 'kugou_login.dart';
 import '../shell/nav.dart';
 
 class LoginPage extends StatefulWidget {
@@ -250,6 +251,9 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 16),
                     PrimaryButton(label: _busy ? '登录中…' : '登录 / 注册', height: 52, fontSize: 17, onTap: _login),
+                  ] else if (source.supports(SourceFeature.cookieLogin)) ...[
+                    // 酷狗：官方登录页（应用内网页）或粘贴 Cookie。
+                    KugouLoginCard(onDone: _done),
                   ] else ...[
                     // 只支持扫码登录的平台（QQ 音乐）：直接给出扫码入口。
                     Text(

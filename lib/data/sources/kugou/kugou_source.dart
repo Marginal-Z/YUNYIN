@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/text_decode.dart';
 import '../../models.dart';
@@ -41,7 +42,96 @@ class KugouSource extends MusicSource {
     SourceFeature.artist,
     SourceFeature.album,
     SourceFeature.comments,
+    SourceFeature.login,
+    SourceFeature.cookieLogin,
   };
+
+  // ── 账号 ──────────────────────────────────────────
+  //
+  // 酷狗的登录接口需要客户端签名，云音不模拟这些请求：在酷狗官方登录页（应用内网页）登录，
+  // 或从浏览器复制登录后的 Cookie。登录信息保存在 KuGoo Cookie 中（KugooID、t、NickName、Pic）。
+
+  static const _prefsKey = 'kugou.account';
+  Map<String, String>? _account;
+  UserProfile? _user;
+
+  @override
+  UserProfile? get user => _user;
+
+  @override
+  Future<void> init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsKey);
+      if (raw != null) _setAccount(Map<String, String>.from(jsonDecode(raw) as Map));
+    } catch (e) {
+      debugPrint('kugou account: $e');
+    }
+  }
+
+  void _setAccount(Map<String, String>? a) {
+    _account = a;
+    _user = a == null
+        ? null
+        : UserProfile(
+            id: a['KugooID']!,
+            nickname: (a['NickName'] ?? '').isEmpty ? '酷狗用户 ${a['KugooID']}' : a['NickName']!,
+            avatar: (a['Pic'] ?? '').replaceFirst('http://', 'https://').ifEmpty(null),
+          );
+  }
+
+  /// 解析 Cookie：可以是整段 Cookie 头，也可以只是 KuGoo 的值。值中的中文使用 %uXXXX 编码。
+  static Map<String, String>? parseKugooCookie(String cookie) {
+    var text = cookie.trim();
+    final m = RegExp(r'(?:^|;\s*)KuGoo=([^;]+)').firstMatch(text);
+    if (m != null) text = m.group(1)!;
+    final out = <String, String>{};
+    for (final part in text.split('&')) {
+      final i = part.indexOf('=');
+      if (i <= 0) continue;
+      out[part.substring(0, i).trim()] = _unescape(part.substring(i + 1).trim());
+    }
+    final id = out['KugooID'] ?? '';
+    if (id.isEmpty || id == '0' || (out['t'] ?? '').isEmpty) return null;
+    // 原样保存 KuGoo 的值，请求时原样带回（各字段的编码保持不变）。
+    out['_raw'] = text;
+    return out;
+  }
+
+  /// JavaScript escape() 的逆操作：%uXXXX 与 %XX。
+  static String _unescape(String s) {
+    final u = s.replaceAllMapped(RegExp(r'%u([0-9a-fA-F]{4})'), (m) => String.fromCharCode(int.parse(m[1]!, radix: 16)));
+    try {
+      return Uri.decodeComponent(u);
+    } catch (_) {
+      return u.replaceAllMapped(RegExp(r'%([0-9a-fA-F]{2})'), (m) => String.fromCharCode(int.parse(m[1]!, radix: 16)));
+    }
+  }
+
+  @override
+  Future<void> loginWithCookie(String cookie) async {
+    final a = parseKugooCookie(cookie);
+    if (a == null) throw Exception('没有找到酷狗的登录信息（需要包含 KuGoo 的 Cookie）');
+    _setAccount(a);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsKey, jsonEncode(a));
+    notifyListeners();
+  }
+
+  @override
+  Future<void> logout() async {
+    _setAccount(null);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
+    notifyListeners();
+  }
+
+  @override
+  Future<Membership?> membership() async {
+    if (_account == null) return null;
+    // Cookie 中没有会员信息，查询会员需要签名接口；在个人中心说明到期时间请在酷狗 App 中查看。
+    return const Membership(platform: '酷狗音乐', title: '已登录', benefits: ['会员歌曲按账号权限播放', '未开通会员时可用洛雪音源兜底']);
+  }
 
   /// 主要榜单（酷狗榜单 ID 与名称）。
   static const charts_ = [
@@ -370,15 +460,18 @@ class KugouSource extends MusicSource {
         'hash': ids.hash,
         'album_id': ids.album.isEmpty ? '0' : ids.album,
         'album_audio_id': ids.audio,
-        'token': '',
-        'userid': '0',
+        'token': _account?['t'] ?? '',
+        'userid': _account?['KugooID'] ?? '0',
       };
       final keys = params.keys.toList()..sort();
       params['signature'] = md5.convert(utf8.encode('$key${keys.map((k) => '$k=${params[k]}').join()}$key')).toString();
       final res = await _dio.get<String>(
         'https://wwwapi.kugou.com/play/songinfo',
         queryParameters: params,
-        options: Options(headers: {'Cookie': 'kg_mid=$mid', 'User-Agent': 'Mozilla/5.0'}, receiveTimeout: const Duration(seconds: 6)),
+        options: Options(
+          headers: {'Cookie': 'kg_mid=$mid${_account == null ? '' : '; KuGoo=${_account!['_raw'] ?? ''}'}', 'User-Agent': 'Mozilla/5.0'},
+          receiveTimeout: const Duration(seconds: 6),
+        ),
       );
       final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
       final data = j['data'];
@@ -417,4 +510,8 @@ class KugouSource extends MusicSource {
     // 酷狗没有歌词时用网易云同一首歌的歌词（含翻译）。
     return Lyrics.empty;
   }
+}
+
+extension on String {
+  String? ifEmpty(String? other) => isEmpty ? other : this;
 }

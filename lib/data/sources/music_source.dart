@@ -25,6 +25,9 @@ enum SourceFeature {
   recentPlays,
   followArtist,
   similarArtists,
+
+  /// 通过官方登录页或粘贴 Cookie 登录（酷狗）。
+  cookieLogin,
 }
 
 class SourceUnsupported implements Exception {
@@ -67,6 +70,7 @@ abstract class MusicSource extends ChangeNotifier {
   Future<void> sendSmsCode(String phone, {String countryCode = '86'}) => throw const SourceUnsupported('验证码登录');
   Future<void> loginWithSms(String phone, String code, {String countryCode = '86'}) => throw const SourceUnsupported('验证码登录');
   Future<void> loginWithPassword(String account, String password, {String countryCode = '86'}) => throw const SourceUnsupported('密码登录');
+  Future<void> loginWithCookie(String cookie) => throw const SourceUnsupported('Cookie 登录');
   Future<void> logout() async {}
 
   /// 当前账号的会员信息；未登录或平台不提供时返回 null。

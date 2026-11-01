@@ -57,6 +57,7 @@ dependencies:
   audio_metadata_reader: ^1.8.1
   fast_gbk: ^1.0.0
   flutter_js: ^0.8.7
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
