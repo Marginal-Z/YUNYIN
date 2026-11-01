@@ -24,12 +24,18 @@ import 'data/cloud/cloud_drives.dart';
 import 'data/local_library.dart';
 import 'data/lx/lx_sources.dart';
 import 'data/sources/source_manager.dart';
+import 'features/desktop/lyrics_window.dart';
 import 'features/desktop/window_controls.dart';
 import 'player/player_controller.dart';
 import 'player/system_media.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 桌面歌词是独立的窗口（单独的 Flutter 引擎），入口参数为 ["multi_window", 窗口 ID, 窗口参数]。
+  if (isDesktopPlatform && args.firstOrNull == 'multi_window') {
+    await runLyricsWindow(args.length > 2 ? args[2] : '{}');
+    return;
+  }
   SmoothWheel.install();
 
   if (isDesktopPlatform) {
@@ -96,6 +102,7 @@ Future<void> main() async {
   WidgetBridge.attach(player);
   // 桌面歌词与状态栏歌词。
   final lyricsOverlay = LyricsOverlay.attach(player, settings);
+  if (isDesktopPlatform) DesktopLyricsWindow.attach(lyricsOverlay, player, settings);
   final downloads = DownloadManager(sources, settings);
   await downloads.init();
   player.localLookup = downloads.local;

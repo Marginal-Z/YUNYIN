@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import desktop_multi_window
 
 class MainFlutterWindow: NSWindow {
   override func awakeFromNib() {
@@ -9,6 +10,10 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    // 桌面歌词等新窗口使用单独的 Flutter 引擎，同样注册插件。
+    FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
+      RegisterGeneratedPlugins(registry: controller)
+    }
 
     // 程序坞图标跟随主题色。
     let channel = FlutterMethodChannel(name: "yunyin/app_icon", binaryMessenger: flutterViewController.engine.binaryMessenger)
