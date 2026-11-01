@@ -35,7 +35,7 @@ class KugouSource extends MusicSource {
   String get description => '酷狗的搜索、排行榜与歌词';
 
   @override
-  Set<SourceFeature> get features => const {
+  Set<SourceFeature> get features => {
     SourceFeature.search,
     SourceFeature.hotSearch,
     SourceFeature.charts,
@@ -48,6 +48,7 @@ class KugouSource extends MusicSource {
     SourceFeature.comments,
     SourceFeature.login,
     SourceFeature.cookieLogin,
+    if (_account != null) SourceFeature.userPlaylists,
   };
 
   // ── 账号 ──────────────────────────────────────────
@@ -145,11 +146,258 @@ class KugouSource extends MusicSource {
     notifyListeners();
   }
 
+  // ── 账号数据 ──────────────────────────────────────
+  // 歌单、关注与会员信息来自酷狗客户端的账号接口，用登录得到的 token 查询本人的数据。
+
+  static const _appKey = 'OIlwieks28dk2k092lksi2UIkp';
+
+  /// 账号接口用来加密 token 的 RSA 公钥模数（酷狗客户端内置）。
+  static final _rsaModulus = BigInt.parse(
+    'c8006ed03842d2628209bd314984ca5ed6cfe06e30c95f9d4704d9c49791d7a935ba950ecb0bc8ebf5f5994f0bac927a7eb151b3c1de343303fa539c83136ecc'
+    'fd7d7e511e2dbce18eaa9f784c9b50d443e75865979e0a5e216e46c684066a8d6b998580bbaa22d73f5790286bb14742e83244e44db6d707ffe162c5c7002d45',
+    radix: 16,
+  );
+
+  /// 账号接口的 p 参数：JSON 末尾补 0 到 128 字节后做 RSA 运算（不带填充）。
+  static String _rsa(Map<String, Object?> data) {
+    final bytes = utf8.encode(jsonEncode(data));
+    final padded = List<int>.filled(128, 0)..setRange(0, bytes.length, bytes);
+    final m = padded.fold(BigInt.zero, (v, b) => (v << 8) | BigInt.from(b));
+    return m.modPow(BigInt.from(65537), _rsaModulus).toRadixString(16).padLeft(256, '0').toUpperCase();
+  }
+
+  Future<Map<String, dynamic>> _account2(String path, {String base = 'https://gateway.kugou.com', Map<String, Object?> query = const {}, Object? body, String? router}) async {
+    final a = _account;
+    if (a == null) throw const SourceUnsupported('请先登录酷狗账号');
+    final mid = a['_mid'] ?? _deviceId;
+    final dfid = a['_dfid'] ?? '-';
+    final params = <String, String>{
+      'dfid': dfid,
+      'mid': mid,
+      'uuid': '-',
+      'appid': '1005',
+      'clientver': '20489',
+      'clienttime': '${DateTime.now().millisecondsSinceEpoch ~/ 1000}',
+      'token': a['t'] ?? '',
+      'userid': a['KugooID'] ?? '0',
+      for (final e in query.entries) e.key: '${e.value}',
+    };
+    final data = body == null ? '' : jsonEncode(body);
+    final keys = params.keys.toList()..sort();
+    params['signature'] = md5.convert(utf8.encode('$_appKey${keys.map((k) => '$k=${params[k]}').join()}$data$_appKey')).toString();
+    final res = await _dio.request<String>(
+      '$base$path',
+      queryParameters: params,
+      data: body == null ? null : data,
+      options: Options(
+        method: body == null ? 'GET' : 'POST',
+        headers: {
+          'dfid': dfid,
+          'mid': mid,
+          'clienttime': params['clienttime'],
+          'x-router': ?router,
+          if (body != null) 'Content-Type': 'application/json',
+        },
+      ),
+    );
+    final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    if ('${j['status']}' != '1') {
+      final code = j['error_code'] ?? j['errcode'] ?? j['err_code'];
+      // 20018 / 34175 / 51002 等：token 已失效。
+      throw Exception('酷狗账号接口没有返回数据${code == null ? '' : '（错误码 $code）'}，如果持续失败请重新登录酷狗');
+    }
+    return (j['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+  }
+
   @override
   Future<Membership?> membership() async {
     if (_account == null) return null;
-    // Cookie 中没有会员信息，查询会员需要签名接口；在个人中心说明到期时间请在酷狗 App 中查看。
-    return const Membership(platform: '酷狗音乐', title: '已登录', benefits: ['会员歌曲按账号权限播放', '免费歌曲直接播放']);
+    try {
+      final d = await _account2('/v1/get_union_vip', base: 'https://kugouvip.kugou.com', query: const {'busi_type': 'concept'});
+      final list = (d['busi_vip'] as List? ?? const []).whereType<Map>().toList();
+      DateTime? day(Object? v) => DateTime.tryParse('${v ?? ''}'.trim().replaceFirst(' ', 'T'));
+      final active = list.where((v) => '${v['is_vip']}' == '1').toList()
+        ..sort((a, b) => (day(b['vip_end_time']) ?? DateTime(0)).compareTo(day(a['vip_end_time']) ?? DateTime(0)));
+      if (active.isNotEmpty) {
+        final v = active.first;
+        final svip = active.any((v) => v['product_type'] == 'svip');
+        return Membership(
+          platform: '酷狗音乐',
+          title: svip ? '豪华 VIP' : (v['product_type'] == 'tvip' ? '畅听 VIP' : 'VIP 会员'),
+          active: true,
+          expires: day(v['vip_end_time']),
+          benefits: svip ? const ['无损与 Hi-Res 音质', '播放与下载会员歌曲', '畅听 VIP 全部权益'] : const ['播放会员歌曲', '高品质音质'],
+        );
+      }
+      return const Membership(platform: '酷狗音乐', title: '未开通 VIP', benefits: ['免费歌曲可完整播放', '会员歌曲为试听片段']);
+    } catch (e) {
+      debugPrint('kugou vip: $e');
+      return const Membership(platform: '酷狗音乐', title: '已登录', benefits: ['暂时查询不到会员信息', '会员歌曲按账号权限播放']);
+    }
+  }
+
+  /// 账号下的全部歌单（自建、“我喜欢”、收藏的歌单与专辑）。
+  Future<List<Map>> _allLists() async {
+    final a = _account!;
+    final d = await _account2(
+      '/v7/get_all_list',
+      query: {'plat': 1},
+      body: {'userid': int.tryParse(a['KugooID'] ?? '') ?? 0, 'token': a['t'] ?? '', 'total_ver': 979, 'type': 2, 'page': 1, 'pagesize': 300},
+      router: 'cloudlist.service.kugou.com',
+    );
+    return (d['info'] as List? ?? const []).whereType<Map>().toList();
+  }
+
+  static String _gcid(Map l) => '${l['list_create_gid'] ?? ''}'.ifEmpty(null) ?? '${l['global_collection_id'] ?? ''}';
+
+  @override
+  Future<List<PlaylistInfo>> userPlaylists() async {
+    if (_account == null) return const [];
+    final me = _account!['KugooID'];
+    final out = <PlaylistInfo>[];
+    for (final l in await _allLists()) {
+      // 带作者信息的是收藏的专辑，在“专辑”里显示。
+      if (l['authors'] != null || _gcid(l).isEmpty) continue;
+      final liked = l['name'] == '我喜欢';
+      final mine = '${l['list_create_userid']}' == me;
+      out.add(
+        PlaylistInfo(
+          id: 'gcid:${_gcid(l)}',
+          sourceId: sourceId,
+          name: liked ? '我喜欢的音乐' : '${l['name'] ?? ''}',
+          cover: _cover(l['pic'] as String?),
+          trackCount: int.tryParse('${l['count'] ?? 0}') ?? 0,
+          creator: mine ? _user?.nickname : '${l['list_create_username'] ?? ''}'.ifEmpty(null),
+          isLikedList: liked,
+          ownedByMe: mine || liked,
+        ),
+      );
+    }
+    out.sort((a, b) => (b.isLikedList ? 1 : 0) - (a.isLikedList ? 1 : 0));
+    return out;
+  }
+
+  /// 账号歌单里的歌曲（每页 300 首，最多 3000 首）。
+  Future<List<Song>> _listSongs(String gcid) async {
+    const size = 300;
+    final out = <Song>[];
+    for (var begin = 0; begin < 3000; begin += size) {
+      final d = await _account2(
+        '/pubsongs/v2/get_other_list_file_nofilt',
+        query: {
+          'area_code': 1,
+          'begin_idx': begin,
+          'plat': 1,
+          'type': 1,
+          'mode': 1,
+          'personal_switch': 1,
+          'extend_fields': 'abtags,hot_cmt,popularization',
+          'pagesize': size,
+          'global_collection_id': gcid,
+        },
+      );
+      final songs = (d['songs'] as List? ?? const []).whereType<Map>().toList();
+      for (final x in songs) {
+        if ('${x['hash'] ?? ''}'.isEmpty) continue;
+        final album = x['albuminfo'] is Map ? x['albuminfo'] as Map : const {};
+        final name = '${x['name'] ?? ''}';
+        final i = name.indexOf(' - ');
+        out.add(
+          _song({
+            'hash': x['hash'],
+            'album_audio_id': x['add_mixsongid'] ?? x['mixsongid'] ?? x['album_audio_id'] ?? x['audio_id'] ?? '',
+            'album_id': album['id'] ?? x['album_id'] ?? '',
+            'songname': i > 0 ? name.substring(i + 3) : name,
+            'singername': i > 0 ? name.substring(0, i) : (x['singername'] ?? ''),
+            'album_name': album['name'] ?? '',
+            'album_sizable_cover': x['cover'],
+            'duration': (int.tryParse('${x['timelen'] ?? 0}') ?? 0) ~/ 1000,
+            'privilege': x['privilege'],
+          }),
+        );
+      }
+      if (songs.length < size) break;
+    }
+    return out;
+  }
+
+  Future<PlaylistInfo> _accountList(String gcid) async {
+    final lists = await _allLists().catchError((Object _) => <Map>[]);
+    final l = lists.where((l) => _gcid(l) == gcid).firstOrNull ?? const {};
+    final songs = await _listSongs(gcid);
+    final liked = l['name'] == '我喜欢';
+    final mine = '${l['list_create_userid']}' == _account?['KugooID'];
+    return PlaylistInfo(
+      id: 'gcid:$gcid',
+      sourceId: sourceId,
+      name: liked ? '我喜欢的音乐' : '${l['name'] ?? '酷狗歌单'}',
+      cover: _cover(l['pic'] as String?) ?? songs.firstOrNull?.coverUrl,
+      creator: mine || liked ? _user?.nickname : '${l['list_create_username'] ?? ''}'.ifEmpty(null),
+      description: '${l['intro'] ?? ''}'.trim().ifEmpty(null),
+      trackCount: songs.length,
+      isLikedList: liked,
+      ownedByMe: mine || liked,
+      kind: liked ? PlaylistKind.liked : PlaylistKind.playlist,
+      tracks: songs,
+    );
+  }
+
+  @override
+  Future<Set<String>> likedSongIds() async {
+    if (_account == null) return const {};
+    final liked = (await _allLists()).where((l) => l['name'] == '我喜欢').firstOrNull;
+    if (liked == null) return const {};
+    return {for (final s in await _listSongs(_gcid(liked))) s.id};
+  }
+
+  @override
+  Future<List<AlbumInfo>> subscribedAlbums() async {
+    if (_account == null) return const [];
+    return [
+      for (final l in await _allLists())
+        if (l['authors'] != null && '${l['list_create_listid'] ?? l['album_id'] ?? ''}'.isNotEmpty)
+          AlbumInfo(
+            id: '${l['album_id'] ?? l['list_create_listid']}',
+            sourceId: sourceId,
+            name: '${l['name'] ?? ''}',
+            cover: _cover(l['pic'] as String?),
+            artist: switch (l['authors']) {
+              final List a when a.isNotEmpty && a.first is Map => ArtistRef('kugou:${a.first['author_name']}', '${a.first['author_name'] ?? ''}'),
+              _ => null,
+            },
+          ),
+    ];
+  }
+
+  @override
+  Future<List<ArtistInfo>> followedArtists() async {
+    if (_account == null) return const [];
+    final a = _account!;
+    final d = await _account2(
+      '/v4/follow_list',
+      query: {'plat': 1},
+      body: {
+        'merge': 2,
+        'need_iden_type': 1,
+        'ext_params': 'k_pic,jumptype,singerid,score',
+        'userid': a['KugooID'],
+        'type': 0,
+        'id_type': 0,
+        'p': _rsa({'clienttime': DateTime.now().millisecondsSinceEpoch ~/ 1000, 'token': a['t'] ?? ''}),
+      },
+      router: 'relationuser.kugou.com',
+    );
+    return [
+      for (final x in (d['lists'] as List? ?? const []).whereType<Map>())
+        if ('${x['singerid'] ?? ''}'.isNotEmpty && '${x['singerid']}' != '0')
+          ArtistInfo(
+            id: '${x['singerid']}',
+            sourceId: sourceId,
+            name: '${x['nickname'] ?? ''}',
+            avatar: '${x['pic'] ?? ''}'.replaceFirst('/100/', '/480/').replaceFirst('http://', 'https://').ifEmpty(null),
+            followed: true,
+          ),
+    ];
   }
 
   /// 酷狗榜单的分类（rank/list 返回的 classify）。
@@ -317,6 +565,7 @@ class KugouSource extends MusicSource {
   @override
   Future<PlaylistInfo> playlist(String id) async {
     if (id.startsWith('special:')) return _specialDetail(id.substring(8));
+    if (id.startsWith('gcid:')) return _accountList(id.substring(5));
     final rankId = id.startsWith('rank:') ? id.substring(5) : id;
     if (!_rankNames.containsKey(rankId)) await charts().catchError((Object _) => <ChartInfo>[]);
     final songs = await _rank(rankId);

@@ -88,6 +88,7 @@ class QQMusicSource extends MusicSource {
       final j = jsonDecode(raw) as Map<String, dynamic>;
       _uin = j['uin'] as String?;
       _key = j['key'] as String?;
+      _euin = j['euin'] as String?;
       if (_uin != null) {
         _user = UserProfile(id: _uin!, nickname: '${j['nickname'] ?? 'QQ 用户'}', avatar: j['avatar'] as String?, vip: j['vip'] == true);
       }
@@ -101,7 +102,7 @@ class QQMusicSource extends MusicSource {
     if (_uin == null) {
       await prefs.remove(_prefsKey);
     } else {
-      await prefs.setString(_prefsKey, jsonEncode({'uin': _uin, 'key': _key, 'nickname': _user?.nickname, 'avatar': _user?.avatar, 'vip': _user?.vip}));
+      await prefs.setString(_prefsKey, jsonEncode({'uin': _uin, 'key': _key, 'euin': _euin, 'nickname': _user?.nickname, 'avatar': _user?.avatar, 'vip': _user?.vip}));
     }
   }
 
@@ -333,6 +334,21 @@ class QQMusicSource extends MusicSource {
 
   @override
   Future<PlaylistInfo> playlist(String id) async {
+    if (id == 'fav:201') {
+      final songs = await _likedSongs();
+      return PlaylistInfo(
+        id: id,
+        sourceId: sourceId,
+        name: '我喜欢的音乐',
+        cover: songs.firstOrNull?.coverUrl,
+        creator: _user?.nickname,
+        trackCount: songs.length,
+        isLikedList: true,
+        ownedByMe: true,
+        kind: PlaylistKind.liked,
+        tracks: songs,
+      );
+    }
     if (id.startsWith('top:')) {
       final topId = int.parse(id.substring(4));
       final d = await _one('musicToplist.ToplistInfoServer', 'GetDetail', {'topid': topId, 'offset': 0, 'num': 100, 'period': ''});
@@ -576,27 +592,132 @@ class QQMusicSource extends MusicSource {
     );
   }
 
+  /// 加密的 uin（登录时返回），部分账号接口按它查询。
+  String? _euin;
+
+  /// 从歌单类对象里按多个可能的字段名取值（QQ 音乐不同接口的字段名不统一）。
+  static Object? _pick(Map m, List<String> keys) {
+    for (final k in keys) {
+      final v = m[k];
+      if (v != null && '$v'.isNotEmpty) return v;
+    }
+    return null;
+  }
+
+  PlaylistInfo _diss(Map d, {required bool mine}) {
+    final dirid = int.tryParse('${_pick(d, const ['dirid', 'dirId']) ?? 0}') ?? 0;
+    final tid = '${_pick(d, const ['tid', 'dissid', 'id']) ?? ''}';
+    return PlaylistInfo(
+      id: dirid == 201 ? 'fav:201' : 'diss:$tid',
+      sourceId: sourceId,
+      name: dirid == 201 ? '我喜欢的音乐' : '${_pick(d, const ['dirName', 'title', 'dissname', 'diss_name', 'name']) ?? ''}',
+      cover: _https('${_pick(d, const ['picUrl', 'picurl', 'bigpicUrl', 'diss_cover', 'logo', 'cover']) ?? ''}').ifEmpty(null),
+      trackCount: int.tryParse('${_pick(d, const ['songNum', 'songnum', 'song_cnt']) ?? 0}') ?? 0,
+      creator: mine ? _user?.nickname : '${_pick(d, const ['nick', 'nickname', 'creator']) ?? ''}'.ifEmpty(null),
+      isLikedList: dirid == 201,
+      ownedByMe: mine,
+    );
+  }
+
+  /// 我的歌单：创建的歌单（含“我喜欢”）与收藏的歌单。
   @override
   Future<List<PlaylistInfo>> userPlaylists() async {
     if (_uin == null) return const [];
-    final res = await _dio.get<String>(
-      'https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss',
-      queryParameters: {'hostuin': _uin, 'sin': 0, 'size': 60, 'format': 'json', 'g_tk': 5381},
-      options: Options(headers: {'Cookie': _cookie}),
-    );
-    final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
-    final list = ((j['data'] as Map?)?['disslist'] as List? ?? const []).cast<Map>();
+    final out = <PlaylistInfo>[];
+    try {
+      final d = await _one('music.musicasset.PlaylistBaseRead', 'GetPlaylistByUin', {'uin': _uin});
+      for (final x in (d['v_playlist'] as List? ?? const []).cast<Map>()) {
+        out.add(_diss(x, mine: true));
+      }
+    } catch (e) {
+      debugPrint('qq created playlists: $e');
+      // 旧接口兜底（不含“我喜欢”）。
+      final res = await _dio.get<String>(
+        'https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss',
+        queryParameters: {'hostuin': _uin, 'sin': 0, 'size': 60, 'format': 'json', 'g_tk': 5381},
+        options: Options(headers: {'Cookie': _cookie}),
+      );
+      final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+      for (final x in ((j['data'] as Map?)?['disslist'] as List? ?? const []).cast<Map>()) {
+        if ('${x['tid']}' != '0') out.add(_diss(x, mine: true));
+      }
+    }
+    if (!out.any((p) => p.isLikedList)) {
+      out.insert(0, PlaylistInfo(id: 'fav:201', sourceId: sourceId, name: '我喜欢的音乐', creator: _user?.nickname, isLikedList: true, ownedByMe: true));
+    }
+    if (_euin != null) {
+      try {
+        final d = await _one('music.musicasset.PlaylistFavRead', 'CgiGetPlaylistFavInfo', {'uin': _euin, 'offset': 0, 'size': 100});
+        for (final x in (d['v_list'] as List? ?? const []).cast<Map>()) {
+          out.add(_diss(x, mine: false));
+        }
+      } catch (e) {
+        debugPrint('qq fav playlists: $e');
+      }
+    }
+    return out;
+  }
+
+  /// “我喜欢”的歌曲（QQ 音乐中 dirid 为 201 的歌单）。
+  Future<List<Song>> _likedSongs({int limit = 1000}) async {
+    final d = await _one('music.srfDissInfo.DissInfo', 'CgiGetDiss', {
+      'disstid': 0,
+      'dirid': 201,
+      'tag': true,
+      'song_begin': 0,
+      'song_num': limit,
+      'userinfo': true,
+      'orderlist': true,
+      if (_euin != null) 'enc_host_uin': _euin,
+    });
+    return [for (final x in (d['songlist'] as List? ?? const []).cast<Map<String, dynamic>>()) _song(x)];
+  }
+
+  @override
+  Future<Set<String>> likedSongIds() async {
+    if (_uin == null) return const {};
+    try {
+      return {for (final s in await _likedSongs()) s.id};
+    } catch (e) {
+      debugPrint('qq liked ids: $e');
+      return const {};
+    }
+  }
+
+  @override
+  Future<List<AlbumInfo>> subscribedAlbums() async {
+    if (_euin == null) return const [];
+    final d = await _one('music.musicasset.AlbumFavRead', 'CgiGetAlbumFavInfo', {'euin': _euin, 'offset': 0, 'size': 100});
     return [
-      for (final d in list)
-        if ('${d['tid']}' != '0')
-          PlaylistInfo(
-            id: 'diss:${d['tid']}',
-            sourceId: sourceId,
-            name: '${d['diss_name']}',
-            cover: _https(d['diss_cover'] as String?),
-            trackCount: (d['song_cnt'] as num?)?.toInt() ?? 0,
-            creator: _user?.nickname,
-          ),
+      for (final a in (d['v_list'] as List? ?? const []).cast<Map>())
+        AlbumInfo(
+          id: '${_pick(a, const ['albummid', 'albumMid', 'mid']) ?? _pick(a, const ['albumid', 'albumID', 'id']) ?? ''}',
+          sourceId: sourceId,
+          name: '${_pick(a, const ['albumname', 'albumName', 'name', 'title']) ?? ''}',
+          cover: _albumCover('${_pick(a, const ['albummid', 'albumMid', 'mid']) ?? ''}'),
+          artist: () {
+            final singers = (_pick(a, const ['v_singer', 'singer', 'singers']) as List? ?? const []).cast<Map>();
+            final first = singers.firstOrNull;
+            return first == null ? null : ArtistRef('${_pick(first, const ['mid', 'singerMid', 'id']) ?? ''}', '${_pick(first, const ['name', 'singerName', 'title']) ?? ''}');
+          }(),
+          size: int.tryParse('${_pick(a, const ['songnum', 'songNum', 'total_song_num']) ?? 0}') ?? 0,
+        ),
+    ];
+  }
+
+  @override
+  Future<List<ArtistInfo>> followedArtists() async {
+    if (_euin == null) return const [];
+    final d = await _one('music.concern.RelationList', 'GetFollowSingerList', {'HostUin': _euin, 'From': 0, 'Size': 100});
+    return [
+      for (final u in (d['List'] as List? ?? const []).cast<Map>())
+        ArtistInfo(
+          id: '${u['MID'] ?? ''}',
+          sourceId: sourceId,
+          name: '${u['Name'] ?? ''}',
+          avatar: _https('${u['AvatarUrl'] ?? ''}').ifEmpty(null),
+          followed: true,
+        ),
     ];
   }
 
@@ -982,6 +1103,8 @@ class QQMusicSource extends MusicSource {
     if (uin.isEmpty || key.isEmpty) throw Exception('登录 QQ 音乐失败（${(j['req'] as Map?)?['code'] ?? j['code']}）');
     _uin = uin;
     _key = key;
+    // 加密的 uin：收藏歌单、收藏专辑、关注歌手、我喜欢等接口按它查询。
+    _euin = '${data['encryptUin'] ?? ''}'.ifEmpty(null);
     _loginCookies.clear();
     _jar.clear();
     _user = UserProfile(id: uin, nickname: 'QQ 用户 $uin');
@@ -1030,6 +1153,31 @@ class QQMusicSource extends MusicSource {
   @override
   Future<Membership?> membership() async {
     if (_uin == null) return null;
+    // 会员详情（豪华绿钻 / 绿钻、等级与到期日），取不到时用下面的旧接口。
+    try {
+      final d = await _one('VipLogin.VipLoginInter', 'vip_login_base', {});
+      final id = d['identity'] as Map? ?? const {};
+      int f(Object? v) => int.tryParse('${v ?? 0}') ?? 0;
+      DateTime? day(Object? v) => DateTime.tryParse('${v ?? ''}'.trim().replaceFirst(' ', 'T'));
+      final level = f(id['level']);
+      final svip = f(d['svip']) == 1;
+      final huge = f(id['HugeVip']) == 1;
+      final green = f(id['vip']) == 1;
+      final expire = f((d['userinfo'] as Map?)?['expire']);
+      if (svip || huge || green) {
+        return Membership(
+          platform: 'QQ 音乐',
+          title: svip ? '超级会员' : (huge ? '豪华绿钻' : '绿钻'),
+          active: true,
+          level: level > 0 ? 'Lv.$level' : null,
+          expires: day(id['HugeVipEnd']) ?? (expire > 0 ? DateTime.fromMillisecondsSinceEpoch(expire * 1000) : null),
+          benefits: svip || huge ? const ['臻品母带与 Hi-Res 音质', '播放与下载会员歌曲', '绿钻全部权益'] : const ['无损音质', '播放与下载会员歌曲'],
+        );
+      }
+      if (d.isNotEmpty) return Membership(platform: 'QQ 音乐', title: '未开通绿钻', active: false, level: level > 0 ? 'Lv.$level' : null, benefits: const ['免费歌曲可完整播放', '会员歌曲为 60 秒试听']);
+    } catch (e) {
+      debugPrint('qq vip_login_base: $e');
+    }
     final d = await _one('userInfo.VipQueryServer', 'SRFVipQuery_V2', {
       'uin_list': [_uin],
     });

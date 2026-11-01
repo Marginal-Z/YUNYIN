@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/data_cache.dart';
 import '../../core/theme/palette.dart';
+import '../../core/ui/app_background.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/feedback.dart';
@@ -15,16 +16,19 @@ import '../../data/models.dart';
 import '../../data/sources/source_manager.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
-import '../common/song_row.dart';
 import '../shell/nav.dart';
 import 'home_page.dart';
 
-/// 横屏极简首页：顶部日期与问候、每日推荐卡片与三个快捷入口（我喜欢、最近播放、本地音乐）、横向滚动的推荐歌单。
+/// 横屏极简首页（类似车机界面）：顶部日期问候与设置、个人中心入口，每日推荐卡片与三个快捷入口，一排推荐歌单。
+/// 整页按设计尺寸排版后等比缩放到可用区域，任何屏幕上都正好一屏、不需要滚动。
 /// 左侧导航与底部播放条由外壳提供（见 LandscapeNavRail、LandscapePlayerBar）。
 class LandscapeHome extends StatelessWidget {
   const LandscapeHome({super.key, required this.load});
 
   final Future<HomeFeed> Function() load;
+
+  /// 设计高度：内容按这个高度排版，再整体缩放到实际高度。
+  static const designHeight = 330.0;
 
   @override
   Widget build(BuildContext context) {
@@ -32,43 +36,64 @@ class LandscapeHome extends StatelessWidget {
     final sources = context.watch<SourceManager>();
     final source = sources.current;
     final user = source.user;
-    return MobilePage(
-      top: 14,
-      horizontal: 16,
-      wide: true,
+    final mq = MediaQuery.of(context);
+    return Stack(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    todayText(),
-                    style: ts(12, weight: w600, color: p.text2),
+        const Positioned.fill(child: AppBackground()),
+        Padding(
+          padding: EdgeInsets.fromLTRB(4, mq.padding.top + 6, 16 + mq.padding.right, chromeClearance(context, Chrome.full) - 6),
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final scale = c.maxHeight / designHeight;
+              final width = c.maxWidth / scale;
+              return FittedBox(
+                fit: BoxFit.contain,
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: width,
+                  height: designHeight,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        height: 40,
+                        child: Row(
+                          children: [
+                            Text(
+                              greeting(),
+                              style: ts(22, weight: w700, em: -0.02, color: p.text),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              todayText(),
+                              style: ts(12, weight: w600, color: p.text2),
+                            ),
+                            const Spacer(),
+                            CircleButton(YIcons.sliders, size: 36, iconSize: 18, color: p.text2, label: '设置', onTap: () => go(context, SettingsRoute())),
+                            const SizedBox(width: 10),
+                            if (user?.avatar != null)
+                              Pressable(onTap: () => go(context, ProfileRoute()), semanticLabel: '个人中心', child: Cover(user!.avatar, size: 36, circle: true))
+                            else
+                              CircleButton(YIcons.user, size: 36, iconSize: 18, color: p.text2, label: '个人中心', onTap: () => go(context, ProfileRoute())),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: AsyncView<HomeFeed>(
+                          keyValue: sources.generation,
+                          cacheKey: DataCache.homeKey(source.id),
+                          load: load,
+                          loading: const SizedBox.shrink(),
+                          builder: (context, feed, _) => _Body(feed: feed),
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    greeting(),
-                    style: ts(26, weight: w700, em: -0.02, height: 1.15, color: p.text),
-                  ),
-                ],
-              ),
-            ),
-            CircleButton(YIcons.sliders, size: 40, iconSize: 19, color: p.text2, label: '设置', onTap: () => go(context, SettingsRoute())),
-            const SizedBox(width: 10),
-            if (user?.avatar != null)
-              Pressable(onTap: () => go(context, ProfileRoute()), semanticLabel: '个人中心', child: Cover(user!.avatar, size: 40, circle: true))
-            else
-              CircleButton(YIcons.user, size: 40, iconSize: 20, color: p.text2, label: '个人中心', onTap: () => go(context, ProfileRoute())),
-          ],
-        ),
-        const SizedBox(height: 14),
-        AsyncView<HomeFeed>(
-          keyValue: sources.generation,
-          cacheKey: DataCache.homeKey(source.id),
-          load: load,
-          loading: const SkeletonList(),
-          builder: (context, feed, _) => _Body(feed: feed),
+                ),
+              );
+            },
+          ),
         ),
       ],
     );
@@ -82,14 +107,22 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = Palette.of(context);
     final source = context.read<SourceManager>().current;
     final daily = dailyPlaylist(source, feed.daily);
-    const cardHeight = 136.0;
+    // 有歌单推荐的平台显示推荐歌单；洛雪曲库没有歌单，改为热门歌曲。
+    final playlists = feed.playlists;
+    final shelf = playlists.isNotEmpty
+        ? [for (final pl in playlists) (pl.cover, pl.name, () => openPlaylist(context, pl))]
+        : [
+            for (var i = 0; i < feed.daily.length; i++)
+              (feed.daily[i].coverUrl, feed.daily[i].name, () => playAll(context, feed.daily, start: i, title: '热门歌曲')),
+          ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          height: cardHeight,
+          height: 118,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -119,40 +152,26 @@ class _Body extends StatelessWidget {
             ],
           ),
         ),
-        // 有歌单推荐的平台显示推荐歌单；洛雪曲库没有歌单，改为热门歌曲。
-        if (feed.playlists.isNotEmpty) ...[
-          SectionHeader('推荐歌单', top: 20, action: '全部', onAction: () => context.read<AppNav>().switchTab(1)),
-          _Shelf(
-            count: feed.playlists.length,
-            builder: (context, i, width) {
-              final pl = feed.playlists[i];
-              return PlaylistTile(
-                width: width,
-                cover: pl.cover,
-                title: pl.name,
-                subtitle: playlistSubtitle(pl),
-                radius: 16,
-                onTap: () => openPlaylist(context, pl),
-              );
-            },
-          ),
-        ] else if (feed.daily.isNotEmpty) ...[
-          const SectionHeader('热门歌曲', top: 20),
-          _Shelf(
-            count: feed.daily.length,
-            builder: (context, i, width) {
-              final s = feed.daily[i];
-              return PlaylistTile(
-                width: width,
-                cover: s.coverUrl,
-                title: s.name,
-                subtitle: s.artistText,
-                radius: 16,
-                onTap: () => playAll(context, feed.daily, start: i, title: '热门歌曲'),
-              );
-            },
-          ),
-        ],
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Text(
+              playlists.isNotEmpty ? '推荐歌单' : '热门歌曲',
+              style: ts(15, weight: w700, color: p.text),
+            ),
+            const Spacer(),
+            if (playlists.isNotEmpty)
+              Pressable(
+                onTap: () => context.read<AppNav>().switchTab(1),
+                child: Text(
+                  '全部',
+                  style: ts(13, weight: w600, color: p.accentText),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Expanded(child: _Shelf(items: shelf)),
       ],
     );
   }
@@ -201,7 +220,7 @@ class _FeatureCard extends StatelessWidget {
                     semanticLabel: '打开每日推荐',
                     child: Row(
                       children: [
-                        if (covers.isNotEmpty) ...[Cover(covers.first, size: 92, radius: 16, imageSize: (184 * dpr).round()), const SizedBox(width: 16)],
+                        if (covers.isNotEmpty) ...[Cover(covers.first, size: 84, radius: 16, imageSize: (168 * dpr).round()), const SizedBox(width: 16)],
                         Expanded(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -286,28 +305,55 @@ class _QuickTile extends StatelessWidget {
   }
 }
 
-/// 横向滚动的一排封面：按可用宽度每屏放 6 张。
+/// 一排封面卡片：每屏 6 张，可以横向滑动查看更多；卡片高度跟随可用高度。
 class _Shelf extends StatelessWidget {
-  const _Shelf({required this.count, required this.builder});
+  const _Shelf({required this.items});
 
-  final int count;
-  final Widget Function(BuildContext context, int index, double width) builder;
+  final List<(String?, String, VoidCallback)> items;
 
   @override
   Widget build(BuildContext context) {
+    final p = Palette.of(context);
     return LayoutBuilder(
       builder: (context, c) {
         const gap = 12.0;
-        final width = ((c.maxWidth - gap * 5) / 6).clamp(96.0, 150.0);
-        return SizedBox(
-          height: width + 48,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            clipBehavior: Clip.none,
-            itemCount: count,
-            separatorBuilder: (_, _) => const SizedBox(width: gap),
-            itemBuilder: (context, i) => builder(context, i, width),
-          ),
+        final width = (c.maxWidth - gap * 5) / 6;
+        final cover = c.maxHeight - 22;
+        return ListView.separated(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          itemCount: items.length,
+          separatorBuilder: (_, _) => const SizedBox(width: gap),
+          itemBuilder: (context, i) {
+            final (url, title, onTap) = items[i];
+            return Pressable(
+              onTap: onTap,
+              scale: 0.97,
+              child: SizedBox(
+                width: width,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    YBox(
+                      clip: true,
+                      width: width,
+                      height: cover,
+                      radius: BorderRadius.circular(14),
+                      shadows: p.coverShadow,
+                      child: CoverImage(url, imageSize: (width * MediaQuery.devicePixelRatioOf(context) * 1.5).round()),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      title,
+                      style: ts(12, weight: w600, color: p.text),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );

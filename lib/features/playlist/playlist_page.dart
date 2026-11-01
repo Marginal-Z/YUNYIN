@@ -55,9 +55,30 @@ Future<PlaylistInfo> loadCollection(BuildContext context, AppRoute route) async 
       final source = sm.current;
       switch (kind) {
         case PlaylistKind.liked:
-          // 没有账号“喜欢”功能的平台：显示保存在本机的喜欢。
+          // 没有账号“喜欢”功能的平台：显示保存在本机的喜欢；登录后账号里的“我喜欢”排在前面。
           if (!source.supports(SourceFeature.likeSong)) {
-            final songs = player.localLikedSongs(source.id);
+            final local = player.localLikedSongs(source.id);
+            if (source.loggedIn && source.supports(SourceFeature.userPlaylists)) {
+              final liked = (await source.userPlaylists()).where((l) => l.isLikedList).firstOrNull;
+              if (liked != null) {
+                final list = await source.playlist(liked.id);
+                final ids = {for (final s in list.tracks ?? const <Song>[]) s.key};
+                final tracks = [...?list.tracks, ...local.where((s) => !ids.contains(s.key))];
+                return PlaylistInfo(
+                  id: list.id,
+                  sourceId: list.sourceId,
+                  name: list.name,
+                  cover: list.cover,
+                  creator: list.creator,
+                  trackCount: tracks.length,
+                  isLikedList: true,
+                  ownedByMe: true,
+                  kind: PlaylistKind.liked,
+                  tracks: tracks,
+                );
+              }
+            }
+            final songs = local;
             return PlaylistInfo(
               id: 'liked:${source.id}',
               sourceId: source.id,
