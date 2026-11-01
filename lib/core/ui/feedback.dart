@@ -69,8 +69,11 @@ class _ToastView extends StatelessWidget {
             child: ConstrainedBox(
               // 长消息换行显示（最多 3 行），不再被截断。
               constraints: BoxConstraints(maxWidth: math.min(MediaQuery.sizeOf(context).width - 32, 520), minHeight: 44),
-              child: Glass(
-                radius: 22,
+              // 提示需要在任何背景上都能读清：使用实色卡片，而不是透明的液态玻璃。
+              child: YBox(
+                radius: BorderRadius.circular(22),
+                color: p.card.withValues(alpha: 0.97),
+                shadows: [Shadow2(0, 8, 24, Color.fromRGBO(0, 0, 0, p.isDark ? 0.4 : 0.14))],
                 padding: const EdgeInsets.fromLTRB(14, 11, 18, 11),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
