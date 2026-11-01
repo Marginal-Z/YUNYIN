@@ -23,6 +23,7 @@ class KugouSource extends MusicSource {
   static const _api = 'https://mobiles.kugou.com/api/v3';
 
   final Dio _dio;
+  String _deviceId = md5.convert(utf8.encode('${DateTime.now().microsecondsSinceEpoch}-${math.Random.secure().nextDouble()}')).toString();
 
   @override
   String get id => sourceId;
@@ -65,6 +66,8 @@ class KugouSource extends MusicSource {
   Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      _deviceId = prefs.getString('kugou.deviceId') ?? _deviceId;
+      await prefs.setString('kugou.deviceId', _deviceId);
       final raw = prefs.getString(_prefsKey);
       if (raw != null) _setAccount(Map<String, String>.from(jsonDecode(raw) as Map));
     } catch (e) {
@@ -73,6 +76,9 @@ class KugouSource extends MusicSource {
   }
 
   void _setAccount(Map<String, String>? a) {
+    if (a != null && ((a['KugooID'] ?? '').isEmpty || a['KugooID'] == '0' || (a['t'] ?? '').isEmpty)) {
+      throw const FormatException('酷狗账号信息不完整，请重新登录');
+    }
     _account = a;
     _user = a == null
         ? null
@@ -85,6 +91,7 @@ class KugouSource extends MusicSource {
 
   /// 解析 Cookie：可以是整段 Cookie 头，也可以只是 KuGoo 的值。值中的中文使用 %uXXXX 编码。
   static Map<String, String>? parseKugooCookie(String cookie) {
+    if (cookie.contains('\r') || cookie.contains('\n')) return null;
     var text = cookie.trim();
     final m = RegExp(r'(?:^|;\s*)KuGoo=([^;]+)').firstMatch(text);
     if (m != null) text = m.group(1)!;
@@ -98,6 +105,15 @@ class KugouSource extends MusicSource {
     if (id.isEmpty || id == '0' || (out['t'] ?? '').isEmpty) return null;
     // 原样保存 KuGoo 的值，请求时原样带回（各字段的编码保持不变）。
     out['_raw'] = text;
+    final cookies = <String, String>{};
+    for (final part in cookie.split(';')) {
+      final equal = part.indexOf('=');
+      if (equal > 0) cookies[part.substring(0, equal).trim()] = part.substring(equal + 1).trim();
+    }
+    final mid = cookies['kg_mid'] ?? cookies['kg_mid_temp'];
+    if (mid != null && mid.isNotEmpty) out['_mid'] = mid;
+    final dfid = cookies['kg_dfid'];
+    if (dfid != null && dfid.isNotEmpty) out['_dfid'] = dfid;
     return out;
   }
 
@@ -218,6 +234,7 @@ class KugouSource extends MusicSource {
               .then((avatar) => ArtistInfo(id: '${a['singerid']}', sourceId: sourceId, name: '${a['singername']}', avatar: avatar)),
       ]);
     }
+
     Future<List<AlbumInfo>> albums(int size) async => [for (final a in await list('album', size)) _album(a)];
     Future<List<PlaylistInfo>> playlists(int size) async => [for (final p in await list('special', size)) _special(p)];
     switch (type) {
@@ -484,65 +501,87 @@ class KugouSource extends MusicSource {
 
   @override
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
-    final direct = await _webPlayUrl(song);
-    if (direct != null) return StreamInfo(url: direct, quality: AudioQuality.standard);
-    // 给出酷狗返回的原因（错误码与说明），便于判断是需要会员、需要验证还是登录失效。
-    final why = _lastRefusal == null ? '' : '（酷狗：$_lastRefusal）';
-    throw Exception(song.vip ? '会员歌曲需要酷狗会员$why' : '酷狗没有返回这首歌的播放地址$why');
+    return _webPlayInfo(song);
   }
 
-  /// 最近一次取地址时酷狗给出的拒绝原因。
-  String? _lastRefusal;
-
-  /// 酷狗网页播放接口（签名参数）。目前游客请求通常返回需要验证，取不到时返回 null。
-  Future<String?> _webPlayUrl(Song song) async {
+  Future<StreamInfo> _webPlayInfo(Song song) async {
     const key = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt';
     final ids = _ids(song);
-    if (ids.hash.isEmpty) return null;
-    try {
-      final mid = md5.convert(utf8.encode('yunyin-${DateTime.now().millisecondsSinceEpoch ~/ 86400000}')).toString();
-      final params = <String, String>{
-        'srcappid': '2919',
-        'clientver': '20000',
-        'clienttime': '${DateTime.now().millisecondsSinceEpoch}',
-        'mid': mid,
-        'uuid': mid,
-        'dfid': '-',
-        'appid': '1014',
-        'platid': '4',
-        'hash': ids.hash,
-        'album_id': ids.album.isEmpty ? '0' : ids.album,
-        'album_audio_id': ids.audio,
-        'token': _account?['t'] ?? '',
-        'userid': _account?['KugooID'] ?? '0',
-      };
-      final keys = params.keys.toList()..sort();
-      params['signature'] = md5.convert(utf8.encode('$key${keys.map((k) => '$k=${params[k]}').join()}$key')).toString();
-      final res = await _dio.get<String>(
-        'https://wwwapi.kugou.com/play/songinfo',
-        queryParameters: params,
-        options: Options(
-          headers: {'Cookie': 'kg_mid=$mid${_account == null ? '' : '; KuGoo=${_account!['_raw'] ?? ''}'}', 'User-Agent': 'Mozilla/5.0'},
-          receiveTimeout: const Duration(seconds: 6),
-        ),
-      );
-      final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
-      final data = j['data'];
-      final url = data is Map ? '${data['play_url'] ?? data['play_backup_url'] ?? ''}' : '';
-      if (url.startsWith('http')) {
-        _lastRefusal = null;
-        return url.replaceFirst('http://', 'https://');
+    if (ids.hash.isEmpty) throw Exception('这首歌缺少酷狗播放标识');
+    final mid = _account?['_mid'] ?? _deviceId;
+    final dfid = _account?['_dfid'] ?? '-';
+    final params = <String, String>{
+      'srcappid': '2919',
+      'clientver': '20000',
+      'clienttime': '${DateTime.now().millisecondsSinceEpoch}',
+      'mid': mid,
+      'uuid': mid,
+      'dfid': dfid,
+      'appid': '1014',
+      'platid': '4',
+      'hash': ids.hash,
+      'album_id': ids.album.isEmpty ? '0' : ids.album,
+      'album_audio_id': ids.audio,
+      'token': _account?['t'] ?? '',
+      'userid': _account?['KugooID'] ?? '0',
+    };
+    final keys = params.keys.toList()..sort();
+    params['signature'] = md5.convert(utf8.encode('$key${keys.map((k) => '$k=${params[k]}').join()}$key')).toString();
+    final res = await _dio.get<String>(
+      'https://wwwapi.kugou.com/play/songinfo',
+      queryParameters: params,
+      options: Options(
+        headers: {
+          'Cookie': 'kg_mid=$mid; kg_dfid=$dfid${_account == null ? '' : '; KuGoo=${_account!['_raw'] ?? ''}'}',
+          'User-Agent': 'Mozilla/5.0',
+          'Referer': 'https://www.kugou.com/',
+        },
+        receiveTimeout: const Duration(seconds: 6),
+      ),
+    );
+    final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    final data = j['data'];
+    final code = j['err_code'] ?? j['error_code'] ?? j['errcode'];
+    if ('$code' == '30020' && data is Map) {
+      if ('${data['is_publish']}' == '0' || '${data['privilege']}' == '5') {
+        throw Exception('酷狗暂不允许播放这首歌（错误码 30020），请在酷狗官方客户端查看歌曲状态');
       }
-      final code = j['err_code'] ?? j['error_code'] ?? j['errcode'] ?? (data is Map ? data['privilege'] : null);
-      final msg = '${j['error'] ?? j['err_msg'] ?? j['msg'] ?? ''}'.trim();
-      _lastRefusal = [if (code != null) '错误码 $code', if (msg.isNotEmpty) msg].join('，').ifEmpty('未返回地址');
-      debugPrint('kugou play url refused: $_lastRefusal');
-      return null;
-    } catch (e) {
-      _lastRefusal = '请求失败';
-      debugPrint('kugou play url: $e');
-      return null;
+      final event = '${data['SSA-CODE'] ?? res.headers.value('SSA-CODE') ?? ''}';
+      final challengeMid = '${data['SSA-HMID'] ?? res.headers.value('SSA-HMID') ?? mid}';
+      if (event.isNotEmpty) {
+        final songUrl = Uri.https('www.kugou.com', '/song/', {'hash': ids.hash, 'album_id': ids.album, 'album_audio_id': ids.audio}).toString();
+        final fragment = '/index/${[event, '1014', songUrl, challengeMid].map(Uri.encodeComponent).join('/')}';
+        throw SourceVerificationRequired(
+          message: '酷狗要求人机验证（错误码 30020）。请打开官方验证页完成验证，返回后重新点播放；若仍失败，请在酷狗官网播放一次并重新导入完整 Cookie（含 kg_mid、kg_dfid）。',
+          url: Uri.parse('https://h5.kugou.com/apps/verify-h5/dist/').replace(fragment: fragment),
+        );
+      }
     }
+    if (data is Map && '${j['status']}' == '1') {
+      final candidates = [data['play_url'], data['play_backup_url']].expand((value) => value is List ? value : [value]);
+      for (final value in candidates) {
+        final url = value is String ? Uri.tryParse(value.trim()) : null;
+        if (url == null || (url.scheme != 'http' && url.scheme != 'https') || url.host.isEmpty || url.userInfo.isNotEmpty) continue;
+        var bitrate = int.tryParse('${data['bitrate'] ?? 0}') ?? 0;
+        if (bitrate > 1000) bitrate ~/= 1000;
+        final lossless = url.path.toLowerCase().endsWith('.flac') || '${data['extname']}'.toLowerCase() == 'flac';
+        return StreamInfo(
+          url: url.toString(),
+          quality: lossless
+              ? AudioQuality.lossless
+              : bitrate >= 320
+              ? AudioQuality.exhigh
+              : bitrate >= 192
+              ? AudioQuality.higher
+              : AudioQuality.standard,
+          trial: data['is_free_part'] == true || '${data['is_free_part']}' == '1',
+          headers: const {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.kugou.com/'},
+        );
+      }
+    }
+    final msg = '${j['error'] ?? j['err_msg'] ?? j['msg'] ?? ''}'.trim();
+    final refusal = [if (code != null) '错误码 $code', if (msg.isNotEmpty) msg].join('，');
+    throw Exception('酷狗没有返回这首歌的播放地址${refusal.isEmpty ? '' : '（$refusal）'}');
   }
 
   // ── 歌词 ──────────────────────────────────────────

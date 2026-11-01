@@ -42,6 +42,16 @@ class SourceUnsupported implements Exception {
   String toString() => '当前播放源不支持：$feature';
 }
 
+class SourceVerificationRequired implements Exception {
+  const SourceVerificationRequired({required this.message, required this.url});
+
+  final String message;
+  final Uri url;
+
+  @override
+  String toString() => message;
+}
+
 /// 一个音乐平台（播放源）。新增平台只需实现本接口并在 [SourceRegistry] 注册。
 ///
 /// 所有方法默认抛出 [SourceUnsupported]，实现方按能力覆盖。
@@ -69,6 +79,7 @@ abstract class MusicSource extends ChangeNotifier {
   bool get loggedIn => user != null;
 
   Future<QrTicket> createQrLogin() => throw const SourceUnsupported('扫码登录');
+  void cancelQrLogin() {}
   Future<QrState> checkQrLogin(QrTicket ticket) => throw const SourceUnsupported('扫码登录');
   Future<void> sendSmsCode(String phone, {String countryCode = '86'}) => throw const SourceUnsupported('验证码登录');
   Future<void> loginWithSms(String phone, String code, {String countryCode = '86'}) => throw const SourceUnsupported('验证码登录');

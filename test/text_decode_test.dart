@@ -6,6 +6,10 @@ import 'package:yunyin/core/text_decode.dart';
 import 'package:yunyin/data/sources/netease/netease_source.dart' show parseLrc;
 
 void main() {
+  test('无效的 HTML Unicode 实体不会导致歌词解析崩溃', () {
+    expect(cleanLyricText('&#x110000; &#99999999; &#xD800;'), '&#x110000; &#99999999; &#xD800;');
+    expect(cleanLyricText('&#x1F3B5;'), '🎵');
+  });
   const lrc = '[00:01.00]刮风这天 我试过握着你手\n[00:05.00]但偏偏 雨渐渐';
 
   test('GBK、UTF-8（含 BOM）与 UTF-16 编码的歌词都能正确解码', () {

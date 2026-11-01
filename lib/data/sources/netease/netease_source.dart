@@ -59,21 +59,30 @@ class NeteaseSource extends MusicSource {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_prefsCookie);
-    if (raw != null) _cookies.addAll(Map<String, String>.from(jsonDecode(raw) as Map));
+    try {
+      if (raw != null) _cookies.addAll(Map<String, String>.from(jsonDecode(raw) as Map));
+    } catch (_) {
+      await prefs.remove(_prefsCookie);
+    }
     _cookies.putIfAbsent('_ntes_nuid', () => NeteaseCrypto.randomHex(32));
     _cookies.putIfAbsent('NMTID', () => '00O${NeteaseCrypto.randomHex(29)}');
     final p = prefs.getString(_prefsProfile);
-    if (p != null && _cookies.containsKey('MUSIC_U')) {
-      final j = jsonDecode(p) as Map<String, dynamic>;
-      _user = UserProfile(
-        id: '${j['id']}',
-        nickname: '${j['nickname']}',
-        avatar: j['avatar'] as String?,
-        signature: j['signature'] as String?,
-        vip: j['vip'] as bool? ?? false,
-      );
-      // 后台刷新账号信息，失效则清除。
-      _refreshAccount().catchError((_) {});
+    try {
+      if (p != null && _cookies.containsKey('MUSIC_U')) {
+        final j = jsonDecode(p) as Map<String, dynamic>;
+        _user = UserProfile(
+          id: '${j['id']}',
+          nickname: '${j['nickname']}',
+          avatar: j['avatar'] as String?,
+          signature: j['signature'] as String?,
+          vip: j['vip'] as bool? ?? false,
+        );
+        // 后台刷新账号信息，失效则清除。
+        _refreshAccount().catchError((_) {});
+      }
+    } catch (_) {
+      _user = null;
+      await prefs.remove(_prefsProfile);
     }
   }
 

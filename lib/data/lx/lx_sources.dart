@@ -66,6 +66,7 @@ class LxSources extends ChangeNotifier {
   final List<LxScript> _scripts = [];
   final Map<String, LxRuntime> _runtimes = {};
   final Map<String, Future<LxRuntime>> _starting = {};
+  bool _disposed = false;
 
   /// 各音源最近一次启动失败的原因。
   final Map<String, String> errors = {};
@@ -131,36 +132,62 @@ class LxSources extends ChangeNotifier {
     if (!code.contains('lx')) throw Exception('这不是洛雪音源脚本');
     final header = LxScript.parseHeader(code);
     final rt = await LxRuntime.start(code, info: header);
+    if (_disposed) {
+      rt.dispose();
+      throw StateError('音源已停止');
+    }
     if (rt.sources.isEmpty) {
       rt.dispose();
       throw Exception('音源脚本没有声明支持的平台');
     }
     final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    await File('${(await _dir()).path}/$id.js').writeAsString(code);
-    final s = LxScript(
-      id: id,
-      name: header['name']!.isEmpty ? '未命名音源' : header['name']!,
-      description: header['description']!,
-      version: header['version']!,
-      author: header['author']!,
-      url: url,
-    );
-    _scripts.add(s);
-    _runtimes[id] = rt;
-    errors.remove(id);
-    await _save();
-    notifyListeners();
-    return s;
+    try {
+      await File('${(await _dir()).path}/$id.js').writeAsString(code);
+      if (_disposed) throw StateError('音源已停止');
+      final s = LxScript(
+        id: id,
+        name: header['name']!.isEmpty ? '未命名音源' : header['name']!,
+        description: header['description']!,
+        version: header['version']!,
+        author: header['author']!,
+        url: url,
+      );
+      _scripts.add(s);
+      _runtimes[id] = rt;
+      errors.remove(id);
+      await _save();
+      if (_disposed) throw StateError('音源已停止');
+      notifyListeners();
+      return s;
+    } catch (_) {
+      _scripts.removeWhere((script) => script.id == id);
+      _runtimes.remove(id);
+      rt.dispose();
+      rethrow;
+    }
   }
 
   Future<void> setEnabled(String id, bool on) async {
     final i = _scripts.indexWhere((s) => s.id == id);
     if (i < 0) return;
     _scripts[i] = _scripts[i].copyWith(enabled: on);
+    final script = _scripts[i];
     if (!on) _runtimes.remove(id)?.dispose();
     await _save();
+    if (_disposed) return;
     notifyListeners();
-    if (on) unawaited(_runtime(_scripts[i]).then((_) => notifyListeners(), onError: (_) => notifyListeners()));
+    if (on) {
+      unawaited(
+        _runtime(script).then(
+          (_) {
+            if (!_disposed) notifyListeners();
+          },
+          onError: (Object _) {
+            if (!_disposed) notifyListeners();
+          },
+        ),
+      );
+    }
   }
 
   /// 调整优先级：把音源上移一位（排在前面的先尝试）。
@@ -185,17 +212,22 @@ class LxSources extends ChangeNotifier {
   }
 
   Future<LxRuntime> _runtime(LxScript s) {
+    if (_disposed) return Future.error(StateError('音源已停止'));
     final rt = _runtimes[s.id];
     if (rt != null) return Future.value(rt);
     return _starting[s.id] ??= () async {
       try {
         final code = await File('${(await _dir()).path}/${s.id}.js').readAsString();
         final rt = await LxRuntime.start(code, info: {'name': s.name, 'description': s.description, 'version': s.version, 'author': s.author});
+        if (_disposed || !_scripts.any((script) => script.id == s.id && script.enabled)) {
+          rt.dispose();
+          throw StateError('音源已停止');
+        }
         _runtimes[s.id] = rt;
         errors.remove(s.id);
         return rt;
       } catch (e) {
-        errors[s.id] = '$e';
+        if (!_disposed && _scripts.any((script) => script.id == s.id && script.enabled)) errors[s.id] = '$e';
         rethrow;
       } finally {
         _starting.remove(s.id);
@@ -222,11 +254,13 @@ class LxSources extends ChangeNotifier {
     for (final s in enabled) {
       try {
         final rt = await _runtime(s);
+        if (_disposed || !_scripts.any((script) => script.id == s.id && script.enabled)) continue;
         final declared = rt.sources[key];
         if (declared == null) continue;
         final start = _qualities.indexOf(_wanted(quality));
         final type = _qualities.skip(start).firstWhere(declared.contains, orElse: () => declared.isEmpty ? '128k' : declared.last);
         final url = await rt.musicUrl(key, type, musicInfo(song, key), timeout: const Duration(seconds: 15));
+        if (_disposed || !_scripts.any((script) => script.id == s.id && script.enabled)) continue;
         if (lastFailures.remove(s.id) != null) notifyListeners();
         return StreamInfo(
           url: url,
@@ -238,6 +272,7 @@ class LxSources extends ChangeNotifier {
           },
         );
       } catch (e) {
+        if (_disposed || !_scripts.any((script) => script.id == s.id && script.enabled)) continue;
         debugPrint('lx ${s.name}: $e');
         lastFailures[s.id] = e.toString().replaceFirst('Exception: ', '');
         notifyListeners();
@@ -284,5 +319,15 @@ class LxSources extends ChangeNotifier {
       if (base['albumId'] != null) 'albumId': base['albumId'],
     };
     return base;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    for (final runtime in _runtimes.values) {
+      runtime.dispose();
+    }
+    _runtimes.clear();
+    super.dispose();
   }
 }

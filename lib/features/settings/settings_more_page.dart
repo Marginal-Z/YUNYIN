@@ -37,22 +37,10 @@ class SettingsMorePage extends StatelessWidget {
       ],
       children: [
         PageTitle('关于', size: desktop ? 40 : 36),
-        const GroupLabel('通知与隐私', top: 18),
+        const GroupLabel('隐私与权限', top: 18),
         CardList(
           indent: 56,
           children: [
-            SettingsRow(
-              icon: YIcons.bell,
-              tile: TileColor.red,
-              title: '推送通知',
-              trailing: YSwitch(value: s.pushNotify, label: '推送通知', onChanged: (v) => s.setFlag('pushNotify', v)),
-            ),
-            SettingsRow(
-              icon: YIcons.sparkle,
-              tile: TileColor.blue,
-              title: '个性化推荐',
-              trailing: YSwitch(value: s.personalized, label: '个性化推荐', onChanged: (v) => s.setFlag('personalized', v)),
-            ),
             SettingsRow(icon: YIcons.shield, tile: TileColor.graphite, title: '隐私政策', onTap: () => go(context, AboutRoute(AboutPage.privacy))),
             SettingsRow(icon: YIcons.lock, tile: TileColor.teal, title: '权限管理', onTap: () => go(context, AboutRoute(AboutPage.permissions))),
           ],

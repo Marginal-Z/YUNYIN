@@ -60,11 +60,13 @@ class SourceManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  MusicSource byId(String id) => sources.firstWhere((s) => s.id == id, orElse: () => _current);
+  MusicSource byId(String id) => sources.firstWhere((s) => s.id == id, orElse: () => throw StateError('播放源不存在：$id'));
 
   Future<void> select(String id) async {
     if (id == _current.id) return;
-    _current = byId(id);
+    final source = byId(id);
+    if (!source.selectable) throw ArgumentError.value(id, 'id', '该播放源不能作为平台模式');
+    _current = source;
     generation++;
     DataCache.clear();
     notifyListeners();

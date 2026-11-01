@@ -65,6 +65,7 @@ class _CommentsPageState extends State<CommentsPage> {
   int _total = 0;
   bool _loading = false;
   bool _hasMore = true;
+  int _request = 0;
   Object? _error;
   final _input = TextEditingController();
   final _scroll = ScrollController();
@@ -86,19 +87,21 @@ class _CommentsPageState extends State<CommentsPage> {
   }
 
   Future<void> _load({bool reset = false}) async {
-    if (_loading || (!reset && !_hasMore)) return;
+    if (!reset && (_loading || !_hasMore)) return;
+    final request = ++_request;
     setState(() {
       _loading = true;
       _error = null;
       if (reset) {
         _items.clear();
+        _likedIds.clear();
         _hasMore = true;
       }
     });
     try {
       final src = context.read<SourceManager>().byId(widget.song.sourceId);
       final page = await src.comments(widget.song, sort: _sort, offset: _items.length);
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() {
         _total = page.total;
         _items.addAll(page.comments.where((c) => !_items.any((x) => x.id == c.id)));
@@ -106,9 +109,9 @@ class _CommentsPageState extends State<CommentsPage> {
         _likedIds.addAll(page.comments.where((c) => c.liked).map((c) => c.id));
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (mounted && request == _request) setState(() => _error = e);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && request == _request) setState(() => _loading = false);
     }
   }
 
@@ -118,8 +121,8 @@ class _CommentsPageState extends State<CommentsPage> {
     final src = context.read<SourceManager>().byId(widget.song.sourceId);
     try {
       await src.postComment(widget.song, text);
-      _input.clear();
       if (!mounted) return;
+      _input.clear();
       FocusScope.of(context).unfocus();
       Toast.show(context, '评论已发布');
       _load(reset: true);

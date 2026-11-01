@@ -12,9 +12,12 @@ void main() {
     expect(a['t'], 'tok123');
     expect(a['NickName'], '云音用户');
     expect(a['_raw'], startsWith('KugooID=123456789&'));
+    expect(a['_mid'], 'abc');
+    expect(a['_dfid'], 'xyz');
     expect(KugouSource.parseKugooCookie('KugooID=1&t=x&NickName=a')!['KugooID'], '1');
     expect(KugouSource.parseKugooCookie('kg_mid=abc'), isNull, reason: '没有登录信息');
     expect(KugouSource.parseKugooCookie('KuGoo=KugooID=0&t='), isNull, reason: '未登录的游客 Cookie');
+    expect(KugouSource.parseKugooCookie('KuGoo=KugooID=1&t=x\r\nOther: invalid'), isNull);
   });
 
   test('Cookie 登录后保存账号，重新启动仍为登录状态，退出后清除', () async {

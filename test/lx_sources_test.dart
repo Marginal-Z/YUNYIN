@@ -66,83 +66,116 @@ void main() {
   // 测试绑定默认把 HTTP 请求全部替换成 400；这里要访问本机的测试服务，恢复真实的 HttpClient。
   setUp(() => HttpOverrides.global = null);
 
-  test('洛雪音源：从链接导入、失效音源自动跳过、为未登录的酷狗歌曲取得可播放的地址', () async {
-    final tmp = await Directory.systemTemp.createTemp('yunyin-lx');
+  test(
+    '洛雪音源：从链接导入、失效音源自动跳过、为未登录的酷狗歌曲取得可播放的地址',
+    () async {
+      final tmp = await Directory.systemTemp.createTemp('yunyin-lx');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/path_provider'),
+        (call) async => tmp.path,
+      );
+      SharedPreferences.setMockInitialValues({});
+
+      // 本地服务：提供音源脚本、取地址接口与音频文件。
+      final audio = List<int>.generate(4096, (i) => i & 0xff);
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final port = server.port;
+      final forms = <Map<String, String>>[];
+      server.listen((req) async {
+        final res = req.response;
+        switch (req.uri.path) {
+          case '/script.js':
+            res.write(_working(port));
+          case '/api':
+            final form = Uri.splitQueryString(await const SystemEncoding().decoder.bind(req).join());
+            forms.add(form);
+            res.headers.contentType = ContentType.json;
+            res.write('{"code":0,"url":"http://127.0.0.1:$port/audio/${form['id']}_${form['quality']}.mp3"}');
+          case final p when p.startsWith('/audio/'):
+            res.headers.contentType = ContentType('audio', 'mpeg');
+            res.add(audio);
+          default:
+            res.statusCode = 404;
+        }
+        await res.close();
+      });
+
+      final lx = LxSources();
+      addTearDown(lx.dispose);
+      await lx.init();
+      final broken = await lx.importText(_broken);
+      final working = await lx.importUrl('http://127.0.0.1:$port/script.js');
+      expect(working.name, '本地测试音源');
+      expect(working.version, '2.1.0');
+      expect(lx.enabled.map((s) => s.id), [broken.id, working.id]);
+
+      // 洛雪曲库的歌曲（酷我 kw）只通过洛雪音源播放：失效的音源被跳过，由下一个音源取得地址。
+      final library = LxLibrarySource(lx);
+      final song = Song(
+        id: '228908',
+        sourceId: LxLibrarySource.sourceId,
+        name: '晴天',
+        artists: const [ArtistRef('kw:周杰伦', '周杰伦')],
+        duration: const Duration(minutes: 4, seconds: 29),
+      );
+      final info = await library.stream(song, AudioQuality.lossless);
+      expect(info.url, 'http://127.0.0.1:$port/audio/228908_flac.mp3');
+      expect(info.quality, AudioQuality.lossless);
+      expect(forms.last, containsPair('source', 'kw'));
+      expect(forms.last, containsPair('v', '2.0.0'));
+      expect(forms.last, containsPair('script', '本地测试音源'));
+
+      // 返回的地址真的能下载到音频。
+      final client = HttpClient();
+      final res = await (await client.getUrl(Uri.parse(info.url!))).close();
+      expect(res.statusCode, 200);
+      expect(res.headers.contentType?.mimeType, 'audio/mpeg');
+      expect((await res.fold<List<int>>([], (a, b) => a..addAll(b))).length, audio.length);
+      client.close();
+
+      // QQ 音乐只声明到 320k：要求无损时降到它支持的最高音质。
+      final qq = Song(
+        id: '0039MnYb0qxYhV:M500:97773',
+        sourceId: 'qq',
+        name: '晴天',
+        artists: const [ArtistRef('qq:周杰伦', '周杰伦')],
+        duration: const Duration(minutes: 4),
+      );
+      final q = await lx.resolve(qq, AudioQuality.lossless);
+      expect(q!.quality, AudioQuality.exhigh);
+      expect(forms.last, containsPair('quality', '320k'));
+
+      // 停用后不再参与兜底；全部停用时返回 null（交给平台自己的结果）。
+      await lx.setEnabled(working.id, false);
+      await expectLater(lx.resolve(song, AudioQuality.standard), throwsA(predicate((e) => '$e'.contains('接口已失效'))));
+      await lx.setEnabled(broken.id, false);
+      expect(await lx.resolve(song, AudioQuality.standard), isNull);
+
+      await server.close(force: true);
+      await tmp.delete(recursive: true);
+    },
+    skip: _skip,
+    timeout: const Timeout(Duration(minutes: 1)),
+  );
+
+  test('音源启动过程中停用后不会遗留运行环境', () async {
+    final temporary = await Directory.systemTemp.createTemp('yunyin-lx-stop');
+    addTearDown(() => temporary.delete(recursive: true));
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('plugins.flutter.io/path_provider'),
-      (call) async => tmp.path,
+      (call) async => temporary.path,
     );
     SharedPreferences.setMockInitialValues({});
-
-    // 本地服务：提供音源脚本、取地址接口与音频文件。
-    final audio = List<int>.generate(4096, (i) => i & 0xff);
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final port = server.port;
-    final forms = <Map<String, String>>[];
-    server.listen((req) async {
-      final res = req.response;
-      switch (req.uri.path) {
-        case '/script.js':
-          res.write(_working(port));
-        case '/api':
-          final form = Uri.splitQueryString(await const SystemEncoding().decoder.bind(req).join());
-          forms.add(form);
-          res.headers.contentType = ContentType.json;
-          res.write('{"code":0,"url":"http://127.0.0.1:$port/audio/${form['id']}_${form['quality']}.mp3"}');
-        case final p when p.startsWith('/audio/'):
-          res.headers.contentType = ContentType('audio', 'mpeg');
-          res.add(audio);
-        default:
-          res.statusCode = 404;
-      }
-      await res.close();
-    });
-
-    final lx = LxSources();
-    await lx.init();
-    final broken = await lx.importText(_broken);
-    final working = await lx.importUrl('http://127.0.0.1:$port/script.js');
-    expect(working.name, '本地测试音源');
-    expect(working.version, '2.1.0');
-    expect(lx.enabled.map((s) => s.id), [broken.id, working.id]);
-
-    // 洛雪曲库的歌曲（酷我 kw）只通过洛雪音源播放：失效的音源被跳过，由下一个音源取得地址。
-    final library = LxLibrarySource(lx);
-    final song = Song(
-      id: '228908',
-      sourceId: LxLibrarySource.sourceId,
-      name: '晴天',
-      artists: const [ArtistRef('kw:周杰伦', '周杰伦')],
-      duration: const Duration(minutes: 4, seconds: 29),
-    );
-    final info = await library.stream(song, AudioQuality.lossless);
-    expect(info.url, 'http://127.0.0.1:$port/audio/228908_flac.mp3');
-    expect(info.quality, AudioQuality.lossless);
-    expect(forms.last, containsPair('source', 'kw'));
-    expect(forms.last, containsPair('v', '2.0.0'));
-    expect(forms.last, containsPair('script', '本地测试音源'));
-
-    // 返回的地址真的能下载到音频。
-    final client = HttpClient();
-    final res = await (await client.getUrl(Uri.parse(info.url!))).close();
-    expect(res.statusCode, 200);
-    expect(res.headers.contentType?.mimeType, 'audio/mpeg');
-    expect((await res.fold<List<int>>([], (a, b) => a..addAll(b))).length, audio.length);
-    client.close();
-
-    // QQ 音乐只声明到 320k：要求无损时降到它支持的最高音质。
-    final qq = Song(id: '0039MnYb0qxYhV:M500:97773', sourceId: 'qq', name: '晴天', artists: const [ArtistRef('qq:周杰伦', '周杰伦')], duration: const Duration(minutes: 4));
-    final q = await lx.resolve(qq, AudioQuality.lossless);
-    expect(q!.quality, AudioQuality.exhigh);
-    expect(forms.last, containsPair('quality', '320k'));
-
-    // 停用后不再参与兜底；全部停用时返回 null（交给平台自己的结果）。
-    await lx.setEnabled(working.id, false);
-    await expectLater(lx.resolve(song, AudioQuality.standard), throwsA(predicate((e) => '$e'.contains('接口已失效'))));
-    await lx.setEnabled(broken.id, false);
-    expect(await lx.resolve(song, AudioQuality.standard), isNull);
-
-    await server.close(force: true);
-    await tmp.delete(recursive: true);
-  }, skip: _skip, timeout: const Timeout(Duration(minutes: 1)));
+    final sources = LxSources();
+    addTearDown(sources.dispose);
+    await sources.init();
+    final script = await sources.importText("setTimeout(() => lx.send('inited', {sources:{wy:{qualitys:['128k']}}}), 80)");
+    await sources.setEnabled(script.id, false);
+    await sources.setEnabled(script.id, true);
+    await sources.setEnabled(script.id, false);
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(sources.enabled, isEmpty);
+    expect(sources.platformsOf(script.id), isEmpty);
+    expect(sources.errors, isEmpty);
+  }, skip: _skip);
 }

@@ -408,12 +408,6 @@ class _StorageGroupState extends State<StorageGroup> {
             onTap: () => Toast.show(context, '下载目录：${_dir ?? ''}', icon: YIcons.folder),
           ),
           clear,
-          SettingsRow(
-            icon: YIcons.refresh,
-            tile: TileColor.teal,
-            title: '自动清理',
-            trailing: YSwitch(value: s.autoClean, label: '自动清理', onChanged: (v) => s.setFlag('autoClean', v)),
-          ),
         ],
       );
     }
@@ -423,8 +417,8 @@ class _StorageGroupState extends State<StorageGroup> {
         SettingsRow(
           icon: YIcons.wifi,
           tile: TileColor.blue,
-          title: '仅 Wi-Fi 下载',
-          trailing: YSwitch(value: s.wifiOnlyDownload, label: '仅 Wi-Fi 下载', onChanged: (v) => s.setFlag('wifiOnlyDownload', v)),
+          title: '下载网络',
+          value: '使用当前网络',
         ),
         SettingsRow(
           icon: YIcons.download,

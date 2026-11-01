@@ -43,13 +43,12 @@ void main() {
       print('歌词: ${ly.lines.length} 行，${ly.lines.skip(6).first.text}');
       expect(ly.lines.length, greaterThan(10));
 
-      // 平台彼此独立：游客取不到完整地址时给出指向洛雪音源的说明，而不是换用其他平台的歌曲。
       try {
         final st = await qq.stream(r.songs.first, AudioQuality.standard);
         print('直接播放: ${st.url}');
       } catch (e) {
         print('游客播放: $e');
-        expect('$e', contains('洛雪'));
+        expect('$e', contains('QQ 音乐'));
       }
 
       // 完整的平台功能：歌手、专辑、歌单、评论、新碟与各类搜索。

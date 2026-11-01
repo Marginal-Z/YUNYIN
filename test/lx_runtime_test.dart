@@ -63,4 +63,17 @@ void main() {
     await expectLater(LxRuntime.start('throw new Error("坏脚本")'), throwsA(predicate((e) => '$e'.contains('坏脚本'))));
     await expectLater(LxRuntime.start('1 + 1', timeout: const Duration(seconds: 1)), throwsA(predicate((e) => '$e'.contains('inited'))));
   }, skip: _skip);
+
+  test('停止后的运行环境立即拒绝请求，可重复停止', () async {
+    final runtime = await LxRuntime.start("lx.send('inited', {sources:{wy:{qualitys:['128k']}}})");
+    runtime.dispose();
+    runtime.dispose();
+    await expectLater(runtime.musicUrl('wy', '128k', const {}, timeout: const Duration(seconds: 1)), throwsStateError);
+  }, skip: _skip);
+
+  test('拒绝伪装成 http 的无效播放地址', () async {
+    final runtime = await LxRuntime.start("lx.on('request', () => 'httpfake://invalid'); lx.send('inited', {sources:{wy:{qualitys:['128k']}}})");
+    addTearDown(runtime.dispose);
+    await expectLater(runtime.musicUrl('wy', '128k', const {}), throwsException);
+  }, skip: _skip);
 }

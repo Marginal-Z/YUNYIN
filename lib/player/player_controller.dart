@@ -18,10 +18,11 @@ enum PlayMode { sequence, shuffle, repeatOne }
 
 /// 播放器提示（由界面以轻提示 / 弹窗展示）。
 class PlayerNotice {
-  const PlayerNotice(this.title, {this.message, this.blocking = false});
+  const PlayerNotice(this.title, {this.message, this.blocking = false, this.actionUrl});
 
   final String title;
   final String? message;
+  final Uri? actionUrl;
 
   /// 需要用户确认的提示（例如“暂无播放版权”）。
   final bool blocking;
@@ -29,12 +30,14 @@ class PlayerNotice {
 
 /// 播放队列与播放状态。音频由 media_kit（libmpv / HTML5 audio）驱动。
 class PlayerController extends ChangeNotifier {
-  PlayerController(this.sources, this.settings);
+  PlayerController(this.sources, this.settings, {Player? engine}) : _player = engine;
 
   final SourceManager sources;
   final AppSettings settings;
 
   Player? _player;
+  bool _disposed = false;
+  int _likesToken = 0;
   final List<StreamSubscription<Object?>> _subs = [];
 
   List<Song> _queue = [];
@@ -112,10 +115,12 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> _initEngine() async {
-    if (!kIsWeb) MediaKit.ensureInitialized(libmpv: bundledLibmpv());
-    final p = Player(
-      configuration: const PlayerConfiguration(title: '云音', logLevel: MPVLogLevel.error),
-    );
+    if (_player == null && !kIsWeb) MediaKit.ensureInitialized(libmpv: bundledLibmpv());
+    final p =
+        _player ??
+        Player(
+          configuration: const PlayerConfiguration(title: '云音', logLevel: MPVLogLevel.error),
+        );
     _player = p;
     _subs.addAll([
       p.stream.playing.listen((v) {
@@ -129,7 +134,7 @@ class PlayerController extends ChangeNotifier {
         if ((v - position.value).abs() >= const Duration(milliseconds: 250) || v < position.value) position.value = v;
       }),
       p.stream.duration.listen((v) {
-        if (v == Duration.zero) return;
+        if (_opening || v == Duration.zero) return;
         duration = v;
         notifyListeners();
       }),
@@ -145,12 +150,18 @@ class PlayerController extends ChangeNotifier {
         // 播放地址打不开（失效、404、网络错误）：结束加载并给出原因，而不是一直显示加载中。
         if (e.contains('Failed to open') && current != null) _onOpenFailed();
         // 音频滤镜（均衡器）创建失败：关闭均衡器并在原位置重新播放，避免一直没有声音。
-        if (e.contains('Audio filter') && _eqApplied.isNotEmpty) unawaited(_onEqFailed().then((_) => current != null ? _load(autoplay: true, keepPosition: true) : null));
+        if (e.contains('Audio filter') && _eqApplied.isNotEmpty) {
+          unawaited(_onEqFailed().then((_) => current != null ? _load(autoplay: true, keepPosition: true) : null));
+        }
       }),
       p.stream.log.listen((l) {
         if (l.text.contains('Could not open/initialize audio device')) _onAudioDeviceFailed();
         // 音频滤镜（均衡器）在个别设备上创建失败时关闭它，避免没有声音。
-        if (_eqApplied.isNotEmpty && (l.text.contains('Disabling filter') || l.text.contains('failed to configure the filter graph') || l.text.contains('Could not create') || l.text.contains('Error parsing'))) {
+        if (_eqApplied.isNotEmpty &&
+            (l.text.contains('Disabling filter') ||
+                l.text.contains('failed to configure the filter graph') ||
+                l.text.contains('Could not create') ||
+                l.text.contains('Error parsing'))) {
           _onEqFailed();
         }
       }),
@@ -249,6 +260,7 @@ class PlayerController extends ChangeNotifier {
   void debugSetQueue(List<Song> songs, int index) {
     _queue = List.of(songs);
     _index = index;
+    _rebuildOrder();
     notifyListeners();
   }
 
@@ -363,6 +375,7 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> _refreshLikes() async {
+    final token = ++_likesToken;
     final ids = <String>{};
     for (final s in sources.sources) {
       try {
@@ -371,6 +384,7 @@ class PlayerController extends ChangeNotifier {
         }
       } catch (_) {}
     }
+    if (_disposed || token != _likesToken) return;
     _liked
       ..clear()
       ..addAll(ids)
@@ -397,7 +411,10 @@ class PlayerController extends ChangeNotifier {
     // 歌单、榜单里偶尔有重复的歌曲：队列中每首只保留一次，否则按歌曲查找位置（切歌、移除）会落到另一处。
     final want = songs[start.clamp(0, songs.length - 1)];
     final seen = <String>{};
-    songs = [for (final s in songs) if (seen.add(s.key)) s];
+    songs = [
+      for (final s in songs)
+        if (seen.add(s.key)) s,
+    ];
     start = songs.indexOf(want);
     _queue = List.of(songs);
     queueTitle = title;
@@ -503,6 +520,7 @@ class PlayerController extends ChangeNotifier {
     if (mode == m) return;
     mode = m;
     _rebuildOrder();
+    SharedPreferences.getInstance().then((prefs) => prefs.setString('player.mode', mode.name));
     notifyListeners();
   }
 
@@ -513,13 +531,16 @@ class PlayerController extends ChangeNotifier {
   Future<void> toggle() => playing ? pause() : play();
 
   Future<void> play() async {
+    if (_disposed) return;
     if (current == null) return;
     if (_player?.state.playlist.medias.isEmpty ?? true) {
       await _load(autoplay: true, keepPosition: true);
       return;
     }
     if (settings.crossfade) {
+      final token = _loadToken;
       await _setFade(0);
+      if (_disposed || token != _loadToken) return;
       await _player?.play();
       await _rampFade(1, 380);
     } else {
@@ -528,8 +549,11 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> pause() async {
+    if (_disposed) return;
     if (settings.crossfade && playing) {
+      final token = _loadToken;
       await _rampFade(0, 320);
+      if (_disposed || token != _loadToken) return;
       await _player?.pause();
       await _setFade(1);
     } else {
@@ -576,13 +600,16 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> seek(Duration d) async {
+    if (d < Duration.zero) d = Duration.zero;
+    if (duration > Duration.zero && d > duration) d = duration;
     position.value = d;
     await _player?.seek(d);
   }
 
   Future<void> seekFraction(double f) {
+    if (!f.isFinite) return Future.value();
     final total = duration.inMilliseconds;
-    return seek(Duration(milliseconds: (total * f).round()));
+    return seek(Duration(milliseconds: (total * f.clamp(0, 1)).round()));
   }
 
   Future<void> setVolume(double v) async {
@@ -599,8 +626,10 @@ class PlayerController extends ChangeNotifier {
   Future<void> _rampFade(double to, int ms) async {
     const steps = 12;
     final from = _fade;
+    final token = _loadToken;
     for (var i = 1; i <= steps; i++) {
       await Future<void>.delayed(Duration(milliseconds: ms ~/ steps));
+      if (_disposed || token != _loadToken) return;
       await _setFade(from + (to - from) * i / steps);
     }
   }
@@ -612,9 +641,7 @@ class PlayerController extends ChangeNotifier {
     buffering = false;
     notifyListeners();
     final lx = song.sourceId == 'lx';
-    _notices.add(
-      PlayerNotice('无法打开这首歌', message: lx ? '洛雪音源返回的播放地址已失效，请在“设置 → 洛雪音源”中更换或调整音源顺序' : '播放地址已失效或网络不可用，请稍后重试'),
-    );
+    _notices.add(PlayerNotice('无法打开这首歌', message: lx ? '洛雪音源返回的播放地址已失效，请在“设置 → 洛雪音源”中更换或调整音源顺序' : '播放地址已失效或网络不可用，请稍后重试'));
   }
 
   /// 正在打开新歌曲（从开始加载到播放器打开媒体）：这期间上一首的“播放结束”事件不能触发切歌。
@@ -645,6 +672,7 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> _load({required bool autoplay, bool keepPosition = false}) async {
+    if (_disposed) return;
     final song = current;
     if (song == null) return;
     final token = ++_loadToken;
@@ -655,15 +683,16 @@ class PlayerController extends ChangeNotifier {
     lyrics = Lyrics.empty;
     buffering = true;
     _addHistory(song);
+    _restoringQueue = false;
+    _saveQueue();
     notifyListeners();
 
-    final source = sources.byId(song.sourceId);
-    _loadLyrics(source, song, token);
     // 切歌后上一首立即静音：取新歌地址可能要等洛雪音源十几秒，期间不应继续听到上一首（淡入淡出时由下方渐隐处理）。
-    if (!keepPosition && !settings.crossfade) await _setFade(0);
-
     StreamInfo info;
     try {
+      if (!keepPosition && !settings.crossfade) await _setFade(0);
+      final source = sources.byId(song.sourceId);
+      _loadLyrics(source, song, token);
       final local = song.localPath ?? localLookup?.call(song)?.localPath;
       if (local != null) {
         info = StreamInfo(url: local);
@@ -677,7 +706,14 @@ class PlayerController extends ChangeNotifier {
       // 新歌取不到地址时停止上一首，否则界面显示的是新歌，听到的却还是上一首。
       await _player?.stop();
       notifyListeners();
-      _notices.add(PlayerNotice('播放失败', message: e.toString().replaceFirst('Exception: ', '')));
+      _notices.add(
+        PlayerNotice(
+          e is SourceVerificationRequired ? '需要完成官方验证' : '播放失败',
+          message: e.toString().replaceFirst('Exception: ', ''),
+          blocking: e is SourceVerificationRequired,
+          actionUrl: e is SourceVerificationRequired ? e.url : null,
+        ),
+      );
       return;
     }
     if (token != _loadToken) return;
@@ -704,27 +740,42 @@ class PlayerController extends ChangeNotifier {
     final p = _player!;
     // 每次等待之后都检查是否已经切到别的歌：快速连续切歌时，较早的请求不能在之后打开自己的地址，
     // 否则界面显示的是新歌，实际播放的却是上一首。
-    if (settings.crossfade && playing) await _rampFade(0, 260);
-    if (token != _loadToken) return;
-    _gain = gainFactor(info.gainDb);
-    _opening = true;
-    await p.open(Media(info.url!, httpHeaders: info.headers), play: false);
-    _openedAt = DateTime.now();
-    if (token != _loadToken) return;
-    _opening = false;
-    notifyListeners();
-    if (resume > Duration.zero) await p.seek(resume);
-    if (token != _loadToken) return;
-    if (autoplay) {
-      if (settings.crossfade) {
-        await _setFade(0);
-        await p.play();
-        await _rampFade(1, 420);
-      } else {
-        await _setFade(1);
-        await p.play();
+    try {
+      if (settings.crossfade && playing) await _rampFade(0, 260);
+      if (token != _loadToken) return;
+      _gain = gainFactor(info.gainDb);
+      _opening = true;
+      await p.open(Media(info.url!, httpHeaders: info.headers), play: false);
+      _openedAt = DateTime.now();
+      if (token != _loadToken) return;
+      _opening = false;
+      if (p.state.duration > Duration.zero) duration = p.state.duration;
+      buffering = p.state.buffering;
+      notifyListeners();
+      if (resume > Duration.zero) await p.seek(resume);
+      if (token != _loadToken) return;
+      if (autoplay) {
+        if (settings.crossfade) {
+          await _setFade(0);
+          if (token != _loadToken) return;
+          await p.play();
+          if (token != _loadToken) return;
+          await _rampFade(1, 420);
+        } else {
+          await _setFade(1);
+          if (token != _loadToken) return;
+          await p.play();
+        }
+        if (token != _loadToken) return;
+        if (_eqApplied.isNotEmpty) _watchEq(token, resume);
       }
-      if (_eqApplied.isNotEmpty) _watchEq(token, resume);
+    } catch (error) {
+      if (token != _loadToken) return;
+      _opening = false;
+      buffering = false;
+      playing = false;
+      notifyListeners();
+      _notices.add(PlayerNotice('播放失败', message: error.toString().replaceFirst('Exception: ', '')));
     }
   }
 
@@ -813,10 +864,12 @@ class PlayerController extends ChangeNotifier {
 
   /// 当前平台模式：网易云、QQ 音乐、酷狗与洛雪曲库各自有独立的播放队列，互不干扰。
   String _platform = '';
+  bool _restoringQueue = false;
 
   String _qKey(String platform) => 'player.queue.$platform';
 
   void _saveQueue() {
+    if (_restoringQueue) return;
     final platform = _platform;
     final queue = [for (final s in _queue) s.toJson()];
     final index = _index;
@@ -833,11 +886,25 @@ class PlayerController extends ChangeNotifier {
     final next = sources.current.id;
     if (next == _platform) return;
     _saveQueue();
-    _loadToken++;
+    _restoringQueue = true;
+    final token = ++_loadToken;
     _opening = false;
-    await _player?.stop();
     _platform = next;
+    _queue = [];
+    _index = -1;
+    _order = [];
+    queueTitle = null;
+    duration = Duration.zero;
+    buffering = false;
+    playing = false;
+    position.value = Duration.zero;
+    lyrics = Lyrics.empty;
+    notifyListeners();
+    await _player?.stop();
+    if (token != _loadToken) return;
     final p = await SharedPreferences.getInstance();
+    if (token != _loadToken) return;
+    _restoringQueue = false;
     _loadQueue(p);
     position.value = Duration.zero;
     lyrics = Lyrics.empty;
@@ -851,8 +918,7 @@ class PlayerController extends ChangeNotifier {
     queueTitle = null;
     try {
       final q = p.getString(_qKey(_platform));
-      if (q == null) return;
-      _queue = [for (final j in jsonDecode(q) as List) Song.fromJson(Map<String, dynamic>.from(j as Map))];
+      _queue = [for (final j in jsonDecode(q ?? '[]') as List) Song.fromJson(Map<String, dynamic>.from(j as Map))];
       _index = (p.getInt('${_qKey(_platform)}.index') ?? 0).clamp(-1, _queue.length - 1);
       queueTitle = p.getString('${_qKey(_platform)}.title');
       if (queueTitle?.isEmpty ?? false) queueTitle = null;
@@ -866,6 +932,7 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> _restore() async {
     final p = await SharedPreferences.getInstance();
+    mode = PlayMode.values.asNameMap()[p.getString('player.mode')] ?? PlayMode.sequence;
     try {
       for (final j in jsonDecode(p.getString('player.localLikes') ?? '[]') as List) {
         final song = Song.fromJson(Map<String, dynamic>.from(j as Map));
@@ -901,13 +968,19 @@ class PlayerController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _loadToken++;
     for (final s in _subs) {
       s.cancel();
     }
     settings.removeListener(_applyVolume);
     settings.removeListener(_applyOutput);
+    settings.removeListener(_scheduleEq);
     sources.removeListener(_refreshLikes);
+    sources.removeListener(_onPlatformChanged);
     _sleepTimer?.cancel();
+    _eqTimer?.cancel();
+    position.dispose();
     _player?.dispose();
     _notices.close();
     super.dispose();

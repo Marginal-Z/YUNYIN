@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'core/settings.dart';
 import 'core/ui/adaptive_scale.dart';
@@ -244,7 +245,12 @@ class _Root extends StatelessWidget {
       child: desktop ? const DesktopShell() : const MobileShell(),
     );
     if (consent) return shell;
-    return Stack(children: [shell, const Positioned.fill(child: ConsentPage())]);
+    return Stack(
+      children: [
+        shell,
+        const Positioned.fill(child: ConsentPage()),
+      ],
+    );
   }
 }
 
@@ -314,8 +320,19 @@ class _NoticeListenerState extends State<_NoticeListener> {
                 tile: TileColor.graphite,
                 title: n.title,
                 message: n.message ?? '',
-                action: '知道了',
-                onAction: () => Navigator.of(ctx).pop(),
+                action: n.actionUrl == null ? '知道了' : '打开官方验证',
+                onAction: () async {
+                  Navigator.of(ctx).pop();
+                  if (n.actionUrl == null) return;
+                  try {
+                    final opened = await launchUrl(n.actionUrl!, mode: LaunchMode.externalApplication);
+                    if (!opened) throw StateError('无法打开浏览器');
+                  } catch (_) {
+                    if (nav.mounted && nav.overlay != null) {
+                      Toast.showOn(nav.overlay!, '无法打开官方验证页，请检查默认浏览器后重试', icon: YIcons.info);
+                    }
+                  }
+                },
               ),
             ),
           ),

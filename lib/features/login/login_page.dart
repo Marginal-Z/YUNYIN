@@ -572,6 +572,8 @@ class _QrSheetState extends State<_QrSheet> {
   Object? _error;
   Timer? _poll;
   int _failures = 0;
+  int _request = 0;
+  MusicSource? _source;
 
   @override
   void initState() {
@@ -582,11 +584,15 @@ class _QrSheetState extends State<_QrSheet> {
   @override
   void dispose() {
     _poll?.cancel();
+    _request++;
+    _source?.cancelQrLogin();
     super.dispose();
   }
 
   Future<void> _create() async {
+    final request = ++_request;
     _poll?.cancel();
+    _failures = 0;
     setState(() {
       _ticket = null;
       _error = null;
@@ -594,8 +600,9 @@ class _QrSheetState extends State<_QrSheet> {
     });
     try {
       final source = context.read<SourceManager>().current;
+      _source = source;
       final t = await source.createQrLogin();
-      if (!mounted) return;
+      if (!mounted || request != _request) return;
       setState(() => _ticket = t);
       var busy = false;
       late final Timer poll;
@@ -627,7 +634,7 @@ class _QrSheetState extends State<_QrSheet> {
         }
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (mounted && request == _request) setState(() => _error = e);
     }
   }
 

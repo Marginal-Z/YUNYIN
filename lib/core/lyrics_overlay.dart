@@ -119,4 +119,12 @@ class LyricsOverlay extends ChangeNotifier {
     notifyListeners();
     if (_android) _channel.invokeMethod<void>('update', {'line': line, 'next': next});
   }
+
+  @override
+  void dispose() {
+    _player.removeListener(_onPlayer);
+    _player.position.removeListener(_compute);
+    _settings.removeListener(_configure);
+    super.dispose();
+  }
 }

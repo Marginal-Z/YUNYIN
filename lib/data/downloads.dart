@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -21,6 +22,13 @@ class DownloadManager extends ChangeNotifier {
 
   final List<Song> _items = [];
   final Map<String, double> progress = {};
+  final Map<String, Future<bool>> _pending = {};
+  Future<void> _saving = Future.value();
+  bool _disposed = false;
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
 
   List<Song> get items => List.unmodifiable(_items);
   bool get supported => !kIsWeb;
@@ -66,44 +74,64 @@ class DownloadManager extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> _save() async {
-    final f = await _index();
-    await f.parent.create(recursive: true);
-    await f.writeAsString(jsonEncode([for (final s in _items) s.toJson()]));
+  Future<void> _save() {
+    final data = jsonEncode([for (final song in _items) song.toJson()]);
+    final save = _saving.then((_) async {
+      final file = await _index();
+      await file.parent.create(recursive: true);
+      final temporary = File('${file.path}.tmp');
+      await temporary.writeAsString(data, flush: true);
+      await temporary.rename(file.path);
+    });
+    _saving = save.catchError((Object _) {});
+    return save;
   }
 
-  String _safe(String s) => s.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+  String _safe(String name) => String.fromCharCodes(name.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_').runes.take(48));
 
   /// 下载歌曲；返回 false 表示无可用下载地址。
-  Future<bool> download(Song song) async {
-    if (!supported || isDownloaded(song) || progress.containsKey(song.key)) return true;
-    final source = sources.byId(song.sourceId);
-    final info = await resolveStream(source, song, settings.downloadQuality);
-    if (info.url == null) return false;
-    final folder = Directory(await dir());
-    await folder.create(recursive: true);
-    final ext = Uri.parse(info.url!).path.split('.').last.toLowerCase();
-    final path = '${folder.path}${Platform.pathSeparator}${_safe('${song.artistText} - ${song.name}')}.${ext.length <= 4 ? ext : 'mp3'}';
+  Future<bool> download(Song song) {
+    if (!supported || _disposed) return Future.value(false);
+    if (isDownloaded(song)) return Future.value(true);
+    return _pending[song.key] ??= _download(song).whenComplete(() {
+      _pending.remove(song.key);
+    });
+  }
+
+  Future<bool> _download(Song song) async {
     progress[song.key] = 0;
-    notifyListeners();
+    _notify();
+    File? temporary;
     try {
+      final source = sources.byId(song.sourceId);
+      final info = await resolveStream(source, song, settings.downloadQuality);
+      if (info.url == null || _disposed) return false;
+      final folder = Directory(await dir());
+      await folder.create(recursive: true);
+      final ext = Uri.parse(info.url!).pathSegments.lastOrNull?.split('.').last.toLowerCase() ?? '';
+      final suffix = const {'mp3', 'flac', 'm4a', 'aac', 'ogg', 'opus', 'wav', 'ape', 'wma', 'aiff', 'alac', 'dsf', 'dff'}.contains(ext) ? ext : 'mp3';
+      final identity = sha256.convert(utf8.encode(song.key)).toString().substring(0, 16);
+      final path = '${folder.path}${Platform.pathSeparator}${_safe('${song.artistText} - ${song.name}')} [$identity].$suffix';
+      temporary = File('$path.part');
       await _dio.download(
         info.url!,
-        path,
+        temporary.path,
         options: Options(headers: info.headers),
         onReceiveProgress: (r, t) {
           if (t > 0) {
             progress[song.key] = r / t;
-            notifyListeners();
+            _notify();
           }
         },
       );
+      await temporary.rename(path);
       _items.insert(0, song.copyWith(localPath: path));
       await _save();
       return true;
     } finally {
+      if (temporary != null && await temporary.exists()) await temporary.delete();
       progress.remove(song.key);
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -125,7 +153,7 @@ class DownloadManager extends ChangeNotifier {
       await File(s.localPath!).delete();
     } catch (_) {}
     await _save();
-    notifyListeners();
+    _notify();
   }
 
   // ── 缓存 ──────────────────────────────────────────
@@ -148,7 +176,14 @@ class DownloadManager extends ChangeNotifier {
 
   Future<void> clearCache() async {
     await DefaultCacheManager().emptyCache();
-    notifyListeners();
+    _notify();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _dio.close(force: true);
+    super.dispose();
   }
 }
 

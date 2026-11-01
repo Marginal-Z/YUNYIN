@@ -22,6 +22,33 @@ import 'sources/music_source.dart';
 /// 支持导入的音频格式。
 const kAudioExtensions = ['mp3', 'flac', 'm4a', 'aac', 'ogg', 'opus', 'wav', 'ape', 'wma', 'aiff', 'alac'];
 
+@visibleForTesting
+Future<String> storeImportedAudio(Directory directory, String name, Stream<List<int>> bytes) async {
+  final staging = await directory.createTemp('.import-');
+  try {
+    final temporary = File('${staging.path}/audio');
+    final sink = temporary.openWrite();
+    try {
+      await sink.addStream(bytes);
+    } finally {
+      await sink.close();
+    }
+    final digest = (await sha256.bind(temporary.openRead()).first).toString().substring(0, 16);
+    final safe = name.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_');
+    final dot = safe.lastIndexOf('.');
+    final extension = dot >= 0 ? safe.substring(dot + 1).toLowerCase() : '';
+    final stem = String.fromCharCodes((dot > 0 ? safe.substring(0, dot) : safe).runes.take(40));
+    final suffix = kAudioExtensions.contains(extension) ? extension : 'mp3';
+    final destination = Directory('${directory.path}/$digest');
+    await destination.create(recursive: true);
+    final target = File('${destination.path}/$stem.$suffix');
+    if (!await target.exists()) await temporary.rename(target.path);
+    return target.path;
+  } finally {
+    await staging.delete(recursive: true);
+  }
+}
+
 /// 导入结果。
 class ImportResult {
   const ImportResult(this.added, this.skipped);
@@ -40,6 +67,7 @@ class LocalLibrary extends ChangeNotifier {
 
   /// 已导入歌曲的 id，用于快速去重（几千首歌时逐个比较会很慢）。
   final Set<String> _ids = {};
+  Future<void> _saving = Future.value();
   DateTime _lastNotify = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// 导入与补全过程中更新进度：最多每 150ms 通知一次界面，避免几千首歌时界面被频繁重建。
@@ -79,9 +107,16 @@ class LocalLibrary extends ChangeNotifier {
     }
   }
 
-  Future<void> _save() async {
-    final f = await _index();
-    await f.writeAsString(jsonEncode([for (final s in _songs) s.toJson()]));
+  Future<void> _save() {
+    final data = jsonEncode([for (final song in _songs) song.toJson()]);
+    final save = _saving.then((_) async {
+      final file = await _index();
+      final temporary = File('${file.path}.tmp');
+      await temporary.writeAsString(data, flush: true);
+      await temporary.rename(file.path);
+    });
+    _saving = save.catchError((Object _) {});
+    return save;
   }
 
   bool _isAudio(String path) => kAudioExtensions.contains(path.split('.').last.toLowerCase());
@@ -319,10 +354,7 @@ class LocalLibrary extends ChangeNotifier {
   Future<List<(MusicSource, Song)>> searchMatches(String keyword) async {
     final results = await Future.wait([
       for (final src in onlineSources)
-        src
-            .search(keyword, type: SearchType.song, limit: 8)
-            .then((r) => [for (final x in r.songs) (src, x)])
-            .catchError((Object _) => <(MusicSource, Song)>[]),
+        src.search(keyword, type: SearchType.song, limit: 8).then((r) => [for (final x in r.songs) (src, x)]).catchError((Object _) => <(MusicSource, Song)>[]),
     ]);
     return [for (final r in results) ...r];
   }
@@ -362,12 +394,7 @@ class LocalLibrary extends ChangeNotifier {
     final direct = f.path;
     if (direct != null && !_copyOnImport) return direct;
     final dir = await _dir('music');
-    final target = File('${dir.path}/${f.name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')}');
-    if (await target.exists() && await target.length() == (f.lengthSync() ?? -1)) return target.path;
-    final sink = target.openWrite();
-    await sink.addStream(f.readAsByteStream());
-    await sink.close();
-    return target.path;
+    return storeImportedAudio(dir, f.name, f.readAsByteStream());
   }
 
   String _id(String path) => sha1.convert(utf8.encode(path)).toString().substring(0, 16);
@@ -490,7 +517,7 @@ class LocalLibrary extends ChangeNotifier {
     _ids.remove(song.id);
     final p = song.localPath;
     // 只删除复制到应用目录里的副本，不动用户原文件。
-    if (p != null && p.startsWith((await _dir('music')).path)) {
+    if (p != null && p.startsWith('${(await _dir('music')).path}${Platform.pathSeparator}')) {
       try {
         await File(p).delete();
       } catch (_) {}
@@ -604,4 +631,3 @@ LocalTags? readLocalTags(String path, int? minMs) {
   }
   return (title: parts.sublist(1).join(' - ').trim(), artist: parts.first.trim(), album: null);
 }
-

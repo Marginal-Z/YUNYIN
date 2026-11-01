@@ -22,9 +22,7 @@ String decodeText(List<int> bytes) {
 }
 
 String _utf16(List<int> b, {required bool little}) {
-  final units = <int>[
-    for (var i = 0; i + 1 < b.length; i += 2) little ? b[i] | (b[i + 1] << 8) : (b[i] << 8) | b[i + 1],
-  ];
+  final units = <int>[for (var i = 0; i + 1 < b.length; i += 2) little ? b[i] | (b[i + 1] << 8) : (b[i] << 8) | b[i + 1]];
   return String.fromCharCodes(units);
 }
 
@@ -55,7 +53,7 @@ String cleanLyricText(String s) {
       .replaceAll('&nbsp;', ' ')
       .replaceAllMapped(RegExp(r'&#(x?)([0-9a-fA-F]+);'), (m) {
         final code = int.tryParse(m[2]!, radix: m[1]!.isEmpty ? 10 : 16);
-        return code == null ? m[0]! : String.fromCharCode(code);
+        return code == null || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF) ? m[0]! : String.fromCharCode(code);
       })
       .replaceAll('&amp;', '&');
   return t;

@@ -8,6 +8,7 @@ Song song(String id, List<String> artists) =>
 void main() {
   test('按歌曲与歌手累计时长，30 秒计为一次播放', () {
     final s = ListenStats();
+    addTearDown(s.dispose);
     s.record(song('1', ['甲']), const Duration(seconds: 20));
     s.record(song('1', ['甲']), const Duration(seconds: 20));
     s.record(song('2', ['甲', '乙']), const Duration(minutes: 2));
@@ -17,10 +18,23 @@ void main() {
     final top = s.topSongs(5);
     expect(top.first.song.id, '2');
     expect(top.last.plays, 1);
+    expect(top.first.plays, 1);
     final artists = s.topArtists(5);
     expect(artists.first.$1, '甲');
     expect(artists.first.$2, const Duration(minutes: 1, seconds: 40));
     expect(s.lastDays(7).last.$2, s.today);
+  });
+
+  test('无效时长不污染统计；再次播放同一首歌重新计数', () {
+    final stats = ListenStats();
+    addTearDown(stats.dispose);
+    stats.record(song('1', ['甲']), const Duration(seconds: -1));
+    expect(stats.isEmpty, isTrue);
+    stats.record(song('1', ['甲']), const Duration(seconds: 30));
+    stats.record(song('2', ['乙']), const Duration(seconds: 30));
+    stats.record(song('1', ['甲']), const Duration(seconds: 30));
+    expect(stats.topSongs(2).first.plays, 2);
+    expect(stats.total, const Duration(seconds: 90));
   });
 
   test('时长文字', () {

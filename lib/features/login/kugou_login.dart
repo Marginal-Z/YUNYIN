@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -13,6 +14,7 @@ import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/sources/kugou/kugou_source.dart';
+import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 
 /// 应用内网页登录只在有系统 WebView 的平台上提供（Android、iOS、macOS）。
@@ -27,7 +29,7 @@ class KugouLoginCard extends StatelessWidget {
   Future<void> _paste(BuildContext context) async {
     final source = context.read<SourceManager>().current;
     final ctl = TextEditingController();
-    final ok = await showDialog<bool>(
+    final route = DialogRoute<String>(
       context: context,
       builder: (ctx) {
         final p = Palette.of(ctx);
@@ -44,7 +46,7 @@ class KugouLoginCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '在电脑浏览器中打开 www.kugou.com 并登录，按 F12 打开开发者工具 → 网络（Network），刷新页面后点任一请求，复制请求头中的 Cookie（需要包含 KuGoo=…）。',
+                  '在电脑浏览器中打开 www.kugou.com 并登录，先播放一首歌并完成可能出现的验证，再按 F12 打开网络（Network），复制酷狗播放请求头中的完整 Cookie。需要保留 KuGoo、kg_mid 和 kg_dfid，不能只复制账号字段。Cookie 相当于登录凭据，请勿分享给他人。',
                   style: ts(13, height: 1.5, color: p.text2),
                 ),
                 const SizedBox(height: 12),
@@ -69,16 +71,19 @@ class KugouLoginCard extends StatelessWidget {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('取消')),
-            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('登录')),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(ctl.text), child: const Text('登录')),
           ],
         );
       },
     );
-    if (ok != true || !context.mounted) return;
+    final result = Navigator.of(context, rootNavigator: true).push<String>(route);
+    unawaited(route.completed.then((_) => ctl.dispose()));
+    final cookie = await result;
+    if (cookie == null || !context.mounted) return;
     try {
-      await source.loginWithCookie(ctl.text);
-      onDone();
+      await source.loginWithCookie(cookie);
+      if (context.mounted) onDone();
     } catch (e) {
       if (context.mounted) Toast.show(context, errorText(e), icon: YIcons.info);
     }
@@ -104,7 +109,7 @@ class KugouLoginCard extends StatelessWidget {
             expand: true,
             onTap: () async {
               final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const KugouWebLogin()));
-              if (ok == true) onDone();
+              if (ok == true && context.mounted) onDone();
             },
           )
         else
@@ -133,12 +138,15 @@ class KugouWebLogin extends StatefulWidget {
 
 class _KugouWebLoginState extends State<KugouWebLogin> {
   late final WebViewController _web;
+  late final MusicSource _source;
   Timer? _poll;
   bool _done = false;
+  bool _checking = false;
 
   @override
   void initState() {
     super.initState();
+    _source = context.read<SourceManager>().current;
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       // 使用电脑版页面：移动版没有登录入口。
@@ -148,17 +156,24 @@ class _KugouWebLoginState extends State<KugouWebLogin> {
   }
 
   Future<void> _check() async {
-    if (_done) return;
+    if (_done || _checking || !mounted || _source.id != KugouSource.sourceId) return;
+    _checking = true;
     try {
-      final r = await _web.runJavaScriptReturningResult('document.cookie');
-      final cookie = '$r'.replaceAll('"', '');
+      final result = await _web.runJavaScriptReturningResult(
+        'location.protocol === "https:" && (location.hostname === "kugou.com" || location.hostname.endsWith(".kugou.com")) ? document.cookie : ""',
+      );
+      final decoded = result is String && result.startsWith('"') ? jsonDecode(result) : result;
+      if (decoded is! String) return;
+      final cookie = decoded;
       if (KugouSource.parseKugooCookie(cookie) == null || !mounted) return;
+      await _source.loginWithCookie(cookie);
       _done = true;
       _poll?.cancel();
-      await context.read<SourceManager>().current.loginWithCookie(cookie);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      debugPrint('kugou web login: $e');
+      debugPrint('kugou web login: ${e.runtimeType}');
+    } finally {
+      _checking = false;
     }
   }
 

@@ -52,7 +52,20 @@ class CloudDrive {
   );
 
   /// 文件的完整地址：[href] 是 WebDAV 返回的（已编码的）路径或地址。
-  String fileUrl(String href) => Uri.parse(url.endsWith('/') ? url : '$url/').resolve(href).toString();
+  String fileUrl(String href) {
+    final base = Uri.parse(url.endsWith('/') ? url : '$url/');
+    final target = base.resolve(href);
+    if (!_httpUrl(base) || !_httpUrl(target) || target.origin != base.origin) throw const FormatException('网盘文件地址必须属于配置的 WebDAV 服务器');
+    return target.toString();
+  }
+}
+
+bool _httpUrl(Uri uri) => (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty && uri.userInfo.isEmpty;
+
+Uri _redirect(Uri current, String location) {
+  final target = current.resolve(location);
+  if (!_httpUrl(target) || (current.scheme == 'https' && target.scheme != 'https')) throw const FormatException('网盘返回了不安全的跳转地址');
+  return target;
 }
 
 /// 目录中的一项。
@@ -129,6 +142,7 @@ class CloudDrives extends ChangeNotifier {
       data: '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/><d:getcontentlength/></d:prop></d:propfind>',
       options: Options(
         method: 'PROPFIND',
+        followRedirects: false,
         headers: {...d.headers, 'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8'},
         validateStatus: (s) => s != null && s < 500,
       ),
@@ -151,9 +165,21 @@ class CloudDrives extends ChangeNotifier {
       if (href.isEmpty) continue;
       final hrefPath = href.startsWith('http') ? Uri.parse(href).path : href;
       if (norm(hrefPath) == norm(self)) continue;
-      final isDir = r.findAllElements('collection', namespaceUri: '*').isNotEmpty;
-      final size = int.tryParse(r.findAllElements('getcontentlength', namespaceUri: '*').firstOrNull?.innerText.trim() ?? '') ?? 0;
-      var name = r.findAllElements('displayname', namespaceUri: '*').firstOrNull?.innerText.trim() ?? '';
+      final status = r.getElement('status', namespaceUri: '*')?.innerText;
+      if (status != null && !RegExp(r'^HTTP/\S+ 2\d\d\b').hasMatch(status.trim())) continue;
+      final properties = r
+          .findElements('propstat', namespaceUri: '*')
+          .where((propstat) {
+            final status = propstat.getElement('status', namespaceUri: '*')?.innerText;
+            return status == null || RegExp(r'^HTTP/\S+ 2\d\d\b').hasMatch(status.trim());
+          })
+          .expand((propstat) => propstat.findElements('prop', namespaceUri: '*'))
+          .toList();
+      if (properties.isEmpty) continue;
+      final isDir = properties.any((prop) => prop.findAllElements('collection', namespaceUri: '*').isNotEmpty);
+      String property(String name) => properties.expand((prop) => prop.findElements(name, namespaceUri: '*')).firstOrNull?.innerText.trim() ?? '';
+      final size = int.tryParse(property('getcontentlength')) ?? 0;
+      var name = property('displayname');
       if (name.isEmpty) name = Uri.decodeFull(hrefPath.replaceAll(RegExp(r'/+$'), '').split('/').last);
       out.add(CloudEntry(name: name, href: hrefPath, isDir: isDir, size: size));
     }
@@ -165,23 +191,29 @@ class CloudDrives extends ChangeNotifier {
   /// 直链带签名，不能再附带 WebDAV 的认证头（对象存储会拒绝），所以先解析跳转，返回跨域的直链；
   /// 没有跳转或跳转仍在同一服务器时返回 null（照常带认证头访问）。
   Future<String?> resolveDirect(CloudDrive d, String href) async {
-    final url = d.fileUrl(href);
+    var url = Uri.parse(d.fileUrl(href));
     try {
-      final res = await _dio.get<ResponseBody>(
-        url,
-        options: Options(
-          headers: {...d.headers, 'Range': 'bytes=0-0'},
-          followRedirects: false,
-          responseType: ResponseType.stream,
-          validateStatus: (s) => s != null && s < 400,
-          receiveTimeout: const Duration(seconds: 10),
-        ),
-      );
-      unawaited(res.data?.stream.listen(null).cancel());
-      final location = res.headers.value('location');
-      if ((res.statusCode ?? 0) ~/ 100 != 3 || location == null) return null;
-      final target = Uri.parse(url).resolve(location);
-      return target.origin == Uri.parse(url).origin ? null : target.toString();
+      for (var hop = 0; hop < 10; hop++) {
+        final res = await _dio.get<ResponseBody>(
+          url.toString(),
+          options: Options(
+            headers: {...d.headers, 'Range': 'bytes=0-0'},
+            followRedirects: false,
+            responseType: ResponseType.stream,
+            validateStatus: (s) => s != null && s < 400,
+            receiveTimeout: const Duration(seconds: 10),
+          ),
+        );
+        unawaited(res.data?.stream.listen(null).cancel());
+        final location = res.headers.value('location');
+        if ((res.statusCode ?? 0) ~/ 100 != 3 || location == null) return null;
+        final target = _redirect(url, location);
+        if (target.origin != url.origin) return target.toString();
+        url = target;
+      }
+      throw const FormatException('网盘跳转次数过多');
+    } on FormatException {
+      rethrow;
     } catch (e) {
       debugPrint('cloud direct link: $e');
       return null;
@@ -191,12 +223,27 @@ class CloudDrives extends ChangeNotifier {
   /// 读取文本文件（同名 .lrc 歌词），不存在时返回 null。
   Future<String?> readText(CloudDrive d, String href) async {
     try {
-      final res = await _dio.get<List<int>>(
-        d.fileUrl(href),
-        options: Options(headers: d.headers, responseType: ResponseType.bytes, validateStatus: (s) => s != null && s < 500),
-      );
-      if (res.statusCode != 200 || res.data == null) return null;
-      return decodeText(res.data!);
+      final origin = Uri.parse(d.fileUrl(href));
+      var target = origin;
+      for (var hop = 0; hop < 10; hop++) {
+        final res = await _dio.get<List<int>>(
+          target.toString(),
+          options: Options(
+            headers: target.origin == origin.origin ? d.headers : const {},
+            followRedirects: false,
+            responseType: ResponseType.bytes,
+            validateStatus: (s) => s != null && s < 500,
+          ),
+        );
+        final location = res.headers.value('location');
+        if ((res.statusCode ?? 0) ~/ 100 == 3 && location != null) {
+          target = _redirect(target, location);
+          continue;
+        }
+        if (res.statusCode != 200 || res.data == null) return null;
+        return decodeText(res.data!);
+      }
+      return null;
     } catch (_) {
       return null;
     }

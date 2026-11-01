@@ -11,6 +11,7 @@ import '../data/models.dart';
 abstract final class DataCache {
   static const _capacity = 120;
   static final _entries = <String, (Object?, DateTime)>{};
+  static int generation = 0;
 
   static (Object?, DateTime)? lookup(String key) {
     final e = _entries.remove(key);
@@ -27,7 +28,10 @@ abstract final class DataCache {
   }
 
   /// 登录、退出或切换播放源后清空，避免显示别的账号的数据。
-  static void clear() => _entries.clear();
+  static void clear() {
+    generation++;
+    _entries.clear();
+  }
 
   /// 删除以 [prefix] 开头的缓存（手动刷新时使用）。
   static void drop(String prefix) => _entries.removeWhere((k, _) => k.startsWith(prefix));
@@ -37,11 +41,12 @@ abstract final class DataCache {
   /// 读取磁盘上的首页数据放入缓存（标记为过期，显示后立即刷新）。
   static Future<void> restoreHome(String sourceId, String? account) async {
     if (kIsWeb) return;
+    final revision = generation;
     try {
       final f = await _homeFile();
       if (!await f.exists()) return;
       final j = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
-      if (j['source'] != sourceId || j['account'] != account) return;
+      if (j['source'] != sourceId || j['account'] != account || revision != generation) return;
       _entries[homeKey(sourceId)] = (HomeFeed.fromJson(Map<String, dynamic>.from(j['feed'] as Map)), DateTime.fromMillisecondsSinceEpoch(0));
     } catch (e) {
       debugPrint('restore home: $e');

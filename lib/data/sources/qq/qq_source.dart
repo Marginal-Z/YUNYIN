@@ -9,6 +9,13 @@ import '../../models.dart';
 import '../music_source.dart';
 import '../netease/netease_source.dart' show parseLrc;
 
+class QQApiException implements Exception {
+  const QQApiException(this.code);
+  final int code;
+  @override
+  String toString() => 'QQ 音乐接口返回 $code';
+}
+
 /// QQ 音乐播放源：搜索、热搜、排行榜、歌词与 QQ 扫码登录。
 ///
 /// QQ 音乐的播放地址接口只对已登录账号开放：登录后按所选音质（Hi-Res / 无损 / 320k / 128k）依次获取，
@@ -39,6 +46,8 @@ class QQMusicSource extends MusicSource {
 
   /// 扫码登录过程中各个域名下发的 Cookie（只在登录流程中使用）。
   final Map<String, String> _loginCookies = {};
+  int _loginGeneration = 0;
+  String? _qrKey;
 
   @override
   String get id => sourceId;
@@ -102,7 +111,13 @@ class QQMusicSource extends MusicSource {
   Future<Map<String, dynamic>> _call(Map<String, Map<String, dynamic>> reqs) async {
     final body = {
       // 已登录时 tmeLoginType 为 2 表示 QQ 账号登录（1 为微信），musickey 需要与之匹配才会被认可。
-      'comm': {'ct': '19', 'cv': '1859', 'uin': _uin ?? '0', if (_key != null) ...{'authst': _key, 'qq': _uin, 'tmeLoginType': '2'}, 'format': 'json'},
+      'comm': {
+        'ct': '19',
+        'cv': '1859',
+        'uin': _uin ?? '0',
+        if (_key != null) ...{'authst': _key, 'qq': _uin, 'tmeLoginType': '2'},
+        'format': 'json',
+      },
       ...reqs,
     };
     final res = await _dio.post<String>(
@@ -119,7 +134,7 @@ class QQMusicSource extends MusicSource {
     });
     final r = j['req'] as Map<String, dynamic>? ?? const {};
     final code = (r['code'] as num?)?.toInt() ?? -1;
-    if (code != 0) throw Exception('QQ 音乐接口返回 $code');
+    if (code != 0) throw QQApiException(code);
     return (r['data'] as Map?)?.cast<String, dynamic>() ?? const {};
   }
 
@@ -178,21 +193,25 @@ class QQMusicSource extends MusicSource {
         final songs = await _searchSongs(keyword, offset: offset, limit: limit);
         return SearchResult(songs: songs, bestSong: songs.firstOrNull);
       case SearchType.all:
+        Object? songError;
         final r = await Future.wait([
-          _searchSongs(keyword, offset: offset, limit: limit),
+          _searchSongs(keyword, offset: offset, limit: limit).catchError((Object error) {
+            songError = error;
+            return <Song>[];
+          }),
           _smartbox(keyword).catchError((Object _) => (artists: <ArtistInfo>[], albums: <AlbumInfo>[])),
           _searchPlaylists(keyword, limit: 6).catchError((Object _) => <PlaylistInfo>[]),
         ]);
         final songs = r[0] as List<Song>;
         final box = r[1] as ({List<ArtistInfo> artists, List<AlbumInfo> albums});
         final pls = r[2] as List<PlaylistInfo>;
+        if (songs.isEmpty && box.artists.isEmpty && box.albums.isEmpty && pls.isEmpty && songError != null) throw songError!;
         return SearchResult(songs: songs, artists: box.artists, albums: box.albums, playlists: pls, bestSong: songs.firstOrNull, bestPlaylist: pls.firstOrNull);
     }
   }
 
   Future<List<Song>> _searchSongs(String keyword, {int offset = 0, int limit = 30}) async {
-    final d = await _one('music.search.SearchCgiService', 'DoSearchForQQMusicMobile', {
-      // 搜索 id 是随机数；13 位时间戳会被拒绝（2001）。
+    final params = {
       'searchid': '${math.Random().nextInt(1 << 30)}',
       'query': keyword,
       'search_type': 0,
@@ -200,9 +219,17 @@ class QQMusicSource extends MusicSource {
       'page_num': offset ~/ limit + 1,
       'highlight': 0,
       'grp': 1,
-    });
+    };
+    Map<String, dynamic> d;
+    try {
+      d = await _one('music.search.SearchCgiService', 'DoSearchForQQMusicMobile', params);
+    } on QQApiException catch (error) {
+      if (error.code != 2001) rethrow;
+      d = await _one('music.search.SearchCgiService', 'DoSearchForQQMusicDesktop', params);
+    }
     final body = d['body'] as Map? ?? const {};
-    return [for (final x in (body['item_song'] as List? ?? const []).cast<Map<String, dynamic>>()) _song(x)];
+    final songs = body['item_song'] as List? ?? (body['song'] as Map?)?['list'] as List? ?? const [];
+    return [for (final song in songs.cast<Map<String, dynamic>>()) _song(song)];
   }
 
   /// 歌手与专辑搜索（联想接口，返回最相关的几个）。
@@ -659,13 +686,17 @@ class QQMusicSource extends MusicSource {
   }
 
   void _absorb(Headers headers) {
-    for (final c in headers['set-cookie'] ?? const <String>[]) {
+    for (final c in (headers['set-cookie'] ?? const <String>[]).expand((header) => header.split(RegExp(r',(?=\s*[^;,=\s]+\s*=)')))) {
       final kv = c.split(';').first;
       final i = kv.indexOf('=');
       if (i <= 0) continue;
       final value = kv.substring(i + 1);
-      if (value.isEmpty) continue;
-      _loginCookies[kv.substring(0, i).trim()] = value;
+      final name = kv.substring(0, i).trim();
+      if (value.isEmpty || value == 'deleted' || RegExp(r'(?:^|;)\s*max-age=0(?:;|$)', caseSensitive: false).hasMatch(c)) {
+        _loginCookies.remove(name);
+      } else {
+        _loginCookies[name] = value;
+      }
     }
   }
 
@@ -673,20 +704,25 @@ class QQMusicSource extends MusicSource {
 
   @override
   Future<QrTicket> createQrLogin() async {
-    _loginCookies.clear();
+    cancelQrLogin();
+    final generation = _loginGeneration;
     final res = await _dio.get<List<int>>(
       'https://ssl.ptlogin2.qq.com/ptqrshow',
       queryParameters: {'appid': _appid, 'e': 2, 'l': 'M', 's': 3, 'd': 72, 'v': 4, 't': math.Random().nextDouble(), 'daid': 383, 'pt_3rd_aid': _thirdAid},
       options: Options(responseType: ResponseType.bytes, headers: {'Referer': 'https://xui.ptlogin2.qq.com/'}),
     );
+    _checkLoginGeneration(generation);
     _absorb(res.headers);
     final qrsig = _loginCookies['qrsig'];
     if (qrsig == null || res.data == null) throw Exception('获取二维码失败');
+    _qrKey = qrsig;
     return QrTicket(qrsig, '', image: Uint8List.fromList(res.data!), app: 'QQ 或 TIM');
   }
 
   @override
   Future<QrState> checkQrLogin(QrTicket ticket) async {
+    if (_qrKey != null && _qrKey != ticket.key) throw StateError('二维码已失效，请重新扫码');
+    final generation = _loginGeneration;
     final res = await _dio.get<String>(
       'https://ssl.ptlogin2.qq.com/ptqrlogin',
       queryParameters: {
@@ -707,8 +743,14 @@ class QQMusicSource extends MusicSource {
         'pt_3rd_aid': _thirdAid,
         'has_onekey': 1,
       },
-      options: Options(headers: {'Referer': 'https://xui.ptlogin2.qq.com/', 'Cookie': _loginCookieHeader}),
+      options: Options(
+        headers: {
+          'Referer': 'https://xui.ptlogin2.qq.com/',
+          'Cookie': {..._loginCookies, 'qrsig': ticket.key}.entries.map((entry) => '${entry.key}=${entry.value}').join('; '),
+        },
+      ),
     );
+    _checkLoginGeneration(generation);
     _absorb(res.headers);
     final args = RegExp(r"'([^']*)'").allMatches(res.data ?? '').map((m) => m[1]!).toList();
     final code = args.firstOrNull ?? '';
@@ -724,10 +766,16 @@ class QQMusicSource extends MusicSource {
         if (_finishing != null && _finishing!.$1 == ticket.key) {
           await _finishing!.$2;
         } else {
-          final f = _finishLogin(args.length > 2 ? args[2] : '');
+          final f = _finishLogin(args.length > 2 ? args[2] : '', generation);
           _finishing = (ticket.key, f);
-          await f;
+          try {
+            await f;
+          } catch (_) {
+            if (_finishing?.$2 == f) _finishing = null;
+            rethrow;
+          }
         }
+        _checkLoginGeneration(generation);
         return QrState.confirmed;
       default:
         throw Exception(args.length > 4 && args[4].isNotEmpty ? args[4] : '登录失败（$code）');
@@ -736,6 +784,28 @@ class QQMusicSource extends MusicSource {
 
   /// 正在换取凭据的二维码与过程（避免重复换取）。
   (String, Future<void>)? _finishing;
+
+  void _checkLoginGeneration(int generation) {
+    if (generation != _loginGeneration) throw StateError('扫码登录已取消，请重新扫码');
+  }
+
+  @override
+  void cancelQrLogin() {
+    _loginGeneration++;
+    _qrKey = null;
+    _loginCookies.clear();
+    _finishing = null;
+  }
+
+  static Uri _loginUri(Uri uri) {
+    if ((uri.scheme != 'https' && uri.scheme != 'http') ||
+        (uri.host != 'qq.com' && !uri.host.endsWith('.qq.com')) ||
+        uri.userInfo.isNotEmpty ||
+        uri.port != (uri.scheme == 'https' ? 443 : 80)) {
+      throw const FormatException('登录失败：授权跳转地址不属于可信的 QQ 服务器');
+    }
+    return uri.replace(scheme: 'https', port: 443);
+  }
 
   static String _uuid() {
     final r = math.Random.secure();
@@ -746,41 +816,64 @@ class QQMusicSource extends MusicSource {
     return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
   }
 
-  /// 扫码确认后：依次访问 check_sig 跳转链收集 skey / p_skey → QQ 互联授权拿到 code → 用 code 登录 QQ 音乐拿到 musickey。
-  /// 每一步都带上之前收集到的全部 Cookie（包括二维码的 qrsig），与 QQ 音乐网页版一致。
-  Future<void> _finishLogin(String checkSig) async {
-    if (!checkSig.startsWith('http')) throw Exception('登录失败：没有返回授权地址');
+  Future<void> _finishLogin(String checkSig, int generation) async {
     const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    var current = checkSig;
+    final callback = _loginUri(Uri.parse(checkSig));
+    final query = callback.queryParameters;
+    if (callback.path != '/check_sig' || (query['uin'] ?? '').isEmpty || (query['ptsigx'] ?? '').isEmpty) {
+      throw const FormatException('登录失败：QQ 没有返回完整的扫码授权凭据，请重新扫码');
+    }
+    var current = Uri.https('ssl.ptlogin2.graph.qq.com', '/check_sig', {
+      'uin': query['uin']!,
+      'ptsigx': query['ptsigx']!,
+      'pttype': '1',
+      'service': 'ptqrlogin',
+      'nodirect': '0',
+      's_url': 'https://graph.qq.com/oauth2.0/login_jump',
+      'ptlang': '2052',
+      'ptredirect': '100',
+      'aid': _appid,
+      'daid': '383',
+      'j_later': '0',
+      'low_login_hour': '0',
+      'regmaster': '0',
+      'pt_login_type': '3',
+      'pt_aid': '0',
+      'pt_aaid': '16',
+      'pt_light': '0',
+      'pt_3rd_aid': _thirdAid,
+    });
     for (var hop = 0; hop < 6; hop++) {
       final res = await _dio.get<String>(
-        current,
+        current.toString(),
         options: Options(
           followRedirects: false,
           validateStatus: (s) => s != null && s < 500,
           headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://xui.ptlogin2.qq.com/', 'User-Agent': ua},
         ),
       );
+      _checkLoginGeneration(generation);
       _absorb(res.headers);
+      if ((_loginCookies['p_skey'] ?? '').isNotEmpty) break;
       final location = res.headers.value('location');
       if (res.statusCode == null || res.statusCode! < 300 || res.statusCode! >= 400 || location == null || location.isEmpty) break;
-      current = Uri.parse(current).resolve(location).toString();
+      current = _loginUri(current.resolve(location));
     }
-    final pSkey = _loginCookies['p_skey'] ?? _loginCookies['skey'];
-    if (pSkey == null) throw Exception('登录失败：没有获得授权凭据（p_skey）');
+    final pSkey = _loginCookies['p_skey'];
+    if (pSkey == null || pSkey.isEmpty) throw Exception('登录失败：没有获得 QQ 互联授权凭据（p_skey），请重新扫码');
     final auth = await _dio.post<String>(
       'https://graph.qq.com/oauth2.0/authorize',
       data: {
         'response_type': 'code',
         'client_id': _thirdAid,
         'redirect_uri': 'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/',
-        'scope': 'all',
+        'scope': 'get_user_info,get_app_friends',
         'state': 'state',
         'switch': '',
         'from_ptlogin': 1,
         'src': 1,
         'update_auth': 1,
-        'openapi': '80901010_1030',
+        'openapi': '1010_1030',
         'g_tk': _hash33(pSkey, 5381),
         'auth_time': DateTime.now().millisecondsSinceEpoch,
         'ui': _uuid(),
@@ -792,14 +885,15 @@ class QQMusicSource extends MusicSource {
         headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://graph.qq.com/', 'User-Agent': ua},
       ),
     );
+    _checkLoginGeneration(generation);
     _absorb(auth.headers);
     final location = auth.headers.value('location') ?? '';
-    final code = RegExp(r'[?&]code=([^&]+)').firstMatch(location)?.group(1);
+    final code = Uri.tryParse(location)?.queryParameters['code'];
     if (code == null || code.isEmpty) throw Exception('登录失败：QQ 互联没有返回授权码，请重新扫码');
     final login = await _dio.post<String>(
       _api,
       data: jsonEncode({
-        'comm': {'g_tk': 5381, 'platform': 'yqq', 'ct': 24, 'cv': 0},
+        'comm': {'g_tk': 5381, 'platform': 'yqq', 'ct': 24, 'cv': 0, 'tmeLoginType': 2},
         'req': {
           'module': 'QQConnectLogin.LoginServer',
           'method': 'QQLogin',
@@ -808,8 +902,11 @@ class QQMusicSource extends MusicSource {
       }),
       options: Options(headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://y.qq.com/', 'User-Agent': ua, 'Content-Type': 'application/json'}),
     );
+    _checkLoginGeneration(generation);
     _absorb(login.headers);
     final j = jsonDecode(login.data ?? '{}') as Map<String, dynamic>;
+    final resultCode = int.tryParse('${(j['req'] as Map?)?['code'] ?? j['code'] ?? -1}') ?? -1;
+    if (resultCode != 0) throw Exception('QQ 音乐凭据交换失败（$resultCode），请重新扫码');
     final data = (j['req'] as Map?)?['data'] as Map? ?? const {};
     // 部分账号的 musickey 放在 Set-Cookie 里而不是 JSON 中。
     var uin = '${data['musicid'] ?? data['uin'] ?? ''}'.replaceAll(RegExp(r'^0+$'), '');
@@ -825,15 +922,20 @@ class QQMusicSource extends MusicSource {
   }
 
   Future<void> _refreshProfile() async {
+    final uin = _uin;
+    final key = _key;
+    final generation = _loginGeneration;
+    if (uin == null || key == null) return;
     try {
       final res = await _dio.get<String>(
         'https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg',
-        queryParameters: {'cid': 205360838, 'userid': _uin, 'reqfrom': 1, 'format': 'json', 'g_tk': 5381},
+        queryParameters: {'cid': 205360838, 'userid': uin, 'reqfrom': 1, 'format': 'json', 'g_tk': _hash33(key, 5381)},
         options: Options(headers: {'Cookie': _cookie}),
       );
       final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
       final creator = ((j['data'] as Map?)?['creator'] as Map?) ?? const {};
       final m = await membership();
+      if (generation != _loginGeneration || _uin != uin || _key != key) return;
       _user = UserProfile(
         id: _uin!,
         nickname: '${creator['nick'] ?? _user?.nickname ?? 'QQ 用户'}',
@@ -843,12 +945,14 @@ class QQMusicSource extends MusicSource {
     } catch (e) {
       debugPrint('qq profile: $e');
     }
+    if (generation != _loginGeneration || _uin != uin || _key != key) return;
     await _saveAccount();
     notifyListeners();
   }
 
   @override
   Future<void> logout() async {
+    cancelQrLogin();
     _uin = null;
     _key = null;
     _user = null;

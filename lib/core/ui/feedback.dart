@@ -311,7 +311,15 @@ class _EntranceFadeState extends State<EntranceFade> with SingleTickerProviderSt
 
 /// 根据 Future 渲染加载 / 错误 / 内容。
 class AsyncView<T> extends StatefulWidget {
-  const AsyncView({super.key, required this.load, required this.builder, this.loading, this.keyValue, this.cacheKey, this.maxAge = const Duration(minutes: 10)});
+  const AsyncView({
+    super.key,
+    required this.load,
+    required this.builder,
+    this.loading,
+    this.keyValue,
+    this.cacheKey,
+    this.maxAge = const Duration(minutes: 10),
+  });
 
   final Future<T> Function() load;
   final Widget Function(BuildContext context, T data, VoidCallback reload) builder;
@@ -341,6 +349,8 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
   }
 
   void _start() {
+    _request++;
+    _error = null;
     final key = widget.cacheKey;
     final cached = key == null ? null : DataCache.lookup(key);
     if (cached != null && cached.$1 is T) {
@@ -358,10 +368,11 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
   /// 加载数据。静默刷新失败时保留现有内容。
   Future<void> _fetch({bool silent = false}) async {
     final request = ++_request;
+    final generation = DataCache.generation;
     if (!silent && _error != null) setState(() => _error = null);
     try {
       final v = await widget.load();
-      if (!mounted || request != _request) return;
+      if (!mounted || request != _request || generation != DataCache.generation) return;
       if (widget.cacheKey != null) DataCache.put(widget.cacheKey!, v);
       setState(() {
         _data = v;
@@ -369,7 +380,7 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
         _error = null;
       });
     } catch (e) {
-      if (!mounted || request != _request) return;
+      if (!mounted || request != _request || generation != DataCache.generation) return;
       if (silent && _hasData) return;
       setState(() => _error = e);
     }

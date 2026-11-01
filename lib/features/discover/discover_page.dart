@@ -343,9 +343,11 @@ class _PlaylistPlazaState extends State<PlaylistPlaza> {
 
   void _select(PlaylistCategory c) {
     if (_cat?.id == c.id) return;
+    _request++;
     final cached = DataCache.lookup(_key(c))?.$1;
     setState(() {
       _cat = c;
+      _loading = false;
       _expanded = false;
       _items = cached is List<PlaylistInfo> ? cached : [];
       _done = false;

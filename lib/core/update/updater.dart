@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 /// GitHub Releases 上的一个版本。
 class ReleaseInfo {
-  const ReleaseInfo({required this.version, required this.notes, required this.page, required this.assets, this.date});
+  const ReleaseInfo({required this.version, required this.notes, required this.page, required this.assets, this.digests = const {}, this.date});
 
   final String version;
   final String notes;
@@ -17,6 +18,7 @@ class ReleaseInfo {
 
   /// 文件名 → (下载地址, 大小)。
   final Map<String, (String, int)> assets;
+  final Map<String, String> digests;
 }
 
 /// 当前安装方式，决定下载哪个安装包以及如何覆盖安装。
@@ -77,6 +79,10 @@ class UpdateManager extends ChangeNotifier {
           for (final a in (j['assets'] as List).cast<Map<String, dynamic>>())
             a['name'] as String: (a['browser_download_url'] as String, (a['size'] as num?)?.toInt() ?? 0),
         },
+        digests: {
+          for (final asset in (j['assets'] as List).cast<Map<String, dynamic>>())
+            if (asset['digest'] is String) asset['name'] as String: asset['digest'] as String,
+        },
       );
       _set(hasUpdate ? UpdateStage.available : UpdateStage.upToDate);
       return hasUpdate;
@@ -101,6 +107,7 @@ class UpdateManager extends ChangeNotifier {
   /// 与当前安装方式匹配的安装包文件名。
   Future<String?> assetName(ReleaseInfo r) async {
     final v = r.version;
+    if (!RegExp(r'^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$').hasMatch(v)) throw const FormatException('更新版本号不合法');
     final base = 'YunYin-$v';
     switch (kind) {
       case InstallKind.androidApk:
@@ -132,25 +139,26 @@ class UpdateManager extends ChangeNotifier {
   /// 下载并安装。成功时桌面端会退出并由安装脚本重新启动应用。
   Future<void> downloadAndInstall() async {
     final r = latest;
-    if (r == null || !hasUpdate) return;
-    final name = await assetName(r);
-    final asset = name == null ? null : r.assets[name];
-    if (asset == null) {
-      _set(UpdateStage.failed, err: '这个版本没有提供$kindLabel，请前往发布页手动下载');
-      return;
-    }
-    final dir = Directory('${(await getTemporaryDirectory()).path}/yunyin-update');
-    await dir.create(recursive: true);
-    final file = File('${dir.path}/$name');
+    if (r == null || !hasUpdate || stage == UpdateStage.downloading || stage == UpdateStage.installing) return;
+    final cancel = CancelToken();
+    _cancel = cancel;
     progress = 0;
     _set(UpdateStage.downloading);
     try {
-      if (!(await file.exists() && await file.length() == asset.$2)) {
-        _cancel = CancelToken();
+      final name = await assetName(r);
+      final asset = name == null ? null : r.assets[name];
+      if (asset == null) {
+        _set(UpdateStage.failed, err: '这个版本没有提供$kindLabel，请前往发布页手动下载');
+        return;
+      }
+      final dir = Directory('${(await getTemporaryDirectory()).path}/yunyin-update');
+      await dir.create(recursive: true);
+      final file = File('${dir.path}/$name');
+      if (!await verifyUpdateFile(file, asset.$2, r.digests[name])) {
         await _dio.download(
           asset.$1,
           '${file.path}.part',
-          cancelToken: _cancel,
+          cancelToken: cancel,
           options: Options(receiveTimeout: const Duration(minutes: 30)),
           onReceiveProgress: (got, total) {
             final t = total > 0 ? total : asset.$2;
@@ -159,8 +167,13 @@ class UpdateManager extends ChangeNotifier {
             notifyListeners();
           },
         );
+        if (!await verifyUpdateFile(File('${file.path}.part'), asset.$2, r.digests[name])) {
+          await File('${file.path}.part').delete();
+          throw const FormatException('安装包校验失败，请重新下载');
+        }
         await File('${file.path}.part').rename(file.path);
       }
+      if (cancel.isCancelled) throw cancel.cancelError!;
       progress = 1;
       _set(UpdateStage.installing);
       await _install(file);
@@ -172,6 +185,8 @@ class UpdateManager extends ChangeNotifier {
       }
     } catch (e) {
       _set(UpdateStage.failed, err: '安装失败：${_describe(e)}');
+    } finally {
+      _cancel = null;
     }
   }
 
@@ -194,8 +209,8 @@ class UpdateManager extends ChangeNotifier {
         await script.writeAsString('''
 \$ErrorActionPreference = 'Stop'
 Wait-Process -Id $pid -ErrorAction SilentlyContinue
-Expand-Archive -LiteralPath '${pkg.path}' -DestinationPath '${exe.parent.path}' -Force
-Start-Process -FilePath '${exe.path}'
+Expand-Archive -LiteralPath ${quotePowerShellArgument(pkg.path)} -DestinationPath ${quotePowerShellArgument(exe.parent.path)} -Force
+Start-Process -FilePath ${quotePowerShellArgument(exe.path)}
 ''');
         await Process.start('powershell', [
           '-NoProfile',
@@ -228,18 +243,19 @@ Start-Process -FilePath '${exe.path}'
         exit(0);
       case InstallKind.linuxTar:
         await _runAfterExit('''
-tar -xzf '${pkg.path}' -C '${exe.parent.path}'
-exec '${exe.path}'
+tar -xzf ${quoteShellArgument(pkg.path)} -C ${quoteShellArgument(exe.parent.path)}
+exec ${quoteShellArgument(exe.path)}
 ''');
       case InstallKind.macosApp:
         final app = exe.parent.parent.parent.path;
         await _runAfterExit('''
-rm -rf '${pkg.parent.path}/unpacked'
-ditto -x -k '${pkg.path}' '${pkg.parent.path}/unpacked'
-new=\$(ls -d '${pkg.parent.path}'/unpacked/*.app | head -n1)
-rm -rf '$app'
-mv "\$new" '$app'
-open '$app'
+rm -rf ${quoteShellArgument('${pkg.parent.path}/unpacked')}
+ditto -x -k ${quoteShellArgument(pkg.path)} ${quoteShellArgument('${pkg.parent.path}/unpacked')}
+set -- ${quoteShellArgument('${pkg.parent.path}/unpacked')}/*.app
+test "\$#" -eq 1 && test -d "\$1"
+rm -rf ${quoteShellArgument(app)}
+mv "\$1" ${quoteShellArgument(app)}
+open ${quoteShellArgument(app)}
 ''');
       case InstallKind.unsupported:
         throw Exception('当前平台不支持应用内更新');
@@ -292,6 +308,21 @@ open '$app'
     return '$e'.replaceFirst('Exception: ', '');
   }
 }
+
+@visibleForTesting
+Future<bool> verifyUpdateFile(File file, int size, String? digest) async {
+  if (size <= 0 || !await file.exists() || await file.length() != size) return false;
+  if (digest == null) return true;
+  if (!RegExp(r'^sha256:[0-9a-fA-F]{64}$').hasMatch(digest)) return false;
+  final actual = await sha256.bind(file.openRead()).first;
+  return 'sha256:$actual' == digest.toLowerCase();
+}
+
+@visibleForTesting
+String quoteShellArgument(String value) => "'${value.replaceAll("'", "'\"'\"'")}'";
+
+@visibleForTesting
+String quotePowerShellArgument(String value) => "'${value.replaceAll("'", "''")}'";
 
 /// 比较形如 1.2.10 的版本号。
 int compareVersions(String a, String b) {

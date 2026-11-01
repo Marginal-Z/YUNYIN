@@ -7,15 +7,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yunyin/data/models.dart';
 import 'package:yunyin/data/sources/kugou/kugou_source.dart';
-import 'package:yunyin/data/sources/netease/netease_source.dart';
+import 'package:yunyin/data/sources/music_source.dart';
 
 void main() {
   test(
-    '酷狗：搜索、排行榜、歌词，换源播放',
+    '酷狗：目录接口冒烟，不代表真实播放已通过',
     () async {
       SharedPreferences.setMockInitialValues({});
-      final netease = NeteaseSource();
-      await netease.init();
       final kg = KugouSource();
 
       final r = await kg.search('起风了 买辣椒也用券', type: SearchType.song, limit: 10);
@@ -63,16 +61,37 @@ void main() {
       expect(all.albums, isNotEmpty);
       expect(all.playlists, isNotEmpty);
 
-      // 平台彼此独立：游客取不到完整地址时给出指向洛雪音源的说明，而不是换用其他平台的歌曲。
       try {
         final st = await kg.stream(r.songs.first, AudioQuality.standard);
         print('直接播放: ${st.url}');
       } catch (e) {
         print('游客播放: $e');
-        expect('$e', contains('洛雪'));
+        expect('$e', contains('酷狗'));
       }
     },
     skip: '联网测试：flutter test --run-skipped --tags live',
     timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
+    '酷狗免费歌曲：实际播放响应或官方验证挑战',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final source = KugouSource();
+      await source.init();
+      final result = await source.search('Happy Birthday', type: SearchType.song, limit: 1);
+      expect(result.songs, isNotEmpty);
+      try {
+        final info = await source.stream(result.songs.first, AudioQuality.standard);
+        expect(Uri.parse(info.url!).host, isNotEmpty);
+        print('酷狗返回播放地址；本测试未启动音频设备');
+      } on SourceVerificationRequired catch (error) {
+        expect(error.url.host, 'h5.kugou.com');
+        expect(error.url.fragment, contains('/index/'));
+        print('实测收到 30020 人机验证挑战，已生成官方验证入口；未完成人工验证，不能认定播放恢复');
+      }
+    },
+    skip: '联网测试：flutter test --run-skipped --tags live',
+    timeout: const Timeout(Duration(seconds: 45)),
   );
 }

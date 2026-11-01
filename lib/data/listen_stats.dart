@@ -68,6 +68,8 @@ class ListenStats extends ChangeNotifier {
   AppLifecycleListener? _lifecycle;
 
   void attach(PlayerController player) {
+    _player?.position.removeListener(_onPosition);
+    _lifecycle?.dispose();
     _player = player;
     player.position.addListener(_onPosition);
     // 切到后台或窗口隐藏时立即保存。
@@ -76,7 +78,14 @@ class ListenStats extends ChangeNotifier {
 
   /// 测试用：直接记录一段收听。
   @visibleForTesting
-  void record(Song song, Duration time) => _add(song, time.inMilliseconds);
+  void record(Song song, Duration time) {
+    if (_songKey != _key(song)) {
+      _songKey = _key(song);
+      _session = 0;
+      _counted = false;
+    }
+    _add(song, time.inMilliseconds);
+  }
 
   String _key(Song s) => '${s.sourceId}:${s.id}';
 
@@ -86,7 +95,7 @@ class ListenStats extends ChangeNotifier {
     final pos = player.position.value;
     if (song == null) return;
     final key = _key(song);
-    if (key != _songKey) {
+    if (key != _songKey || pos < _last) {
       _songKey = key;
       _last = pos;
       _session = 0;
@@ -96,11 +105,12 @@ class ListenStats extends ChangeNotifier {
     final delta = pos - _last;
     _last = pos;
     // 只累计正常播放产生的小幅前进；拖动进度、切歌回到开头都不计入。
-    if (!player.playing || delta <= Duration.zero || delta > const Duration(seconds: 3)) return;
+    if (!player.playing || player.buffering || player.loading || delta <= Duration.zero || delta > const Duration(seconds: 3)) return;
     _add(song, delta.inMilliseconds);
   }
 
   void _add(Song song, int ms) {
+    if (ms <= 0) return;
     final day = dayKey(DateTime.now());
     _days[day] = (_days[day] ?? 0) + ms;
     final e = _songs.putIfAbsent(_key(song), () => SongListen(song));
@@ -122,8 +132,14 @@ class ListenStats extends ChangeNotifier {
     try {
       final f = await _file();
       await f.parent.create(recursive: true);
-      await f.writeAsString(jsonEncode({'days': _days, 'songs': [for (final e in _songs.values) e.toJson()]}));
+      await f.writeAsString(
+        jsonEncode({
+          'days': _days,
+          'songs': [for (final e in _songs.values) e.toJson()],
+        }),
+      );
     } catch (e) {
+      _dirty = true;
       debugPrint('save listen stats: $e');
     }
   }
@@ -158,9 +174,7 @@ class ListenStats extends ChangeNotifier {
   List<(DateTime, Duration)> lastDays(int n) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    return [
-      for (var i = n - 1; i >= 0; i--) (today.subtract(Duration(days: i)), day(today.subtract(Duration(days: i)))),
-    ];
+    return [for (var i = n - 1; i >= 0; i--) (today.subtract(Duration(days: i)), day(today.subtract(Duration(days: i))))];
   }
 
   List<SongListen> topSongs(int n) => (_songs.values.toList()..sort((a, b) => b.ms.compareTo(a.ms))).take(n).toList();

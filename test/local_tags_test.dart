@@ -29,6 +29,20 @@ Uint8List _wav(int seconds) {
 }
 
 void main() {
+  test('移动端导入同名同大小的不同歌曲不会覆盖或误判重复', () async {
+    final directory = await Directory.systemTemp.createTemp('yunyin-import');
+    addTearDown(() => directory.delete(recursive: true));
+    final first = await storeImportedAudio(directory, '歌手 - 歌曲.mp3', Stream.value([1, 2, 3]));
+    final second = await storeImportedAudio(directory, '歌手 - 歌曲.mp3', Stream.value([3, 2, 1]));
+    final duplicate = await storeImportedAudio(directory, '歌手 - 歌曲.mp3', Stream.value([1, 2, 3]));
+    expect(first, isNot(second));
+    expect(first, duplicate);
+    expect(await File(first).readAsBytes(), [1, 2, 3]);
+    expect(await File(second).readAsBytes(), [3, 2, 1]);
+    expect(readLocalTags(first, null)!.title, '歌曲');
+    expect(await directory.list().toList(), hasLength(2));
+  });
+
   test('后台 isolate 中读取标签：没有标签时按文件名拆出歌手与歌名，使用同目录封面，跳过过短的音频', () async {
     final dir = await Directory.systemTemp.createTemp('yunyin_tags');
     addTearDown(() => dir.delete(recursive: true));
@@ -54,4 +68,3 @@ void main() {
     expect((d.title, d.artist), ('小姐免惊Live', null));
   });
 }
-

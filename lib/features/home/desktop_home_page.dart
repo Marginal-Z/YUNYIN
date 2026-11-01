@@ -29,10 +29,12 @@ class DesktopHomePage extends StatelessWidget {
     final p = Palette.of(context);
     final sources = context.watch<SourceManager>();
     final source = sources.current;
+    final account = source.user?.id;
+    final generation = sources.generation;
     final layout = context.select<AppSettings, HomeLayout>((s) => s.homeLayout);
     Future<HomeFeed> load() async {
       final feed = await source.homeFeed();
-      DataCache.saveHome(source.id, source.user?.id, feed);
+      if (generation == sources.generation) DataCache.saveHome(source.id, account, feed);
       return feed;
     }
 
@@ -72,11 +74,7 @@ class DesktopHomePage extends StatelessWidget {
         AsyncView<HomeFeed>(
           keyValue: sources.generation,
           cacheKey: DataCache.homeKey(source.id),
-          load: () async {
-            final feed = await source.homeFeed();
-            DataCache.saveHome(source.id, source.user?.id, feed);
-            return feed;
-          },
+          load: load,
           loading: const SkeletonHome(desktop: true),
           builder: (context, feed, _) {
             final player = context.watch<PlayerController>();

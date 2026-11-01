@@ -37,23 +37,27 @@ class LxRuntime {
     _preloadLinux();
     final js = getJavascriptRuntime(xhr: false);
     final rt = LxRuntime._(js, script);
-    rt._bind();
-    final prelude = _prelude.replaceFirst('__SCRIPT_INFO__', jsonEncode(info));
-    final p = js.evaluate(prelude);
-    if (p.isError) throw Exception('洛雪运行环境初始化失败：${p.stringResult}');
-    final r = js.evaluate(script);
-    if (r.isError) {
-      rt.dispose();
-      throw Exception('音源脚本执行出错：${r.stringResult}');
-    }
-    rt._jobs();
     try {
-      await rt._inited.future.timeout(timeout);
-    } on TimeoutException {
+      rt._bind();
+      final prelude = _prelude.replaceFirst('__SCRIPT_INFO__', jsonEncode(info));
+      final p = js.evaluate(prelude);
+      if (p.isError) throw Exception('洛雪运行环境初始化失败：${p.stringResult}');
+      final r = js.evaluate(script);
+      if (r.isError) {
+        throw Exception('音源脚本执行出错：${r.stringResult}');
+      }
+      rt._jobs();
+      rt._keepPumping();
+      try {
+        await rt._inited.future.timeout(timeout);
+      } on TimeoutException {
+        throw Exception('音源脚本没有完成初始化（未调用 lx.send(\'inited\')）');
+      }
+      return rt;
+    } catch (_) {
       rt.dispose();
-      throw Exception('音源脚本没有完成初始化（未调用 lx.send(\'inited\')）');
+      rethrow;
     }
-    return rt;
   }
 
   /// Linux 上 QuickJS 动态库放在可执行文件旁的 lib 目录：先按绝对路径加载一次，
@@ -122,7 +126,8 @@ class LxRuntime {
       final c = _pending.remove(m['rid']);
       if (c != null && !c.isCompleted) {
         final url = m['url'];
-        if (url is String && url.startsWith('http')) {
+        final parsed = url is String ? Uri.tryParse(url) : null;
+        if (parsed != null && (parsed.scheme == 'http' || parsed.scheme == 'https') && parsed.host.isNotEmpty && parsed.userInfo.isEmpty) {
           c.complete(url);
         } else {
           c.completeError(Exception(m['error'] ?? '音源没有返回播放地址'));
@@ -156,6 +161,10 @@ class LxRuntime {
         _eval('__lx_timer($id)');
       });
       _timers[id] = t;
+      return 'ok';
+    });
+    _js.onMessage('lx_clear_timer', (args) {
+      _timers.remove((args as num).toInt())?.cancel();
       return 'ok';
     });
     _js.onMessage('lx_log', (args) {
@@ -250,6 +259,7 @@ class LxRuntime {
 
   /// 调用脚本的 `request` 处理函数获取播放地址。[source] 为洛雪平台代号，[quality] 为 128k / 320k / flac / flac24bit。
   Future<String> musicUrl(String source, String quality, Map<String, dynamic> musicInfo, {Duration timeout = const Duration(seconds: 20)}) {
+    if (_disposed) return Future.error(StateError('音源已停止'));
     final rid = ++_seq;
     final c = Completer<String>();
     _pending[rid] = c;
@@ -273,7 +283,9 @@ class LxRuntime {
   final _timers = <int, Timer>{};
 
   void dispose() {
+    if (_disposed) return;
     _disposed = true;
+    _dio.close(force: true);
     _pump?.cancel();
     for (final t in _timers.values) {
       t.cancel();
@@ -407,7 +419,11 @@ const _prelude = r'''
   };
   g.setTimeout = function (fn, ms) { return startTimer(fn, ms, Array.prototype.slice.call(arguments, 2), false); };
   g.setInterval = function (fn, ms) { return startTimer(fn, ms, Array.prototype.slice.call(arguments, 2), true); };
-  g.clearTimeout = g.clearInterval = function (id) { delete timers[id]; };
+  g.clearTimeout = g.clearInterval = function (id) {
+    if (!timers[id]) return;
+    delete timers[id];
+    sendMessage('lx_clear_timer', JSON.stringify(id));
+  };
   g.__lx_timer = function (id) {
     var t = timers[id];
     if (!t) return;
