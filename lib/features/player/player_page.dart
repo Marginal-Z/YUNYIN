@@ -582,25 +582,33 @@ class _LyricPreview extends StatelessWidget {
                 ),
               ),
               layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, children: [...previous, ?current]),
-              child: Column(
+              // 中文字体的行高比 Inter 略大：超出的一两像素裁掉，不报布局溢出。
+              child: ClipRect(
                 key: ValueKey(i),
-                children: [
-                  Text(
-                    line,
-                    textAlign: TextAlign.center,
-                    style: ts(20, weight: w700, em: -0.01, height: 1.35, color: p.text),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                child: OverflowBox(
+                  alignment: Alignment.topCenter,
+                  maxHeight: double.infinity,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        line,
+                        textAlign: TextAlign.center,
+                        style: ts(20, weight: w700, em: -0.01, height: 1.35, color: p.text),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        next,
+                        textAlign: TextAlign.center,
+                        style: ts(16, weight: w600, height: 1.35, color: p.lyricDim),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    next,
-                    textAlign: TextAlign.center,
-                    style: ts(16, weight: w600, height: 1.35, color: p.lyricDim),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                ),
               ),
             );
           },

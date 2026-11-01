@@ -279,6 +279,8 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
     for (final st in [PlayerStyle.vinyl, PlayerStyle.disc, PlayerStyle.immersive]) {
       settings.setPlayerStyle(st);
       home();
+      // 等布局从桌面切换到手机后再打开播放页，否则会截到按手机尺寸排版的桌面播放页。
+      await wait(600);
       openPlayer(ctx());
       await shot('mobile-player-${st.name}${dark ? '-dark' : ''}', settle: 3000);
       navKey.currentState!.pop();
@@ -299,6 +301,7 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   _spec.value = _desktop;
   settings.setPlayerStyle(PlayerStyle.vinyl);
   home();
+  await wait(600);
   openPlayer(ctx());
   await shot('desktop-player-vinyl', settle: 3000);
   navKey.currentState!.pop();

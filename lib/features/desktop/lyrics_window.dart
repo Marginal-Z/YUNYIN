@@ -23,7 +23,8 @@ const _channel = WindowMethodChannel('yunyin/desktop_lyrics');
 const _size = Size(820, 124);
 
 /// 主窗口一侧：桌面歌词开关打开时创建（或显示）独立的置顶歌词窗口，主窗口保持原样。
-class DesktopLyricsWindow {
+/// 关闭主窗口时先关掉歌词窗口，否则它会让应用留在后台。
+class DesktopLyricsWindow with WindowListener {
   DesktopLyricsWindow._(this._overlay, this._player, this._settings);
 
   final LyricsOverlay _overlay;
@@ -37,14 +38,30 @@ class DesktopLyricsWindow {
 
   static const _positionKey = 'desktopLyrics.position';
 
+  /// 歌词窗口已启动并与主窗口连通（测试用）。
+  @visibleForTesting
+  bool get ready => _ready;
+
   static DesktopLyricsWindow attach(LyricsOverlay overlay, PlayerController player, AppSettings settings) {
     final w = DesktopLyricsWindow._(overlay, player, settings);
     _channel.setMethodCallHandler(w._onCall);
     overlay.addListener(w._push);
     player.addListener(w._push);
     settings.addListener(w._sync);
+    windowManager.addListener(w);
+    windowManager.setPreventClose(true);
     w._sync();
     return w;
+  }
+
+  @override
+  void onWindowClose() async {
+    if (_window != null) {
+      try {
+        await _channel.invokeMethod<void>('quit').timeout(const Duration(milliseconds: 800));
+      } catch (_) {}
+    }
+    await windowManager.destroy();
   }
 
   Future<dynamic> _onCall(MethodCall call) async {
@@ -155,6 +172,7 @@ class _LyricsApp extends StatefulWidget {
 
 class _LyricsAppState extends State<_LyricsApp> with WindowListener {
   Map<dynamic, dynamic> _state = const {};
+  Timer? _moved;
   bool _hover = false;
   bool _locked = false;
 
@@ -163,7 +181,13 @@ class _LyricsAppState extends State<_LyricsApp> with WindowListener {
     super.initState();
     windowManager.addListener(this);
     _channel.setMethodCallHandler((call) async {
-      if (call.method == 'update') _apply(call.arguments as Map);
+      switch (call.method) {
+        case 'update':
+          _apply(call.arguments as Map);
+        case 'quit':
+          // 主窗口正在关闭：歌词窗口一起关闭（稍后执行，先回复主窗口）。
+          Timer(Duration.zero, windowManager.destroy);
+      }
       return null;
     });
     _channel.invokeMethod<Map>('ready').then((s) => s == null ? null : _apply(s)).catchError((Object e) => debugPrint('desktop lyrics: $e'));
@@ -181,14 +205,19 @@ class _LyricsAppState extends State<_LyricsApp> with WindowListener {
 
   @override
   void dispose() {
+    _moved?.cancel();
     windowManager.removeListener(this);
     super.dispose();
   }
 
+  /// 拖动时会连续触发：停下半秒后再把位置交给主窗口保存。
   @override
-  void onWindowMoved() async {
-    final p = await windowManager.getPosition();
-    _channel.invokeMethod<void>('moved', {'x': p.dx, 'y': p.dy}).catchError((Object _) {});
+  void onWindowMoved() {
+    _moved?.cancel();
+    _moved = Timer(const Duration(milliseconds: 500), () async {
+      final p = await windowManager.getPosition();
+      _channel.invokeMethod<void>('moved', {'x': p.dx, 'y': p.dy}).catchError((Object _) {});
+    });
   }
 
   void _send(String method) => _channel.invokeMethod<void>(method).catchError((Object e) => debugPrint('desktop lyrics: $e'));

@@ -254,6 +254,7 @@ jobs:
         run: |
           if [ "${{ matrix.device }}" = linux ]; then RUN="xvfb-run -a"; else RUN=""; fi
           $RUN flutter test integration_test/audio_pipeline_test.dart -d ${{ matrix.device }} --dart-define=AO=null
+          $RUN flutter test integration_test/desktop_lyrics_test.dart -d ${{ matrix.device }}
 
   release:
     name: 发布
