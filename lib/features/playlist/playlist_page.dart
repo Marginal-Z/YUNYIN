@@ -35,8 +35,8 @@ Future<PlaylistInfo> loadCollection(BuildContext context, AppRoute route) async 
     case PlaylistRoute(:final id, :final preview, :final sourceId):
       if (preview?.tracks != null) return preview!;
       return sm.byId(sourceId ?? sm.current.id).playlist(id);
-    case AlbumRoute(:final id, :final preview):
-      final a = await sm.byId(preview?.sourceId ?? sm.current.id).album(id);
+    case AlbumRoute(:final id, :final preview, :final sourceId):
+      final a = await sm.byId(sourceId ?? preview?.sourceId ?? sm.current.id).album(id);
       return PlaylistInfo(
         id: a.id,
         sourceId: a.sourceId,
@@ -55,6 +55,19 @@ Future<PlaylistInfo> loadCollection(BuildContext context, AppRoute route) async 
       final source = sm.current;
       switch (kind) {
         case PlaylistKind.liked:
+          // 没有账号“喜欢”功能的平台：显示保存在本机的喜欢。
+          if (!source.supports(SourceFeature.likeSong)) {
+            final songs = player.localLikedSongs(source.id);
+            return PlaylistInfo(
+              id: 'liked:${source.id}',
+              sourceId: source.id,
+              name: '我喜欢的音乐',
+              kind: PlaylistKind.liked,
+              cover: songs.firstOrNull?.coverUrl,
+              creator: '本机',
+              tracks: songs,
+            );
+          }
           final lists = await source.userPlaylists();
           final liked = lists.firstWhere((l) => l.isLikedList, orElse: () => throw Exception('未找到“我喜欢的音乐”'));
           return source.playlist(liked.id);
@@ -147,8 +160,8 @@ class PlaylistPage extends StatelessWidget {
       keyValue: route is CollectionRoute ? '$gen-$localCount' : null,
       // 歌单、专辑等内容不常变化；我喜欢、最近播放等集合每次进入都在后台刷新。
       cacheKey: switch (route) {
-        PlaylistRoute(:final id) => 'playlist:$id',
-        AlbumRoute(:final id) => 'album:$id',
+        PlaylistRoute(:final id, :final sourceId) => 'playlist:${sourceId ?? context.read<SourceManager>().current.id}:$id',
+        AlbumRoute(:final id, :final preview, :final sourceId) => 'album:${sourceId ?? preview?.sourceId ?? context.read<SourceManager>().current.id}:$id',
         CollectionRoute(:final kind) => 'collection:${kind.name}:$localCount',
         RadioRoute(:final radio) => 'radio:${radio.id}',
         _ => null,

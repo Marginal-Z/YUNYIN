@@ -390,7 +390,7 @@ class _TitleRow extends StatelessWidget {
                     ? null
                     : () {
                         Navigator.of(context).maybePop();
-                        openArtist(context, song.artists.first);
+                        openArtist(context, song.artists.first, sourceId: song.sourceId);
                       },
                 pressedOpacity: 0.6,
                 scale: 1,

@@ -354,7 +354,8 @@ class PlayerController extends ChangeNotifier {
     }
     _liked
       ..clear()
-      ..addAll(ids);
+      ..addAll(ids)
+      ..addAll(_localLikes.keys);
     notifyListeners();
   }
 
@@ -669,9 +670,35 @@ class PlayerController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// 没有账号“喜欢”功能的平台（QQ 音乐、酷狗等）：喜欢的歌曲保存在本机。
+  final Map<String, Song> _localLikes = {};
+
+  /// 某个平台保存在本机的“我喜欢的音乐”（最近喜欢的在前）。
+  List<Song> localLikedSongs(String sourceId) => [
+    for (final s in _localLikes.values.toList().reversed)
+      if (s.sourceId == sourceId) s,
+  ];
+
+  void _saveLocalLikes() {
+    SharedPreferences.getInstance().then((p) => p.setString('player.localLikes', jsonEncode([for (final s in _localLikes.values) s.toJson()])));
+  }
+
   Future<void> toggleLike(Song song) async {
     final liked = isLiked(song);
     final src = sources.byId(song.sourceId);
+    if (!src.supports(SourceFeature.likeSong)) {
+      if (liked) {
+        _localLikes.remove(song.key);
+        _liked.remove(song.key);
+      } else {
+        _localLikes[song.key] = song;
+        _liked.add(song.key);
+      }
+      _saveLocalLikes();
+      notifyListeners();
+      _notices.add(PlayerNotice(liked ? '已取消喜欢' : '已添加到「我喜欢的音乐」'));
+      return;
+    }
     try {
       await src.likeSong(song, !liked);
       liked ? _liked.remove(song.key) : _liked.add(song.key);
@@ -716,6 +743,13 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> _restore() async {
     final p = await SharedPreferences.getInstance();
+    try {
+      for (final j in jsonDecode(p.getString('player.localLikes') ?? '[]') as List) {
+        final song = Song.fromJson(Map<String, dynamic>.from(j as Map));
+        _localLikes[song.key] = song;
+        _liked.add(song.key);
+      }
+    } catch (_) {}
     eqUnsupported = p.getBool('eqUnsupported') ?? false;
     try {
       final h = p.getString('player.history');

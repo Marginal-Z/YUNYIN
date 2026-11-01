@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../core/settings.dart';
 import '../data/cloud/cloud_drives.dart';
+import '../data/models.dart';
 import '../data/sources/source_manager.dart';
 import '../features/common/actions.dart';
 import '../features/settings/about_pages.dart';
@@ -325,12 +326,37 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   nav.push(ProfileRoute());
   await shot('mobile-profile', settle: 2000);
   final sources = ctx().read<SourceManager>();
-  await sources.select('qq');
-  home();
-  nav.push(ProfileRoute());
-  await shot('mobile-profile-qq', settle: 2000);
-  home();
-  await shot('mobile-home-qq', settle: 4000);
+  // QQ 音乐与酷狗模式：首页、发现、搜索、歌手、专辑、评论与本机喜欢。
+  for (final (id, singer, album) in const [('qq', '0025NhlN2yWrP4', '000MkMni19ClKG'), ('kugou', '3520', '960399')]) {
+    await sources.select(id);
+    home();
+    nav.push(ProfileRoute());
+    await shot('mobile-profile-$id', settle: 2000);
+    home();
+    await shot('mobile-home-$id', settle: 4000);
+    nav.switchTab(1);
+    await shot('mobile-discover-$id', settle: 3500);
+    home();
+    nav.push(SearchResultRoute('周杰伦'));
+    await shot('mobile-search-$id', settle: 4000);
+    home();
+    nav.push(ArtistRoute(singer, name: '周杰伦'));
+    await shot('mobile-artist-$id', settle: 4000);
+    home();
+    nav.push(AlbumRoute(album));
+    await shot('mobile-album-$id', settle: 4000);
+    home();
+    nav.push(CollectionRoute(PlaylistKind.liked));
+    await shot('mobile-liked-$id', settle: 2000);
+    home();
+    final song = (await sources.current.search('晴天 周杰伦')).songs.firstOrNull;
+    if (song != null) {
+      openComments(ctx(), song);
+      await shot('mobile-comments-$id', settle: 4000);
+      navKey.currentState!.pop();
+      await wait(500);
+    }
+  }
   await sources.select('netease');
   home();
   nav.push(SettingsRoute());

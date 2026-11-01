@@ -29,15 +29,15 @@ void go(BuildContext context, AppRoute route) => context.read<AppNav>().push(rou
 
 void openPlaylist(BuildContext context, PlaylistInfo p) {
   if (p.kind == PlaylistKind.album) {
-    go(context, AlbumRoute(p.id));
+    go(context, AlbumRoute(p.id, sourceId: p.sourceId));
     return;
   }
   go(context, PlaylistRoute(p.id, preview: p, sourceId: p.sourceId));
 }
 
-void openArtist(BuildContext context, ArtistRef a) => go(context, ArtistRoute(a.id, name: a.name));
+void openArtist(BuildContext context, ArtistRef a, {String? sourceId}) => go(context, ArtistRoute(a.id, name: a.name, sourceId: sourceId));
 
-void openAlbum(BuildContext context, AlbumRef a) => go(context, AlbumRoute(a.id));
+void openAlbum(BuildContext context, AlbumRef a, {String? sourceId}) => go(context, AlbumRoute(a.id, sourceId: sourceId));
 
 Route<T> fadeRoute<T>(Widget page) => PageRouteBuilder<T>(
   transitionDuration: const Duration(milliseconds: 300),
@@ -180,8 +180,8 @@ Future<void> showSongMenu(BuildContext context, Song song) async {
           },
         ),
       if (source.supports(SourceFeature.comments)) (YIcons.comment, '评论', () => openComments(context, song)),
-      if (song.artists.isNotEmpty) (YIcons.user, '歌手：${song.artistText}', () => openArtist(context, song.artists.first)),
-      if (song.album != null && song.album!.name.isNotEmpty) (YIcons.library, '专辑：${song.album!.name}', () => openAlbum(context, song.album!)),
+      if (song.artists.isNotEmpty) (YIcons.user, '歌手：${song.artistText}', () => openArtist(context, song.artists.first, sourceId: song.sourceId)),
+      if (song.album != null && song.album!.name.isNotEmpty) (YIcons.library, '专辑：${song.album!.name}', () => openAlbum(context, song.album!, sourceId: song.sourceId)),
     ],
   ];
 

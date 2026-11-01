@@ -34,12 +34,18 @@ class ArtistPage extends StatefulWidget {
 }
 
 class _ArtistPageState extends State<ArtistPage> {
+  /// 歌手所属的平台：从歌曲进入时为歌曲的平台，否则为当前平台。
+  MusicSource _source(BuildContext context) {
+    final sm = context.read<SourceManager>();
+    return widget.route.sourceId == null ? sm.current : sm.byId(widget.route.sourceId!);
+  }
+
   int _tab = 0;
   bool? _followed;
 
   @override
   Widget build(BuildContext context) {
-    final source = context.read<SourceManager>().current;
+    final source = _source(context);
     final desktop = LayoutScope.isDesktop(context);
     return AsyncView<ArtistInfo>(
       cacheKey: 'artist:${source.id}:${widget.route.id}',
@@ -50,7 +56,7 @@ class _ArtistPageState extends State<ArtistPage> {
   }
 
   Widget _frame(BuildContext context, ArtistInfo a, {bool loading = false}) {
-    final source = context.read<SourceManager>().current;
+    final source = _source(context);
     final followed = _followed ?? a.followed;
     final canFollow = source.supports(SourceFeature.followArtist);
     final canSimilar = source.supports(SourceFeature.similarArtists);
@@ -281,7 +287,7 @@ class ArtistStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     Widget item(ArtistInfo a) => Pressable(
-      onTap: () => go(context, ArtistRoute(a.id, name: a.name)),
+      onTap: () => go(context, ArtistRoute(a.id, name: a.name, sourceId: a.sourceId)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

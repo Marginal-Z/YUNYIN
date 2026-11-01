@@ -70,10 +70,13 @@ class CollectionRoute extends AppRoute {
 }
 
 class AlbumRoute extends AppRoute {
-  AlbumRoute(this.id, {this.preview});
+  AlbumRoute(this.id, {this.preview, this.sourceId});
 
   final String id;
   final AlbumInfo? preview;
+
+  /// 专辑所属的平台（从歌曲进入时为歌曲的平台）；为空时使用当前平台。
+  final String? sourceId;
 }
 
 class RadioRoute extends AppRoute {
@@ -83,10 +86,13 @@ class RadioRoute extends AppRoute {
 }
 
 class ArtistRoute extends AppRoute {
-  ArtistRoute(this.id, {this.name});
+  ArtistRoute(this.id, {this.name, this.sourceId});
 
   final String id;
   final String? name;
+
+  /// 歌手所属的平台（从歌曲进入时为歌曲的平台）；为空时使用当前平台。
+  final String? sourceId;
 }
 
 /// 我的收藏：歌单 / 专辑 / 歌手（乐库筛选 & 桌面端“专辑与歌手”）。
