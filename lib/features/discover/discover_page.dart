@@ -257,7 +257,7 @@ class _Charts extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final g in groups.entries) ...[
-                SectionHeader(g.key, top: 20, action: '${g.value.length} 个'),
+                SectionHeader(g.key, top: 20),
                 CardList(
                   indent: 78,
                   children: [for (final c in g.value) _ChartRow(chart: c, sourceId: source.id)],
@@ -414,11 +414,14 @@ class _PlaylistPlazaState extends State<PlaylistPlaza> {
             Row(
               children: [
                 Expanded(
-                  child: ChipBar(
-                    labels: [for (final c in quick) c.name],
-                    index: quick.indexWhere((c) => c.id == current.id),
-                    onChanged: (i) => _select(quick[i]),
-                    scroll: true,
+                  // 横向滚动的分类不能盖住右侧的“全部分类”。
+                  child: ClipRect(
+                    child: ChipBar(
+                      labels: [for (final c in quick) c.name],
+                      index: quick.indexWhere((c) => c.id == current.id),
+                      onChanged: (i) => _select(quick[i]),
+                      scroll: true,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
