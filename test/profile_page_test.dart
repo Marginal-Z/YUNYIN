@@ -43,7 +43,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(sm.current.id, 'kugou');
     expect(find.text('酷狗音乐会员'), findsOneWidget);
-    expect(find.text('游客模式'), findsWidgets);
+    // 酷狗也支持登录：未登录时提示登录查看会员信息。
+    expect(find.text('登录后查看会员信息'), findsOneWidget);
 
     await tester.tap(find.text('QQ 音乐'));
     await tester.pump(const Duration(milliseconds: 500));
