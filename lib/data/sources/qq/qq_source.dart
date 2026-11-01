@@ -12,7 +12,7 @@ import '../netease/netease_source.dart' show parseLrc;
 /// QQ 音乐播放源：搜索、热搜、排行榜、歌词与 QQ 扫码登录。
 ///
 /// QQ 音乐的播放地址接口只对已登录账号开放：登录后按所选音质（Hi-Res / 无损 / 320k / 128k）依次获取，
-/// 会员歌曲需要账号有对应会员。打开“其他平台补位”后，取不到地址的歌曲换用网易云的同一首歌播放。
+/// 会员歌曲需要账号有对应会员；未登录时播放免费歌曲与官方试听片段。
 class QQMusicSource extends MusicSource {
   QQMusicSource({Dio? dio})
     : _dio =

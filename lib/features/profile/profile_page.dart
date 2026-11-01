@@ -56,7 +56,7 @@ class ProfilePage extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      user == null ? (source.supports(SourceFeature.login) ? '登录${source.name}，同步歌单与会员音质' : '${source.name}暂不支持账号登录') : '${source.name}账号',
+                      user == null ? (source.supports(SourceFeature.login) ? '登录${source.name}，同步歌单与会员音质' : '${source.name}无需登录') : '${source.name}账号',
                       style: ts(13, color: p.text2),
                     ),
                   ],
@@ -70,17 +70,22 @@ class ProfilePage extends StatelessWidget {
         const SizedBox(height: 16),
         _MembershipCard(key: ValueKey('${source.id}:${user?.id}:${sm.generation}'), source: source),
         SectionHeader('平台模式', top: 26),
-        Text('三个平台彼此独立：切换后首页、发现、搜索、排行榜、账号、音源与界面样式都换成该平台。', style: ts(13, height: 1.5, color: p.text2)),
+        Text('四个平台彼此独立：切换后首页、发现、搜索、排行榜、账号、播放队列与界面样式都换成该平台，只播放该平台的歌曲。', style: ts(13, height: 1.5, color: p.text2)),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            for (final s in sm.selectable) ...[
-              if (s != sm.selectable.first) const SizedBox(width: 10),
-              Expanded(
-                child: _PlatformTile(source: s, selected: s.id == source.id, onTap: () => _switch(context, s)),
-              ),
-            ],
-          ],
+        // 两列网格：每个平台的名称都能完整显示（手机上四个并排会被截断）。
+        LayoutBuilder(
+          builder: (context, c) {
+            final cols = c.maxWidth >= 640 ? 4 : 2;
+            final w = (c.maxWidth - 10 * (cols - 1)) / cols;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final s in sm.selectable)
+                  SizedBox(width: w, child: _PlatformTile(source: s, selected: s.id == source.id, onTap: () => _switch(context, s))),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 22),
         CardList(
@@ -213,7 +218,7 @@ class _MembershipCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              source.supports(SourceFeature.login) ? '会员账号可播放会员歌曲与更高音质。' : '${source.name}暂不支持账号登录：搜索、排行榜与歌词来自${source.name}，播放使用网易云的同一首歌。',
+              source.supports(SourceFeature.login) ? '会员账号可播放会员歌曲与更高音质。' : '${source.name}不需要账号：曲库来自酷我，播放使用“设置 → 洛雪音源”中启用的音源。',
               style: ts(13, height: 1.5, color: const Color(0xD9FFFFFF)),
             ),
           ],

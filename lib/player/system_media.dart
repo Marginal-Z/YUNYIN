@@ -55,6 +55,12 @@ class SystemMediaHandler extends BaseAudioHandler with SeekHandler {
 
   void _sync() {
     final Song? s = player.current;
+    // 切换到没有播放队列的平台时清掉上一平台的歌曲信息，通知栏与锁屏不再显示别的平台的歌。
+    if (s == null && _itemKey != null) {
+      _itemKey = null;
+      _itemDuration = null;
+      mediaItem.add(null);
+    }
     if (s != null && (s.key != _itemKey || player.duration != _itemDuration)) {
       _itemKey = s.key;
       _itemDuration = player.duration;

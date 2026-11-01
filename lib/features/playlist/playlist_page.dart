@@ -194,6 +194,15 @@ class _MobilePlaylist extends StatefulWidget {
 class _MobilePlaylistState extends State<_MobilePlaylist> {
   Color? _tone;
 
+  /// 封面区已经滚出屏幕：顶部显示与页面同色的渐隐，歌曲不会压在状态栏与按钮下面。
+  final _pastHero = ValueNotifier(false);
+
+  @override
+  void dispose() {
+    _pastHero.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -238,57 +247,88 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
                 ),
               ),
             ),
-            CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(child: _hero(context, heroH, tone)),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _actions(context, songs),
-                        const SizedBox(height: 22),
-                        _listHeader(context, songs),
-                        if (playlist.kind == PlaylistKind.local) ...[const SizedBox(height: 12), const LocalImportBar()],
-                        const SizedBox(height: 6),
-                      ],
-                    ),
-                  ),
-                ),
-                if (widget.loading)
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.all(40),
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                    ),
-                  )
-                else if (songs.isEmpty)
+            NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                if (n.depth == 0) _pastHero.value = n.metrics.pixels > heroH - pad.top - 40;
+                return false;
+              },
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: _hero(context, heroH, tone)),
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: StateView.empty(title: '这里还没有歌曲', message: '去发现页找找喜欢的音乐吧。', icon: YIcons.library),
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    // 长列表按需构建，几千首歌也不会卡顿。
-                    sliver: SliverList.builder(
-                      itemCount: songs.length,
-                      itemBuilder: (context, i) => SongRow(
-                        song: songs[i],
-                        // 榜单显示名次。
-                        lead: playlist.kind == PlaylistKind.chart ? SongLead.rank : SongLead.cover,
-                        number: i + 1,
-                        height: 62,
-                        trailing: SongTrailing.likeMore,
-                        onTap: () => playAll(context, songs, start: i, title: playlist.name),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _actions(context, songs),
+                          const SizedBox(height: 22),
+                          _listHeader(context, songs),
+                          if (playlist.kind == PlaylistKind.local) ...[const SizedBox(height: 12), const LocalImportBar()],
+                          const SizedBox(height: 6),
+                        ],
                       ),
                     ),
                   ),
-                SliverToBoxAdapter(child: SizedBox(height: chromeClearance(context, Chrome.full))),
-              ],
+                  if (widget.loading)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                      ),
+                    )
+                  else if (songs.isEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: StateView.empty(title: '这里还没有歌曲', message: '去发现页找找喜欢的音乐吧。', icon: YIcons.library),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      // 长列表按需构建，几千首歌也不会卡顿。
+                      sliver: SliverList.builder(
+                        itemCount: songs.length,
+                        itemBuilder: (context, i) => SongRow(
+                          song: songs[i],
+                          // 榜单显示名次。
+                          lead: playlist.kind == PlaylistKind.chart ? SongLead.rank : SongLead.cover,
+                          number: i + 1,
+                          height: 62,
+                          trailing: SongTrailing.likeMore,
+                          onTap: () => playAll(context, songs, start: i, title: playlist.name),
+                        ),
+                      ),
+                    ),
+                  SliverToBoxAdapter(child: SizedBox(height: chromeClearance(context, Chrome.full))),
+                ],
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: pad.top + 84,
+              child: IgnorePointer(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _pastHero,
+                  builder: (context, on, _) => AnimatedOpacity(
+                    opacity: on ? 1 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [tone, tone.withValues(alpha: 0.92), tone.withValues(alpha: 0)],
+                          stops: const [0, 0.6, 1],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
             Positioned(
               left: 0,
@@ -298,8 +338,16 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
                 height: 80,
                 child: Stack(
                   children: [
-                    Positioned(left: 16, top: 20, child: _HeroButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop())),
-                    Positioned(right: 16, top: 20, child: _HeroButton(YIcons.more, label: '更多', onTap: () => _showPlaylistMenu(context, playlist))),
+                    Positioned(
+                      left: 16,
+                      top: 20,
+                      child: _HeroButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
+                    ),
+                    Positioned(
+                      right: 16,
+                      top: 20,
+                      child: _HeroButton(YIcons.more, label: '更多', onTap: () => _showPlaylistMenu(context, playlist)),
+                    ),
                   ],
                 ),
               ),

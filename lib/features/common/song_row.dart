@@ -8,6 +8,7 @@ import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
+import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
 import 'actions.dart';
 
@@ -99,7 +100,7 @@ class SongRow extends StatelessWidget {
     final gap = lead == SongLead.number ? 8.0 : (lead == SongLead.rank ? 10.0 : 12.0);
 
     return Pressable(
-      onTap: song.playable ? onTap : () => _unavailable(context),
+      onTap: song.playable ? onTap : () => _unavailable(context, song),
       onLongPress: () => showSongMenu(context, song),
       onSecondaryTap: () => showSongMenu(context, song),
       scale: 1,
@@ -189,7 +190,15 @@ class VipBadge extends StatelessWidget {
   }
 }
 
-void _unavailable(BuildContext context) => Toast.show(context, '暂无播放版权', icon: YIcons.lock);
+/// 无法播放的歌曲：会员歌曲提示需要会员（未登录时先登录），其余为没有版权。
+void _unavailable(BuildContext context, Song song) {
+  if (!song.vip) {
+    Toast.show(context, '暂无播放版权', icon: YIcons.lock);
+    return;
+  }
+  final source = context.read<SourceManager>().byId(song.sourceId);
+  Toast.show(context, source.loggedIn ? '会员歌曲，开通${source.name}会员后可以播放' : '会员歌曲，登录有会员的${source.name}账号后播放', icon: YIcons.lock);
+}
 
 /// 桌面端表格行（高 56）：序号或封面 / 标题+歌手 / 专辑 / 时长 / 更多。
 class DesktopSongRow extends StatelessWidget {
@@ -208,7 +217,7 @@ class DesktopSongRow extends StatelessWidget {
     final isCurrent = highlightCurrent && context.select<PlayerController, bool>((c) => c.current == song);
     final playing = isCurrent && context.select<PlayerController, bool>((c) => c.playing);
     return Pressable(
-      onTap: onTap,
+      onTap: song.playable ? onTap : () => _unavailable(context, song),
       onSecondaryTap: () => showSongMenu(context, song),
       onLongPress: () => showSongMenu(context, song),
       scale: 1,

@@ -39,9 +39,10 @@ class LxLibrarySource extends MusicSource {
 
   static String? _cover(String? short, {int size = 500}) {
     if (short == null || short.isEmpty) return null;
-    if (short.startsWith('http')) return short.replaceFirst('http://', 'https://');
+    // 酷我的图片服务器（kwcdn）不支持 https，保持 http（macOS / iOS 在 Info.plist 中为 kuwo.cn 放行）。
+    if (short.startsWith('http')) return short;
     // 搜索结果给出“120/s3s94/93/xxx.jpg”这样的相对路径。
-    return 'https://img4.kuwo.cn/star/albumcover/$size/${short.replaceFirst(RegExp(r'^\d+/'), '')}';
+    return 'http://img1.kwcdn.kuwo.cn/star/albumcover/$size/${short.replaceFirst(RegExp(r'^\d+/'), '')}';
   }
 
   Song _song({required String rid, required String name, required String artist, String album = '', String albumId = '', int seconds = 0, String? cover}) => Song(
@@ -113,7 +114,6 @@ class LxLibrarySource extends MusicSource {
               id: 'bang:$id',
               name: _text(c['name']),
               cover: _cover(c['pic'] as String?),
-              update: _text(c['info']).isEmpty ? null : _text(c['info']),
               group: '酷我榜单',
             );
           }(),
@@ -128,11 +128,11 @@ class LxLibrarySource extends MusicSource {
         _dio
             .get<String>(
               'http://artistpicserver.kuwo.cn/pic.web?corp=kuwo&type=rid_pic&pictype=500&size=500&rid=$rid',
-              options: Options(responseType: ResponseType.plain, receiveTimeout: const Duration(seconds: 5)),
+              options: Options(responseType: ResponseType.plain, receiveTimeout: const Duration(seconds: 3)),
             )
             .then((r) {
               final url = (r.data ?? '').trim();
-              if (url.startsWith('http')) out[rid] = url.replaceFirst('http://', 'https://');
+              if (url.startsWith('http')) out[rid] = url;
             })
             .catchError((Object _) {}),
     ]);

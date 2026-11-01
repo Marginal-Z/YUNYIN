@@ -23,7 +23,7 @@ class LxScript {
   /// 从链接导入时的地址（用于显示与更新）。
   final String? url;
 
-  /// 是否参与兜底（可以同时启用多个音源，按列表顺序依次尝试）。
+  /// 洛雪曲库播放时是否使用（可以同时启用多个音源，按列表顺序依次尝试）。
   final bool enabled;
 
   LxScript copyWith({bool? enabled}) =>

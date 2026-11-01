@@ -13,7 +13,7 @@ import '../netease/netease_source.dart' show parseLrc;
 
 /// 酷狗音乐播放源：搜索、热搜、排行榜、歌单、专辑、歌手、评论、封面与歌词来自酷狗公开接口。
 ///
-/// 酷狗的播放地址接口要求设备验证与会员；取不到完整地址时由洛雪音源（[SourcePolicy.custom]）兜底。
+/// 酷狗的播放地址接口要求设备验证与会员；取不到地址时给出酷狗返回的原因。
 class KugouSource extends MusicSource {
   KugouSource({Dio? dio})
     : _dio =
@@ -133,7 +133,7 @@ class KugouSource extends MusicSource {
   Future<Membership?> membership() async {
     if (_account == null) return null;
     // Cookie 中没有会员信息，查询会员需要签名接口；在个人中心说明到期时间请在酷狗 App 中查看。
-    return const Membership(platform: '酷狗音乐', title: '已登录', benefits: ['会员歌曲按账号权限播放', '未开通会员时可用洛雪音源兜底']);
+    return const Membership(platform: '酷狗音乐', title: '已登录', benefits: ['会员歌曲按账号权限播放', '免费歌曲直接播放']);
   }
 
   /// 酷狗榜单的分类（rank/list 返回的 classify）。
@@ -486,8 +486,13 @@ class KugouSource extends MusicSource {
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
     final direct = await _webPlayUrl(song);
     if (direct != null) return StreamInfo(url: direct, quality: AudioQuality.standard);
-    throw Exception('酷狗暂时无法直接播放这首歌（需要验证或会员，可以在设置中导入洛雪音源）');
+    // 给出酷狗返回的原因（错误码与说明），便于判断是需要会员、需要验证还是登录失效。
+    final why = _lastRefusal == null ? '' : '（酷狗：$_lastRefusal）';
+    throw Exception(song.vip ? '会员歌曲需要酷狗会员$why' : '酷狗没有返回这首歌的播放地址$why');
   }
+
+  /// 最近一次取地址时酷狗给出的拒绝原因。
+  String? _lastRefusal;
 
   /// 酷狗网页播放接口（签名参数）。目前游客请求通常返回需要验证，取不到时返回 null。
   Future<String?> _webPlayUrl(Song song) async {
@@ -523,10 +528,18 @@ class KugouSource extends MusicSource {
       );
       final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
       final data = j['data'];
-      if (data is! Map) return null;
-      final url = '${data['play_url'] ?? data['play_backup_url'] ?? ''}';
-      return url.startsWith('http') ? url.replaceFirst('http://', 'https://') : null;
+      final url = data is Map ? '${data['play_url'] ?? data['play_backup_url'] ?? ''}' : '';
+      if (url.startsWith('http')) {
+        _lastRefusal = null;
+        return url.replaceFirst('http://', 'https://');
+      }
+      final code = j['err_code'] ?? j['error_code'] ?? j['errcode'] ?? (data is Map ? data['privilege'] : null);
+      final msg = '${j['error'] ?? j['err_msg'] ?? j['msg'] ?? ''}'.trim();
+      _lastRefusal = [if (code != null) '错误码 $code', if (msg.isNotEmpty) msg].join('，').ifEmpty('未返回地址');
+      debugPrint('kugou play url refused: $_lastRefusal');
+      return null;
     } catch (e) {
+      _lastRefusal = '请求失败';
       debugPrint('kugou play url: $e');
       return null;
     }
