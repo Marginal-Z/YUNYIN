@@ -98,7 +98,7 @@ class AboutEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return CardList(
       indent: 56,
-      children: [SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '账号与关于', value: '隐私、协议、反馈与版本', onTap: () => go(context, SettingsMoreRoute()))],
+      children: [SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '账号与关于', value: '协议与版本', onTap: () => go(context, SettingsMoreRoute()))],
     );
   }
 }
