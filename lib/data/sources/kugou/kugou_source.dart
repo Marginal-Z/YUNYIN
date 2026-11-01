@@ -355,9 +355,10 @@ class KugouSource extends MusicSource {
     if (_account == null) return const [];
     return [
       for (final l in await _allLists())
-        if (l['authors'] != null && '${l['list_create_listid'] ?? l['album_id'] ?? ''}'.isNotEmpty)
+        // 只列出带专辑 id 的收藏（其余 id 是歌单 id，打不开专辑页）。
+        if (l['authors'] != null && '${l['album_id'] ?? l['albumid'] ?? ''}'.isNotEmpty)
           AlbumInfo(
-            id: '${l['album_id'] ?? l['list_create_listid']}',
+            id: '${l['album_id'] ?? l['albumid']}',
             sourceId: sourceId,
             name: '${l['name'] ?? ''}',
             cover: _cover(l['pic'] as String?),

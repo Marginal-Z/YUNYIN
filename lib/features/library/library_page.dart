@@ -302,7 +302,7 @@ class SubscribedAlbums extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: AsyncView<List<AlbumInfo>>(
-        cacheKey: 'subscribedAlbums',
+        cacheKey: 'subscribedAlbums:${source.id}:${source.user?.id}',
         maxAge: Duration.zero,
         load: source.subscribedAlbums,
         builder: (context, albums, _) {
@@ -367,7 +367,7 @@ class FollowedArtists extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: AsyncView<List<ArtistInfo>>(
-        cacheKey: 'followedArtists',
+        cacheKey: 'followedArtists:${source.id}:${source.user?.id}',
         maxAge: Duration.zero,
         load: source.followedArtists,
         builder: (context, artists, _) {

@@ -79,6 +79,7 @@ class _ArtistPageState extends State<ArtistPage> {
                     : () async {
                         try {
                           await source.followArtist(a.id, !followed);
+                          if (!mounted) return;
                           setState(() => _followed = !followed);
                           if (context.mounted) Toast.show(context, followed ? '已取消关注' : '已关注 ${a.name}');
                         } catch (e) {
