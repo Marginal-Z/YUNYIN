@@ -131,6 +131,12 @@ class _DesktopShellState extends State<DesktopShell> {
 
   Widget _full(BuildContext context, AppNav nav) {
     final p = Palette.of(context);
+    // 照片墙首页铺满整个窗口：侧边栏滑出隐藏，窗口按钮移到顶栏，右上角显示个人中心入口。
+    final wall = nav.top.sideKey == 'home' && context.select<AppSettings, bool>((s) => s.homeLayout == HomeLayout.photoWall);
+    final user = context.select<SourceManager, UserProfile?>((s) => s.current.user);
+    final left = wall ? 20.0 : 262.0;
+    const slide = Duration(milliseconds: 420);
+    const curve = Curves.easeOutCubic;
     return AppBackground(
       scale: 2.4,
       child: Stack(
@@ -155,14 +161,23 @@ class _DesktopShellState extends State<DesktopShell> {
             ),
           ),
           // 顶栏背后的拖动区域。
-          const Positioned(left: 252, right: 0, top: 0, height: 72, child: WindowDragArea(child: SizedBox.expand())),
           Positioned(
-            left: 262,
+            left: wall ? 0 : 252,
+            right: 0,
+            top: 0,
+            height: 72,
+            child: const WindowDragArea(child: SizedBox.expand()),
+          ),
+          AnimatedPositioned(
+            duration: slide,
+            curve: curve,
+            left: left,
             right: 28,
             top: 16,
             height: 44,
             child: Row(
               children: [
+                if (wall && !useWindowsCaption) ...[const WindowControls(), const SizedBox(width: 14)],
                 GlassButton(
                   YIcons.back,
                   size: 40,
@@ -221,8 +236,37 @@ class _DesktopShellState extends State<DesktopShell> {
               ],
             ),
           ),
-          const Positioned(left: 10, top: 10, bottom: 10, width: 232, child: _Sidebar()),
-          const Positioned(left: 262, right: 28, bottom: 14, child: DesktopPlayerBar()),
+          AnimatedPositioned(
+            duration: slide,
+            curve: curve,
+            left: wall ? -250 : 10,
+            top: 10,
+            bottom: 10,
+            width: 232,
+            child: IgnorePointer(
+              ignoring: wall,
+              child: AnimatedOpacity(opacity: wall ? 0 : 1, duration: slide, curve: curve, child: const _Sidebar()),
+            ),
+          ),
+          if (wall)
+            Positioned(
+              // Windows 的系统按钮在右上角，个人中心入口让出它们的位置。
+              right: useWindowsCaption ? 156 : 28,
+              top: 14,
+              child: Pressable(
+                onTap: () => nav.push(ProfileRoute()),
+                semanticLabel: '个人中心',
+                child: Glass(
+                  radius: 24,
+                  width: 48,
+                  height: 48,
+                  legible: true,
+                  alignment: Alignment.center,
+                  child: user?.avatar != null ? Cover(user!.avatar, size: 38, circle: true) : YIcon(YIcons.user, size: 22, color: p.text),
+                ),
+              ),
+            ),
+          AnimatedPositioned(duration: slide, curve: curve, left: left, right: 28, bottom: 14, child: const DesktopPlayerBar()),
           // Windows：系统风格的最小化 / 最大化 / 关闭按钮固定在窗口右上角。
           if (useWindowsCaption) const Positioned(top: 0, right: 0, child: WindowsCaptionButtons()),
         ],

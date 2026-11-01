@@ -54,6 +54,7 @@ class QQMusicSource extends MusicSource {
     SourceFeature.search,
     SourceFeature.hotSearch,
     SourceFeature.charts,
+    SourceFeature.playlistCategories,
     SourceFeature.newAlbums,
     SourceFeature.lyrics,
     SourceFeature.lyricTranslation,
@@ -291,6 +292,8 @@ class QQMusicSource extends MusicSource {
             id: 'top:${t['topId']}',
             name: '${t['title']}',
             cover: _https('${t['frontPicUrl'] ?? t['headPicUrl'] ?? ''}'),
+            update: '${t['updateTime'] ?? t['period'] ?? ''}'.ifEmpty(null),
+            group: '${g['groupName'] ?? ''}'.ifEmpty(null),
             preview: [for (final s in (t['song'] as List? ?? const []).cast<Map>().take(3)) '${s['title']} - ${s['singerName']}'],
           ),
         );
@@ -345,8 +348,30 @@ class QQMusicSource extends MusicSource {
 
   /// 推荐歌单：歌单广场按热度排序。
   @override
-  Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) async {
-    final d = await _one('playlist.PlayListPlazaServer', 'get_playlist_by_tag', {'id': 10000000, 'sin': 0, 'size': limit, 'order': 5, 'cur_page': 1});
+  Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) => categoryPlaylists(_recommendTag, limit: limit);
+
+  /// 歌单广场的“推荐”分类。
+  static const _recommendTag = '10000000';
+
+  @override
+  Future<List<PlaylistCategory>> playlistCategories() async {
+    final d = await _one('playlist.PlaylistAllCategoriesServer', 'get_all_categories', {'qq': ''});
+    return [
+      const PlaylistCategory(id: _recommendTag, name: '推荐'),
+      for (final g in (d['v_group'] as List? ?? const []).cast<Map>())
+        for (final c in (g['v_item'] as List? ?? const []).cast<Map>()) PlaylistCategory(id: '${c['id']}', name: '${c['name']}', group: '${g['group_name']}'),
+    ];
+  }
+
+  @override
+  Future<List<PlaylistInfo>> categoryPlaylists(String categoryId, {int offset = 0, int limit = 30}) async {
+    final d = await _one('playlist.PlayListPlazaServer', 'get_playlist_by_tag', {
+      'id': int.parse(categoryId),
+      'sin': offset,
+      'size': limit,
+      'order': 5,
+      'cur_page': offset ~/ limit + 1,
+    });
     return [
       for (final p in (d['v_playlist'] as List? ?? const []).cast<Map>())
         PlaylistInfo(

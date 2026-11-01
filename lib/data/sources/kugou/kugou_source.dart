@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -37,6 +38,8 @@ class KugouSource extends MusicSource {
     SourceFeature.search,
     SourceFeature.hotSearch,
     SourceFeature.charts,
+    SourceFeature.playlistCategories,
+    SourceFeature.newAlbums,
     SourceFeature.lyrics,
     SourceFeature.dailyRecommend,
     SourceFeature.artist,
@@ -133,16 +136,11 @@ class KugouSource extends MusicSource {
     return const Membership(platform: '酷狗音乐', title: '已登录', benefits: ['会员歌曲按账号权限播放', '未开通会员时可用洛雪音源兜底']);
   }
 
-  /// 主要榜单（酷狗榜单 ID 与名称）。
-  static const charts_ = [
-    ('6666', '酷狗飙升榜'),
-    ('23784', '网络红歌榜'),
-    ('52144', '抖音热歌榜'),
-    ('31308', '华语新歌榜'),
-    ('31310', '欧美新歌榜'),
-    ('33160', '电音热歌榜'),
-    ('21335', '繁星音乐榜'),
-  ];
+  /// 酷狗榜单的分类（rank/list 返回的 classify）。
+  static const _rankGroups = {1: '酷狗榜', 2: '地区榜', 3: '特色榜', 4: '全球榜', 5: '曲风榜'};
+
+  /// 榜单 ID → 名称，打开榜单详情时显示（来自 [charts]）。
+  final _rankNames = <String, String>{};
 
   Future<Map<String, dynamic>> _get(String url) async {
     final res = await _dio.get<String>(url, options: Options(headers: {'User-Agent': 'Mozilla/5.0 (Linux; Android 14) YunYin'}));
@@ -272,22 +270,32 @@ class KugouSource extends MusicSource {
 
   // ── 排行榜与首页 ──────────────────────────────────────
 
-  Future<List<Song>> _rank(String rankId, {int size = 100}) async {
-    final j = await _get('$_api/rank/song?rankid=$rankId&page=1&pagesize=$size&area_code=1&plat=2&version=9108');
-    final info = ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map<String, dynamic>>();
-    return [for (final x in info) _song(x)];
+  /// 榜单歌曲。酷狗每页最多 100 首，TOP500 等长榜单并行读取其余各页。
+  Future<List<Song>> _rank(String rankId, {int size = 100, int max = 500}) async {
+    Future<Map<String, dynamic>> page(int n) => _get('$_api/rank/song?rankid=$rankId&page=$n&pagesize=$size&area_code=1&plat=2&version=9108');
+    List<Song> songs(Map<String, dynamic> j) => [for (final x in ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map<String, dynamic>>()) _song(x)];
+    final first = await page(1);
+    final out = songs(first);
+    final total = math.min(max, ((first['data'] as Map?)?['total'] as num?)?.toInt() ?? 0);
+    if (size < 100 || out.length >= total) return out;
+    final rest = await Future.wait([for (var n = 2; (n - 1) * size < total; n++) page(n).then(songs).catchError((Object _) => <Song>[])]);
+    final seen = {for (final s in out) s.id};
+    for (final list in rest) {
+      out.addAll(list.where((s) => seen.add(s.id)));
+    }
+    return out;
   }
 
   @override
   Future<PlaylistInfo> playlist(String id) async {
     if (id.startsWith('special:')) return _specialDetail(id.substring(8));
     final rankId = id.startsWith('rank:') ? id.substring(5) : id;
-    final name = charts_.where((c) => c.$1 == rankId).firstOrNull?.$2 ?? '酷狗榜单';
+    if (!_rankNames.containsKey(rankId)) await charts().catchError((Object _) => <ChartInfo>[]);
     final songs = await _rank(rankId);
     return PlaylistInfo(
       id: 'rank:$rankId',
       sourceId: sourceId,
-      name: name,
+      name: _rankNames[rankId] ?? '酷狗榜单',
       cover: songs.firstOrNull?.coverUrl,
       creator: '酷狗音乐',
       trackCount: songs.length,
@@ -301,24 +309,53 @@ class KugouSource extends MusicSource {
 
   @override
   Future<List<ChartInfo>> charts() async {
-    final previews = await Future.wait([for (final c in charts_) _rank(c.$1, size: 3).catchError((Object _) => <Song>[])]);
+    final j = await _get('$_api/rank/list?version=9108&plat=0&showtype=2&parentid=0&apiver=6&area_code=1&withsong=0');
+    final info = ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map>();
+    final out = <ChartInfo>[];
+    for (final classify in _rankGroups.keys) {
+      for (final r in info.where((r) => r['classify'] == classify)) {
+        final id = '${r['rankid']}';
+        _rankNames[id] = '${r['rankname']}';
+        out.add(
+          ChartInfo(
+            id: 'rank:$id',
+            name: '${r['rankname']}',
+            cover: _cover(r['imgurl'] as String?),
+            update: '${r['update_frequency'] ?? ''}'.trim().ifEmpty(null),
+            group: _rankGroups[classify],
+            preview: ['${r['intro'] ?? ''}'.trim()].where((t) => t.isNotEmpty).toList(),
+          ),
+        );
+      }
+    }
+    return out;
+  }
+
+  @override
+  Future<List<PlaylistCategory>> playlistCategories() async {
+    final j = await _get('$_api/category/list?pid=0&apiver=2&plat=0');
     return [
-      for (var i = 0; i < charts_.length; i++)
-        ChartInfo(
-          id: 'rank:${charts_[i].$1}',
-          name: charts_[i].$2,
-          cover: previews[i].firstOrNull?.coverUrl,
-          preview: [for (final s in previews[i]) '${s.name} - ${s.artistText}'],
-        ),
+      const PlaylistCategory(id: '0', name: '推荐'),
+      for (final c in ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map>())
+        PlaylistCategory(id: '${c['categoryid']}', name: '${c['categoryname']}', group: '分类'),
     ];
+  }
+
+  @override
+  Future<List<PlaylistInfo>> categoryPlaylists(String categoryId, {int offset = 0, int limit = 30}) async {
+    final j = await _get('$_api/category/special?categoryid=$categoryId&page=${offset ~/ limit + 1}&pagesize=$limit&withsong=0&sort=2&plat=2');
+    return [for (final p in ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map>()) _special(p)];
+  }
+
+  @override
+  Future<List<AlbumInfo>> newAlbums({int limit = 12}) async {
+    final j = await _get('$_api/album/list?plat=0&page=1&pagesize=$limit&type=1');
+    return [for (final a in ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map>()) _album(a)];
   }
 
   /// 推荐歌单：歌单广场按热度排序。
   @override
-  Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) async {
-    final j = await _get('$_api/category/special?categoryid=0&page=1&pagesize=$limit&withsong=0&sort=2&plat=2');
-    return [for (final p in ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map>()) _special(p)];
-  }
+  Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) => categoryPlaylists('0', limit: limit);
 
   Future<PlaylistInfo> _specialDetail(String specialId) async {
     final results = await Future.wait([

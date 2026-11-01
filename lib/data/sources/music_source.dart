@@ -28,6 +28,9 @@ enum SourceFeature {
 
   /// 通过官方登录页或粘贴 Cookie 登录（酷狗）。
   cookieLogin,
+
+  /// 歌单广场：按分类浏览歌单。
+  playlistCategories,
 }
 
 class SourceUnsupported implements Exception {
@@ -80,6 +83,12 @@ abstract class MusicSource extends ChangeNotifier {
   Future<HomeFeed> homeFeed() => throw const SourceUnsupported('首页推荐');
   Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) => throw const SourceUnsupported('推荐歌单');
   Future<List<ChartInfo>> charts() => throw const SourceUnsupported('排行榜');
+
+  /// 歌单广场的分类，第一项为推荐 / 全部。
+  Future<List<PlaylistCategory>> playlistCategories() => throw const SourceUnsupported('歌单分类');
+
+  /// 某个分类下的歌单，按 [offset] 分页。
+  Future<List<PlaylistInfo>> categoryPlaylists(String categoryId, {int offset = 0, int limit = 30}) => throw const SourceUnsupported('歌单分类');
   Future<PlaylistInfo> soaringChart() => throw const SourceUnsupported('飙升榜');
   Future<List<AlbumInfo>> newAlbums({int limit = 12}) => throw const SourceUnsupported('新碟');
   Future<List<RadioInfo>> hotRadios({int limit = 12}) => throw const SourceUnsupported('电台');

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/data_cache.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/feedback.dart';
+import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
@@ -27,14 +29,24 @@ class DiscoverPage extends StatefulWidget {
 class _DiscoverPageState extends State<DiscoverPage> {
   late int _tab = widget.initialTab;
 
+  /// 手动刷新的次数：变化时各分区丢弃缓存重新加载。
+  int _refresh = 0;
+
+  void _reload(String sourceId) {
+    // 发现页各分区的缓存键都以平台 ID 开头。
+    DataCache.drop('discover:$sourceId:');
+    setState(() => _refresh++);
+  }
+
   @override
   Widget build(BuildContext context) {
     final desktop = LayoutScope.isDesktop(context);
     final sources = context.watch<SourceManager>();
     final source = sources.current;
-    // 只显示当前播放源支持的分区（例如酷狗没有电台与新碟）；_tab 仍是“推荐 / 排行榜 / 电台 / 新碟”的固定编号。
+    // 只显示当前平台支持的分区（例如 QQ 音乐与酷狗没有电台）；_tab 是“推荐 / 排行榜 / 电台 / 新碟 / 歌单”的固定编号。
     final tabs = [
       (0, '推荐'),
+      if (source.supports(SourceFeature.playlistCategories)) (4, '歌单'),
       if (source.supports(SourceFeature.charts)) (1, '排行榜'),
       if (source.supports(SourceFeature.radio)) (2, '电台'),
       if (source.supports(SourceFeature.newAlbums)) (3, '新碟'),
@@ -43,15 +55,24 @@ class _DiscoverPageState extends State<DiscoverPage> {
     return AdaptivePage(
       mobileTop: 30,
       children: [
-        PageTitle('发现', subtitle: [for (final t in tabs.skip(1)) t.$2].join(' · '), size: desktop ? 40 : 36),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: PageTitle('发现', subtitle: [for (final t in tabs.skip(1)) t.$2].join(' · '), size: desktop ? 40 : 36),
+            ),
+            CircleButton(YIcons.refresh, size: 38, iconSize: 18, color: Palette.of(context).text2, label: '刷新', onTap: () => _reload(source.id)),
+          ],
+        ),
         const SizedBox(height: 18),
         ChipBar(labels: [for (final t in tabs) t.$2], index: tabs.indexWhere((t) => t.$1 == current), onChanged: (i) => setState(() => _tab = tabs[i].$1)),
         EntranceFade(
-          key: ValueKey('${sources.generation}-$current'),
+          key: ValueKey('${sources.generation}-$current-$_refresh'),
           child: switch (current) {
             0 => const _Recommend(),
             1 => const _Charts(),
             2 => const _Radios(),
+            4 => const PlaylistPlaza(),
             _ => const _NewAlbums(),
           },
         ),
@@ -73,7 +94,7 @@ class _Recommend extends StatelessWidget {
         const SizedBox(height: 20),
         if (source.supports(SourceFeature.newAlbums))
           AsyncView<List<AlbumInfo>>(
-            cacheKey: 'newAlbums:6',
+            cacheKey: 'discover:${source.id}:newAlbums:6',
             load: () => source.newAlbums(limit: 6),
             loading: const SizedBox(height: 160),
             builder: (context, albums, _) {
@@ -86,7 +107,7 @@ class _Recommend extends StatelessWidget {
             },
           ),
         AsyncView<PlaylistInfo>(
-          cacheKey: 'soaring',
+          cacheKey: 'discover:${source.id}:soaring',
           load: source.soaringChart,
           builder: (context, chart, _) {
             final songs = (chart.tracks ?? const <Song>[]).take(desktop ? 10 : 5).toList();
@@ -113,7 +134,7 @@ class _Recommend extends StatelessWidget {
         ),
         if (desktop)
           AsyncView<List<PlaylistInfo>>(
-            cacheKey: 'recommend:12',
+            cacheKey: 'discover:${source.id}:recommend:12',
             load: () => source.recommendPlaylists(limit: 12),
             loading: const SizedBox.shrink(),
             builder: (context, list, _) => Column(
@@ -220,53 +241,257 @@ class _Charts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = Palette.of(context);
     final source = context.read<SourceManager>().current;
     return Padding(
-      padding: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.only(top: 6),
       child: AsyncView<List<ChartInfo>>(
-        cacheKey: 'charts',
+        cacheKey: 'discover:${source.id}:charts',
         load: source.charts,
-        builder: (context, charts, _) => CardList(
-          indent: 78,
-          children: [
-            for (final c in charts)
-              Pressable(
-                onTap: () => go(context, PlaylistRoute(c.id, sourceId: source.id)),
-                scale: 1,
-                hoverColor: p.separator.withValues(alpha: 0.06),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  child: Row(
-                    children: [
-                      Cover(c.cover, size: 52, radius: 12),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              c.name,
-                              style: ts(15, weight: w600, color: p.text),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              c.preview.isNotEmpty ? c.preview.take(2).join('  ') : (c.update ?? ''),
-                              style: ts(13, color: p.text2),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (c.update != null) Text(c.update!, style: ts(12, color: p.text2)),
-                    ],
-                  ),
+        builder: (context, charts, _) {
+          // 按平台的榜单分组排列（巅峰榜、地区榜、全球榜……），保持平台给出的顺序。
+          final groups = <String, List<ChartInfo>>{};
+          for (final c in charts) {
+            groups.putIfAbsent(c.group ?? '榜单', () => []).add(c);
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final g in groups.entries) ...[
+                SectionHeader(g.key, top: 20, action: '${g.value.length} 个'),
+                CardList(
+                  indent: 78,
+                  children: [for (final c in g.value) _ChartRow(chart: c, sourceId: source.id)],
                 ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ChartRow extends StatelessWidget {
+  const _ChartRow({required this.chart, required this.sourceId});
+
+  final ChartInfo chart;
+  final String sourceId;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final c = chart;
+    return Pressable(
+      onTap: () => go(context, PlaylistRoute(c.id, sourceId: sourceId)),
+      scale: 1,
+      hoverColor: p.separator.withValues(alpha: 0.06),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Cover(c.cover, size: 52, radius: 12),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    c.name,
+                    style: ts(15, weight: w600, color: p.text),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    c.preview.isNotEmpty ? c.preview.take(2).join('  ') : (c.update ?? ''),
+                    style: ts(13, color: p.text2),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
+            ),
+            if (c.update != null && c.preview.isNotEmpty) ...[const SizedBox(width: 8), Text(c.update!, style: ts(12, color: p.text2))],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 歌单广场：平台的歌单分类与该分类下的歌单，分页加载。
+class PlaylistPlaza extends StatefulWidget {
+  const PlaylistPlaza({super.key});
+
+  @override
+  State<PlaylistPlaza> createState() => _PlaylistPlazaState();
+}
+
+class _PlaylistPlazaState extends State<PlaylistPlaza> {
+  static const _page = 30;
+
+  PlaylistCategory? _cat;
+  bool _expanded = false;
+  List<PlaylistInfo> _items = [];
+  bool _loading = false;
+  bool _done = false;
+  Object? _error;
+  int _request = 0;
+
+  MusicSource get _source => context.read<SourceManager>().current;
+  String _key(PlaylistCategory c) => 'discover:${_source.id}:plaza:${c.id}';
+
+  void _select(PlaylistCategory c) {
+    if (_cat?.id == c.id) return;
+    final cached = DataCache.lookup(_key(c))?.$1;
+    setState(() {
+      _cat = c;
+      _expanded = false;
+      _items = cached is List<PlaylistInfo> ? cached : [];
+      _done = false;
+      _error = null;
+    });
+    if (_items.isEmpty) _more();
+  }
+
+  Future<void> _more() async {
+    final c = _cat;
+    if (c == null || _loading || _done) return;
+    final request = ++_request;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await _source.categoryPlaylists(c.id, offset: _items.length, limit: _page);
+      if (!mounted || request != _request || _cat?.id != c.id) return;
+      final seen = {for (final p in _items) p.id};
+      setState(() {
+        _items = [..._items, ...list.where((p) => seen.add(p.id))];
+        _done = list.length < _page ~/ 2;
+        _loading = false;
+      });
+      DataCache.put(_key(c), _items);
+    } catch (e) {
+      if (!mounted || request != _request) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final source = _source;
+    return AsyncView<List<PlaylistCategory>>(
+      cacheKey: 'discover:${source.id}:categories',
+      maxAge: const Duration(hours: 6),
+      load: source.playlistCategories,
+      builder: (context, cats, _) {
+        if (cats.isEmpty) return const SizedBox.shrink();
+        if (_cat == null || !cats.any((c) => c.id == _cat!.id)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _cat == null) _select(cats.first);
+          });
+        }
+        final current = _cat ?? cats.first;
+        // 常用分类：推荐 / 全部，加上每个分组的前几个。
+        final quick = <PlaylistCategory>[cats.first];
+        final groups = <String, List<PlaylistCategory>>{};
+        for (final c in cats.skip(1)) {
+          groups.putIfAbsent(c.group ?? '分类', () => []).add(c);
+        }
+        for (final g in groups.values) {
+          quick.addAll(g.take(groups.length > 2 ? 2 : 12));
+        }
+        if (!quick.any((c) => c.id == current.id)) quick.insert(1, current);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: ChipBar(
+                    labels: [for (final c in quick) c.name],
+                    index: quick.indexWhere((c) => c.id == current.id),
+                    onChanged: (i) => _select(quick[i]),
+                    scroll: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (cats.length > quick.length)
+                  Pressable(
+                    onTap: () => setState(() => _expanded = !_expanded),
+                    semanticLabel: '全部分类',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '全部分类',
+                          style: ts(14, weight: w600, color: p.accentText),
+                        ),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 220),
+                          child: YIcon(YIcons.chevronDown, size: 16, color: p.accentText),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: !_expanded
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: YCard(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final g in groups.entries) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12, bottom: 8),
+                                  child: Text(
+                                    g.key,
+                                    style: ts(13, weight: w600, color: p.text2),
+                                  ),
+                                ),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [for (final c in g.value) YChip(c.name, height: 32, selected: c.id == current.id, onTap: () => _select(c))],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 18),
+            if (_items.isNotEmpty) PlaylistGrid(items: _items),
+            if (_items.isEmpty && _loading) const SkeletonList(),
+            if (_error != null)
+              StateView.network(onRetry: _more, message: errorText(_error))
+            else if (_items.isNotEmpty && !_done)
+              Padding(
+                padding: const EdgeInsets.only(top: 22),
+                child: Center(
+                  child: SecondaryButton(label: _loading ? '加载中…' : '加载更多', height: 44, onTap: _loading ? null : _more),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -281,7 +506,7 @@ class _Radios extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: AsyncView<List<RadioInfo>>(
-        cacheKey: 'hotRadios',
+        cacheKey: 'discover:${source.id}:hotRadios',
         load: source.hotRadios,
         builder: (context, radios, _) => CardList(
           indent: 78,
@@ -342,7 +567,7 @@ class _NewAlbums extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: AsyncView<List<AlbumInfo>>(
-        cacheKey: 'newAlbums:24',
+        cacheKey: 'discover:${source.id}:newAlbums:24',
         load: () => source.newAlbums(limit: 24),
         builder: (context, albums, _) => AlbumGrid(items: albums),
       ),

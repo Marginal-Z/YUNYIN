@@ -244,13 +244,27 @@ class AlbumInfo {
 }
 
 class ChartInfo {
-  const ChartInfo({required this.id, required this.name, this.cover, this.update, this.preview = const []});
+  const ChartInfo({required this.id, required this.name, this.cover, this.update, this.preview = const [], this.group});
 
   final String id;
   final String name;
   final String? cover;
   final String? update;
   final List<String> preview;
+
+  /// 平台上的榜单分组，例如“巅峰榜”“地区榜”“全球榜”。
+  final String? group;
+}
+
+/// 歌单广场的分类（标签）。[id] 为请求该分类歌单时使用的平台标识。
+class PlaylistCategory {
+  const PlaylistCategory({required this.id, required this.name, this.group});
+
+  final String id;
+  final String name;
+
+  /// 分组，例如“语种”“风格”“场景”；推荐 / 全部分类没有分组。
+  final String? group;
 }
 
 class RadioInfo {

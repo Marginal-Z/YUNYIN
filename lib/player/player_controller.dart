@@ -176,7 +176,8 @@ class PlayerController extends ChangeNotifier {
   Future<void> _configureOutput(Player p) async {
     if (!await setMpvProperty(p, 'volume-max', '200')) return;
     await setMpvProperty(p, 'replaygain', settings.normalize ? 'track' : 'no');
-    await setMpvProperty(p, 'replaygain-clip', 'no');
+    // 按标签提升音量时自动降低增益，避免削波破音。
+    await setMpvProperty(p, 'replaygain-clip', 'yes');
     if (_exclusiveSupported) await setMpvProperty(p, 'audio-exclusive', settings.exclusiveAudio ? 'yes' : 'no');
     _exclusive = settings.exclusiveAudio;
     _normalize = settings.normalize;
@@ -272,12 +273,24 @@ class PlayerController extends ChangeNotifier {
   /// 桌面端使用播放条上的音量。
   static bool get _systemVolumeOnly => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
+  /// 峰值余量（-1.5 dB）：响度很高的母带解码后真峰值会超过满刻度（实测热门歌曲约 +0.3 dBTP），
+  /// 手机上以 16 位交给系统、或者重采样到 48kHz 时被削波，听起来就是破音。
+  /// QQ 音乐、酷狗与洛雪音源不提供响度信息，网易云关闭音量均衡时也不衰减，所以至少保留这一余量。
+  static const peakHeadroom = 0.8414;
+
+  /// 应用到播放器的音量系数（1 为原始电平）：音量均衡的衰减与峰值余量取较小者。
+  @visibleForTesting
+  static double levelFactor({required double gain, required bool normalize, required double strength}) {
+    final norm = normalize ? math.pow(gain, strength).toDouble() : 1.0;
+    return math.min(norm, peakHeadroom);
+  }
+
   double get _effectiveVolume {
     final base = _systemVolumeOnly ? 1.0 : settings.volume;
     final boost = math.pow(10, settings.volumeBoost / 20).toDouble();
     // 音量均衡强度：按比例应用响度增益（强度 0.5 时衰减量减半）。
-    final norm = settings.normalize ? math.pow(_gain, settings.normalizeStrength).toDouble() : 1.0;
-    return (base * _fade * norm * boost * _eqHeadroom * 100).clamp(0, 200).toDouble();
+    final level = levelFactor(gain: _gain, normalize: settings.normalize, strength: settings.normalizeStrength);
+    return (base * _fade * level * boost * _eqHeadroom * 100).clamp(0, 200).toDouble();
   }
 
   // ── 均衡器 ──────────────────────────────────────────

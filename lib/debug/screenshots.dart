@@ -325,6 +325,13 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   home();
   nav.push(ProfileRoute());
   await shot('mobile-profile', settle: 2000);
+  // 歌单广场与按分组排列的排行榜。
+  home();
+  nav.push(DiscoverRoute(tab: 4));
+  await shot('mobile-plaza', settle: 4000);
+  home();
+  nav.push(DiscoverRoute(tab: 1));
+  await shot('mobile-charts', settle: 4000);
   final sources = ctx().read<SourceManager>();
   // QQ 音乐与酷狗模式：首页、发现、搜索、歌手、专辑、评论与本机喜欢。
   for (final (id, singer, album) in const [('qq', '0025NhlN2yWrP4', '000MkMni19ClKG'), ('kugou', '3520', '960399')]) {
@@ -337,6 +344,12 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
     await shot('mobile-home-$id', settle: 4000);
     nav.switchTab(1);
     await shot('mobile-discover-$id', settle: 3500);
+    home();
+    nav.push(DiscoverRoute(tab: 4));
+    await shot('mobile-plaza-$id', settle: 4000);
+    home();
+    nav.push(DiscoverRoute(tab: 1));
+    await shot('mobile-charts-$id', settle: 4000);
     home();
     nav.push(SearchResultRoute('周杰伦'));
     await shot('mobile-search-$id', settle: 4000);

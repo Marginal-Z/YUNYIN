@@ -510,6 +510,29 @@ class NeteaseSource extends MusicSource {
 
   @override
   Future<List<ChartInfo>> charts() async {
+    // 按网易云的分组（官方榜、精选榜、曲风榜、全球榜、语种榜、特色榜）列出全部榜单；
+    // “榜单推荐”与其他分组重复，不单独列出；id 为 0 的条目（畅销榜等）不是歌单，无法打开。
+    try {
+      final j = await _weapi('/toplist/detail/v2');
+      final seen = <String>{};
+      final out = <ChartInfo>[
+        for (final g in (j['data'] as List? ?? const []).cast<Map>())
+          if (g['categoryCode'] != 'TOPPING')
+            for (final t in (g['list'] as List? ?? const []).cast<Map>())
+              if ('${t['id']}' != '0' && seen.add('${t['id']}'))
+                ChartInfo(
+                  id: '${t['id']}',
+                  name: '${t['name']}',
+                  cover: _img(t['coverUrl'] ?? t['firstCoverUrl']),
+                  update: t['updateFrequency'] as String?,
+                  group: '${g['name']}',
+                  preview: [for (final x in (t['tracks'] as List? ?? const [])) '${x['first']} - ${x['second']}'],
+                ),
+      ];
+      if (out.isNotEmpty) return out;
+    } catch (e) {
+      debugPrint('netease toplist v2: $e');
+    }
     final j = await _weapi('/toplist');
     return [
       for (final t in (j['list'] as List? ?? const []))
@@ -518,9 +541,27 @@ class NeteaseSource extends MusicSource {
           name: '${t['name']}',
           cover: _img(t['coverImgUrl']),
           update: t['updateFrequency'] as String?,
+          group: t['ToplistType'] != null ? '官方榜' : '更多榜单',
           preview: [for (final x in (t['tracks'] as List? ?? const [])) '${x['first']} - ${x['second']}'],
         ),
     ];
+  }
+
+  @override
+  Future<List<PlaylistCategory>> playlistCategories() async {
+    final j = await _weapi('/playlist/catalogue');
+    final groups = (j['categories'] as Map?)?.map((k, v) => MapEntry('$k', '$v')) ?? const {};
+    return [
+      const PlaylistCategory(id: '全部', name: '全部'),
+      for (final c in (j['sub'] as List? ?? const []).cast<Map>())
+        PlaylistCategory(id: '${c['name']}', name: '${c['name']}', group: groups['${c['category']}']),
+    ];
+  }
+
+  @override
+  Future<List<PlaylistInfo>> categoryPlaylists(String categoryId, {int offset = 0, int limit = 30}) async {
+    final j = await _weapi('/playlist/list', {'cat': categoryId, 'order': 'hot', 'limit': limit, 'offset': offset, 'total': true});
+    return [for (final p in (j['playlists'] as List? ?? const [])) _playlist(Map<String, dynamic>.from(p as Map))];
   }
 
   @override

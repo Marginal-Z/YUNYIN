@@ -29,6 +29,9 @@ abstract final class DataCache {
   /// 登录、退出或切换播放源后清空，避免显示别的账号的数据。
   static void clear() => _entries.clear();
 
+  /// 删除以 [prefix] 开头的缓存（手动刷新时使用）。
+  static void drop(String prefix) => _entries.removeWhere((k, _) => k.startsWith(prefix));
+
   static Future<File> _homeFile() async => File('${(await getApplicationSupportDirectory()).path}/cache/home.json');
 
   /// 读取磁盘上的首页数据放入缓存（标记为过期，显示后立即刷新）。

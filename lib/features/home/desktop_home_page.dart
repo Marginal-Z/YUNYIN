@@ -44,10 +44,11 @@ class DesktopHomePage extends StatelessWidget {
         loading: const SizedBox.expand(),
         builder: (context, feed, _) => Stack(
           children: [
-            // 照片墙铺满整个窗口，侧边栏与播放条的玻璃折射其后的封面。
+            // 照片墙铺满整个窗口（侧边栏隐藏），顶栏与播放条的玻璃折射其后的封面。
             Positioned.fill(child: PhotoWall(feed: feed, tile: 156)),
             Positioned(
-              left: DesktopPage.left,
+              // 照片墙首页隐藏侧边栏，问候卡片靠左。
+              left: 28,
               top: 74,
               child: PhotoWallHeader(title: greeting(), subtitle: todayText(), feed: feed),
             ),
