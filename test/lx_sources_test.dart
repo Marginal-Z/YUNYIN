@@ -159,6 +159,26 @@ void main() {
       expect((await res.fold<List<int>>([], (a, b) => a..addAll(b))).length, audio.length);
       client.close();
 
+      // 可以浏览的曲库由启用的音源声明的平台决定；切换到 QQ 音乐曲库后，歌曲按 tx 平台向音源取地址。
+      expect(lx.availableCatalogs, ['kw', 'tx', 'wy']);
+      expect(library.catalog, 'kw');
+      await lx.setCatalog('tx');
+      expect(library.catalog, 'tx');
+      expect(library.description, contains('QQ 音乐'));
+      final txSong = Song(id: 'tx/0039MnYb0qxYhV:M500:97773', sourceId: LxLibrarySource.sourceId, name: '晴天', duration: const Duration(minutes: 4));
+      final tx = await library.stream(txSong, AudioQuality.exhigh);
+      expect(tx.quality, AudioQuality.exhigh);
+      expect(forms.last, containsPair('source', 'tx'));
+      expect(forms.last, containsPair('id', '0039MnYb0qxYhV'));
+      await lx.setCatalog('kw');
+
+      // 可用性检测：失效的音源标为不可用，正常的音源取到能访问的地址。
+      await lx.check(song, 'kw');
+      expect(lx.health[broken.id]?.ok, isFalse);
+      expect(lx.health[broken.id]?.message, contains('接口已失效'));
+      expect(lx.health[working.id]?.ok, isTrue);
+      expect(lx.health[working.id]?.latency, isNotNull);
+
       // QQ 音乐只声明到 320k：要求无损时降到它支持的最高音质。
       final qq = Song(
         id: '0039MnYb0qxYhV:M500:97773',

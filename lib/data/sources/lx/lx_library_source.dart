@@ -5,20 +5,93 @@ import 'package:flutter/foundation.dart';
 
 import '../../lx/lx_sources.dart';
 import '../../models.dart';
+import '../kugou/kugou_source.dart';
 import '../music_source.dart';
-import '../netease/netease_source.dart' show parseLrc;
+import '../netease/netease_source.dart';
+import '../qq/qq_source.dart';
 
 /// 洛雪曲库：独立于网易云、QQ 音乐、酷狗的第四个平台模式。
 ///
-/// 与洛雪音乐相同，曲库（搜索、排行榜、歌词）来自酷我音乐的公开接口，播放地址只通过用户导入的
-/// 洛雪音源脚本获取（脚本中的酷我 kw 平台）。没有导入或启用音源时可以浏览，但无法播放。
+/// 与洛雪音乐相同，曲库（搜索、排行榜、歌词）来自所选平台的公开接口，播放地址只通过用户导入的
+/// 洛雪音源脚本获取。可以浏览的曲库（酷我 kw、酷狗 kg、QQ 音乐 tx、网易云 wy）由启用的音源声明
+/// 支持的平台决定（见 [LxSources.catalog]）。没有导入或启用音源时可以浏览酷我曲库，但无法播放。
+///
+/// 酷狗、QQ 音乐、网易云的曲库使用单独的、不登录的实例，与这三个平台模式的账号互不影响。
+/// 歌曲 id 为“平台代号/平台歌曲 id”（酷我歌曲沿用早先的纯数字 id）。
 class LxLibrarySource extends MusicSource {
-  LxLibrarySource(this.lx, {Dio? dio}) : _dio = dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15)));
+  LxLibrarySource(this.lx, {Dio? dio, Map<String, MusicSource>? catalogs})
+    : _dio = dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15))),
+      _catalogs = catalogs ?? {'kg': KugouSource(), 'tx': QQMusicSource(), 'wy': NeteaseSource()} {
+    _catalog = lx.catalog;
+    lx.addListener(_onLx);
+  }
 
   static const sourceId = 'lx';
 
+  /// 平台代号对应的云音播放源 id。
+  static const _sourceIds = {'kg': 'kugou', 'tx': 'qq', 'wy': 'netease'};
+
   final LxSources lx;
   final Dio _dio;
+  final Map<String, MusicSource> _catalogs;
+  late String _catalog;
+
+  /// 当前浏览的曲库（平台代号）。
+  String get catalog => _catalog;
+
+  void _onLx() {
+    if (lx.catalog == _catalog) return;
+    _catalog = lx.catalog;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    lx.removeListener(_onLx);
+    super.dispose();
+  }
+
+  /// 当前曲库不是酷我时，负责浏览的平台实例。
+  MusicSource? get _delegate => _catalogs[_catalog];
+
+  Song _wrap(Song s, String key) => Song(
+    id: '$key/${s.id}',
+    sourceId: sourceId,
+    name: s.name,
+    artists: s.artists,
+    album: s.album,
+    duration: s.duration,
+    cover: s.cover,
+    playable: s.playable,
+    alias: s.alias,
+    vip: s.vip,
+  );
+
+  /// 拆出歌曲所属的平台与该平台的歌曲（酷我歌曲保持原样）。
+  (String, Song) _unwrap(Song s) {
+    final i = s.id.indexOf('/');
+    final key = i > 0 ? s.id.substring(0, i) : '';
+    final platform = _sourceIds[key];
+    if (platform == null) return ('kw', s);
+    return (
+      key,
+      Song(id: s.id.substring(i + 1), sourceId: platform, name: s.name, artists: s.artists, album: s.album, duration: s.duration, cover: s.cover, alias: s.alias, vip: s.vip),
+    );
+  }
+
+  PlaylistInfo _wrapList(PlaylistInfo p, String key) => PlaylistInfo(
+    id: '$key/${p.id}',
+    sourceId: sourceId,
+    name: p.name,
+    cover: p.cover,
+    trackCount: p.trackCount,
+    creator: p.creator,
+    description: p.description,
+    tags: p.tags,
+    playCount: p.playCount,
+    kind: p.kind,
+    tracks: p.tracks == null ? null : [for (final t in p.tracks!) _wrap(t, key)],
+  );
 
   @override
   String get id => sourceId;
@@ -27,7 +100,7 @@ class LxLibrarySource extends MusicSource {
   String get name => '洛雪曲库';
 
   @override
-  String get description => '酷我曲库，通过导入的洛雪音源播放';
+  String get description => '${LxSources.platformNames[_catalog]}曲库，通过导入的洛雪音源播放';
 
   @override
   Set<SourceFeature> get features => const {SourceFeature.search, SourceFeature.hotSearch, SourceFeature.charts, SourceFeature.dailyRecommend, SourceFeature.lyrics};
@@ -61,6 +134,12 @@ class LxLibrarySource extends MusicSource {
   /// 酷我接口中的文字会把 &、空格等写成 HTML 实体。
   static String _text(Object? v) => '${v ?? ''}'.replaceAll('&nbsp;', ' ').replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&apos;', "'").trim();
 
+  /// 检测音源可用性用的一首歌：当前曲库飙升榜的第一首（洛雪平台的歌曲）。
+  Future<(String, Song)?> sample() async {
+    final songs = (await soaringChart()).tracks ?? const <Song>[];
+    return songs.isEmpty ? null : _unwrap(songs.first);
+  }
+
   // ── 搜索 ──────────────────────────────────────────
 
   @override
@@ -69,6 +148,13 @@ class LxLibrarySource extends MusicSource {
   @override
   Future<SearchResult> search(String keyword, {SearchType type = SearchType.all, int offset = 0, int limit = 30}) async {
     if (type != SearchType.all && type != SearchType.song) return const SearchResult();
+    final key = _catalog;
+    final delegate = _delegate;
+    if (delegate != null) {
+      final r = await delegate.search(keyword, type: SearchType.song, offset: offset, limit: limit);
+      final songs = [for (final s in r.songs) _wrap(s, key)];
+      return SearchResult(songs: songs, bestSong: songs.firstOrNull, songCount: r.songCount);
+    }
     final j = await _get(
       'http://search.kuwo.cn/r.s?client=kt&all=${Uri.encodeQueryComponent(keyword)}&pn=${offset ~/ limit}&rn=$limit'
       '&uid=794762570&ver=kwplayer_ar_9.2.2.1&vipver=1&show_copyright_off=1&newver=1&ft=music&cluster=0&strategy=2012'
@@ -92,6 +178,7 @@ class LxLibrarySource extends MusicSource {
   @override
   Future<List<HotSearch>> hotSearches() async {
     try {
+      if (_delegate != null) return await _delegate!.hotSearches();
       final j = await _get('http://hotword.kuwo.cn/hotword.s?prod=kwplayer_ar_9.3.0.1&corp=kuwo&newver=2&vipver=9.3.0.1&source=kwplayer_ar_9.3.0.1_40.apk&p2p=1&notrace=0&uid=0&plat=ar&rformat=json&encoding=utf8&tabid=1');
       return [for (final t in (j['tagvalue'] as List? ?? const []).cast<Map>()) HotSearch('${t['key']}')];
     } catch (e) {
@@ -106,6 +193,14 @@ class LxLibrarySource extends MusicSource {
 
   @override
   Future<List<ChartInfo>> charts() async {
+    final key = _catalog;
+    final delegate = _delegate;
+    if (delegate != null) {
+      return [
+        for (final c in await delegate.charts())
+          ChartInfo(id: '$key/${c.id}', name: c.name, cover: c.cover, update: c.update, preview: c.preview, group: '${LxSources.platformNames[key]}${c.group == null ? '榜单' : ' · ${c.group}'}'),
+      ];
+    }
     final j = await _get('http://qukudata.kuwo.cn/q.k?op=query&cont=tree&node=2&pn=0&rn=1000&fmt=json&level=2');
     return [
       for (final c in (j['child'] as List? ?? const []).cast<Map>())
@@ -162,6 +257,9 @@ class LxLibrarySource extends MusicSource {
 
   @override
   Future<PlaylistInfo> playlist(String id) async {
+    final i = id.indexOf('/');
+    final delegate = i > 0 ? _catalogs[id.substring(0, i)] : null;
+    if (delegate != null) return _wrapList(await delegate.playlist(id.substring(i + 1)), id.substring(0, i));
     final board = id.startsWith('bang:') ? id.substring(5) : id;
     if (!_boardNames.containsKey(board)) await charts().catchError((Object _) => <ChartInfo>[]);
     final songs = await _board(board);
@@ -178,23 +276,43 @@ class LxLibrarySource extends MusicSource {
   }
 
   @override
-  Future<PlaylistInfo> soaringChart() => playlist('bang:93');
+  Future<PlaylistInfo> soaringChart() async {
+    final delegate = _delegate;
+    if (delegate != null) return _wrapList(await delegate.soaringChart(), _catalog);
+    return playlist('bang:93');
+  }
 
   @override
-  Future<HomeFeed> homeFeed() async => HomeFeed(daily: await _board('93', limit: 30), playlists: const []);
+  Future<HomeFeed> homeFeed() async {
+    final key = _catalog;
+    final delegate = _delegate;
+    if (delegate == null) return HomeFeed(daily: await _board('93', limit: 30), playlists: const []);
+    final results = await Future.wait([
+      delegate.soaringChart(),
+      delegate.recommendPlaylists(limit: 12).catchError((Object _) => <PlaylistInfo>[]),
+    ]);
+    final chart = results[0] as PlaylistInfo;
+    return HomeFeed(
+      daily: [for (final s in (chart.tracks ?? const <Song>[]).take(30)) _wrap(s, key)],
+      playlists: [for (final p in results[1] as List<PlaylistInfo>) _wrapList(p, key)],
+    );
+  }
 
   // ── 播放与歌词 ──────────────────────────────────────
 
   @override
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
     if (lx.enabled.isEmpty) throw Exception('洛雪曲库通过洛雪音源播放：请先在“设置 → 洛雪音源”中导入并启用音源');
-    final info = await lx.resolve(song, quality);
-    if (info?.url == null) throw Exception('已启用的洛雪音源都不支持酷我（kw）平台');
+    final (key, inner) = _unwrap(song);
+    final info = await lx.resolve(inner, quality, platform: key);
+    if (info?.url == null) throw Exception('已启用的洛雪音源都不支持${LxSources.platformNames[key]}（$key）平台');
     return info!;
   }
 
   @override
   Future<Lyrics> lyrics(Song song) async {
+    final (key, inner) = _unwrap(song);
+    if (key != 'kw') return _catalogs[key]!.lyrics(inner);
     try {
       final j = await _get('http://m.kuwo.cn/newh5/singles/songinfoandlrc?musicId=${song.id}');
       final lines = ((j['data'] as Map?)?['lrclist'] as List? ?? const []).cast<Map>();

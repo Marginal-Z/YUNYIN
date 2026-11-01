@@ -218,7 +218,7 @@ class _MembershipCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              source.supports(SourceFeature.login) ? '会员账号可播放会员歌曲与更高音质。' : '${source.name}不需要账号：曲库来自酷我，播放使用“设置 → 洛雪音源”中启用的音源。',
+              source.supports(SourceFeature.login) ? '会员账号可播放会员歌曲与更高音质。' : '${source.name}不需要账号：${source.description}。曲库与音源在“设置 → 洛雪音源”中管理。',
               style: ts(13, height: 1.5, color: const Color(0xD9FFFFFF)),
             ),
           ],

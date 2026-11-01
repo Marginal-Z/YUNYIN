@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,10 +11,12 @@ import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/lx/lx_sources.dart';
+import '../../data/sources/lx/lx_library_source.dart';
+import '../../data/sources/source_manager.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
 
-/// 洛雪音源：导入自定义音源脚本（链接或文件），选择启用的音源。
+/// 洛雪音源：导入自定义音源脚本（链接或文件），选择启用的音源与洛雪曲库浏览的平台，实时检测音源是否可用。
 class LxSourcesPage extends StatefulWidget {
   const LxSourcesPage({super.key});
 
@@ -23,11 +27,41 @@ class LxSourcesPage extends StatefulWidget {
 class _LxSourcesPageState extends State<LxSourcesPage> {
   final _url = TextEditingController();
   bool _busy = false;
+  bool _checking = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // 打开页面时检测一次，停留期间每两分钟重新检测。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+    _timer = Timer.periodic(const Duration(minutes: 2), (_) => _check());
+  }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _url.dispose();
     super.dispose();
+  }
+
+  /// 用当前曲库飙升榜的第一首歌检测启用的音源能否取到可以访问的地址。
+  Future<void> _check({bool manual = false}) async {
+    if (_checking || !mounted) return;
+    final lx = context.read<LxSources>();
+    if (lx.enabled.isEmpty) return;
+    final library = context.read<SourceManager>().sources.whereType<LxLibrarySource>().firstOrNull;
+    if (library == null) return;
+    setState(() => _checking = true);
+    try {
+      final sample = await library.sample();
+      if (sample == null) throw Exception('没有取到用于检测的歌曲');
+      await lx.check(sample.$2, sample.$1);
+    } catch (e) {
+      if (mounted && manual) Toast.show(context, '检测失败：${errorText(e)}', icon: YIcons.info);
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
   }
 
   Future<void> _run(Future<LxScript> Function() job) async {
@@ -36,6 +70,7 @@ class _LxSourcesPageState extends State<LxSourcesPage> {
       final s = await job();
       if (mounted) Toast.show(context, '已导入并启用：${s.name}');
       _url.clear();
+      unawaited(_check());
     } catch (e) {
       if (mounted) Toast.show(context, '导入失败：${errorText(e)}', icon: YIcons.info);
     } finally {
@@ -75,11 +110,32 @@ class _LxSourcesPageState extends State<LxSourcesPage> {
         PageTitle('洛雪音源', subtitle: '导入洛雪音乐格式的自定义音源', size: desktop ? 40 : 36),
         const SizedBox(height: 10),
         Text(
-          '洛雪曲库是独立的平台模式（在个人中心切换）：曲库来自酷我，播放时按顺序用这里启用的音源获取地址（需要支持酷我 kw，可同时启用多个）。'
+          '洛雪曲库是独立的平台模式（在个人中心切换）：可以浏览启用的音源所支持平台的曲库，播放时按顺序用这里启用的音源获取地址（可同时启用多个）。'
           '网易云、QQ 音乐、酷狗只播放各自官方接口的歌曲，不使用洛雪音源。音源脚本由你自行导入，请只使用可信来源的脚本。',
           style: ts(13, height: 1.55, color: p.text2),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
+        Text('洛雪曲库', style: ts(15, weight: w700, color: p.text)),
+        const SizedBox(height: 8),
+        if (lx.availableCatalogs.isEmpty)
+          Text('导入并启用音源后，可以在这里选择浏览哪个平台的曲库（由音源支持的平台决定）。目前浏览酷我曲库。', style: ts(13, height: 1.5, color: p.text2))
+        else ...[
+          ChipBar(
+            labels: [for (final k in lx.availableCatalogs) LxSources.platformNames[k]!],
+            index: lx.availableCatalogs.indexOf(lx.catalog).clamp(0, lx.availableCatalogs.length - 1),
+            scroll: true,
+            onChanged: (i) async {
+              await lx.setCatalog(lx.availableCatalogs[i]);
+              unawaited(_check());
+            },
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '搜索、排行榜与歌词来自${LxSources.platformNames[lx.catalog]}的公开接口，播放只使用支持${LxSources.platformNames[lx.catalog]}（${lx.catalog}）的音源。',
+            style: ts(13, height: 1.5, color: p.text2),
+          ),
+        ],
+        const SizedBox(height: 18),
         Container(
           height: 50,
           padding: const EdgeInsets.only(left: 16, right: 6),
@@ -131,7 +187,22 @@ class _LxSourcesPageState extends State<LxSourcesPage> {
             children: [for (var i = 0; i < lx.scripts.length; i++) _ScriptRow(script: lx.scripts[i], index: i, lx: lx)],
           ),
           const SizedBox(height: 10),
-          Text('启用的音源按列表顺序依次尝试；点按“↑”调整优先级。', style: ts(13, height: 1.5, color: p.text2)),
+          Row(
+            children: [
+              Expanded(
+                child: Text('启用的音源按列表顺序依次尝试；点按“↑”调整优先级。状态每两分钟自动检测一次。', style: ts(13, height: 1.5, color: p.text2)),
+              ),
+              const SizedBox(width: 10),
+              SecondaryButton(
+                label: _checking ? '检测中…' : '检测可用性',
+                icon: YIcons.refresh,
+                iconSize: 16,
+                height: 36,
+                fontSize: 13,
+                onTap: _checking || lx.enabled.isEmpty ? null : () => _check(manual: true),
+              ),
+            ],
+          ),
         ],
       ],
     );
@@ -151,13 +222,26 @@ class _ScriptRow extends StatelessWidget {
     final platforms = lx.platformsOf(script.id);
     final error = lx.errors[script.id];
     final failure = lx.lastFailures[script.id];
+    final health = lx.health[script.id];
+    final platformText = platforms.isEmpty
+        ? (script.platforms.isEmpty ? '' : script.platforms.map((k) => LxSources.platformNames[k] ?? k).join('、'))
+        : platforms.entries.map((e) => '${LxSources.platformNames[e.key] ?? e.key}（${e.value.join('/')}）').join('、');
     final detail = error != null
         ? '启动失败：${error.replaceFirst('Exception: ', '')}'
         : failure != null
         ? '最近一次取地址失败：$failure（音源的服务器可能无法访问）'
-        : platforms.isEmpty
+        : platformText.isEmpty
         ? (script.enabled ? '第一次需要时启动' : '未启用')
-        : platforms.entries.map((e) => '${LxSources.platformNames[e.key] ?? e.key}（${e.value.join('/')}）').join('、');
+        : platformText;
+    final (statusText, statusColor) = !script.enabled
+        ? ('未启用', p.text3)
+        : health == null
+        ? ('未检测', p.text3)
+        : health.checking && health.ok == null
+        ? ('检测中…', p.text2)
+        : health.ok == true
+        ? ('可用${health.latency == null ? '' : ' · ${health.latency!.inMilliseconds} ms'}${health.checking ? '（检测中…）' : ''}', const Color(0xFF2FA84F))
+        : ('不可用${health.message == null ? '' : '：${health.message}'}${health.checking ? '（检测中…）' : ''}', p.danger);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
       child: Row(
@@ -186,6 +270,25 @@ class _ScriptRow extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: ts(12, color: error != null || failure != null ? p.danger : p.text2),
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        statusText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: ts(12, weight: w600, color: statusColor),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
