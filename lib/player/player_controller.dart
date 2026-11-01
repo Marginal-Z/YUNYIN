@@ -547,6 +547,8 @@ class PlayerController extends ChangeNotifier {
       await _player?.play();
       await _rampFade(1, 380);
     } else {
+      // 切歌时会先静音上一首；以暂停状态载入的歌曲按播放时要恢复音量，否则没有声音。
+      await _setFade(1);
       await _player?.play();
     }
   }
@@ -673,9 +675,9 @@ class PlayerController extends ChangeNotifier {
     } else if (settings.autoNext) {
       next(auto: true);
     } else {
-      // 关闭了自动切歌：停在这首歌的开头，等用户手动播放。
-      _playRequested = false;
-      seek(Duration.zero).then((_) => _player?.pause());
+      // 关闭了自动切歌：重新载入这首歌并停在开头，等用户手动播放
+      // （对已经播放结束的媒体直接跳转会一直停在缓冲状态）。
+      _load(autoplay: false);
     }
   }
 
