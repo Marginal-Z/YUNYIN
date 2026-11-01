@@ -102,6 +102,7 @@ class MainActivity : AudioServiceActivity() {
                         call.argument<Number>("accent")?.toInt(),
                         call.argument<Number>("opacity")?.toFloat() ?: 1f,
                         call.argument<Number>("statusOffset")?.toFloat() ?: 0f,
+                        call.argument<Number>("statusColor")?.toInt(),
                     )
                     result.success(null)
                 }

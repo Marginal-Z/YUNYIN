@@ -203,7 +203,7 @@ class _LyricsPageState extends State<LyricsPage> {
                                 child: SizedBox(
                                   width: 40,
                                   height: 40,
-                                  child: Center(child: YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 24, color: p.accentText)),
+                                  child: Center(child: YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 24, color: p.playerAccent ?? p.accentText)),
                                 ),
                               ),
                             ],

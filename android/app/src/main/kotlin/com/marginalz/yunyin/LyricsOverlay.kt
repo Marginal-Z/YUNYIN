@@ -36,6 +36,7 @@ object LyricsOverlay {
     private var accent = Color.parseColor("#FF5A73")
     private var opacity = 1f
     private var statusOffset = 0f
+    private var statusColor = Color.WHITE
 
     private var desktopView: LinearLayout? = null
     private var desktopLine: TextView? = null
@@ -44,7 +45,7 @@ object LyricsOverlay {
 
     fun canDraw(context: Context): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
 
-    fun configure(context: Context, desktop: Boolean, status: Boolean, lock: Boolean, accentColor: Int?, alpha: Float, offset: Float) {
+    fun configure(context: Context, desktop: Boolean, status: Boolean, lock: Boolean, accentColor: Int?, alpha: Float, offset: Float, statusTextColor: Int?) {
         desktopEnabled = desktop
         statusEnabled = status
         // 颜色、不透明度、锁定或位置变化时重建悬浮窗，使用新的样式。
@@ -53,8 +54,9 @@ object LyricsOverlay {
         opacity = alpha.coerceIn(0.3f, 1f)
         locked = lock
         if (restyle) removeDesktop(context)
-        if (offset != statusOffset) {
+        if (offset != statusOffset || (statusTextColor != null && statusTextColor != statusColor)) {
             statusOffset = offset
+            if (statusTextColor != null) statusColor = statusTextColor
             removeStatus(context)
         }
         refresh(context)
@@ -195,7 +197,7 @@ object LyricsOverlay {
         right = (right + shift).coerceIn(left + dp(context, 80f), screen)
         val view = TextView(context).apply {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            setTextColor(Color.WHITE)
+            setTextColor(statusColor)
             setShadowLayer(4f, 0f, 1f, Color.argb(180, 0, 0, 0))
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END

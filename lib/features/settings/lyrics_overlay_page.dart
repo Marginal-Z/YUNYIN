@@ -18,9 +18,6 @@ import '../shell/nav.dart';
 class LyricsOverlayPage extends StatelessWidget {
   const LyricsOverlayPage({super.key});
 
-  /// 可选的歌词颜色（0 为跟随主题色）。
-  static const _colors = [0, 0xFFFFFFFF, 0xFFFFD45E, 0xFF5FE3FF, 0xFFFF7EB3, 0xFF7CF29C, 0xFFB794FF];
-
   static bool get _android => !kIsWeb && Platform.isAndroid;
 
   @override
@@ -81,45 +78,12 @@ class LyricsOverlayPage extends StatelessWidget {
               value: desktop ? 'Ctrl+L' : null,
               trailing: YSwitch(value: s.desktopLyrics, label: '桌面歌词', onChanged: (v) => overlayFlag(context, 'desktopLyrics', v)),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 72,
-                    child: Text('颜色', style: ts(16, color: p.text)),
-                  ),
-                  Expanded(
-                    child: Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        for (final c in _colors)
-                          Pressable(
-                            onTap: () => s.setLyricsStyle(color: c),
-                            semanticLabel: c == 0 ? '跟随主题色' : '歌词颜色',
-                            child: Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: c == 0 ? s.accent.base : Color(c),
-                                border: Border.all(color: s.lyricsColor == c ? p.text : p.separator, width: s.lyricsColor == c ? 2.5 : 1),
-                              ),
-                              alignment: Alignment.center,
-                              child: c == 0
-                                  ? const Text(
-                                      '主题',
-                                      style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w700),
-                                    )
-                                  : null,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            ColorChoiceRow(
+              title: '颜色',
+              value: s.lyricsColor,
+              defaultColor: s.accent.base,
+              defaultLabel: '主题',
+              onChanged: (c) => s.setLyricsStyle(color: c),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -163,6 +127,13 @@ class LyricsOverlayPage extends StatelessWidget {
               SettingsRow(
                 title: '状态栏歌词',
                 trailing: YSwitch(value: s.statusBarLyrics, label: '状态栏歌词', onChanged: (v) => overlayFlag(context, 'statusBarLyrics', v)),
+              ),
+              ColorChoiceRow(
+                title: '颜色',
+                value: s.statusLyricsColor,
+                defaultColor: Colors.white,
+                defaultLabel: '白色',
+                onChanged: (c) => s.setLyricsStyle(statusColor: c),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -218,4 +189,190 @@ Future<void> overlayFlag(BuildContext context, String key, bool v) async {
     return;
   }
   s.setFlag(key, v);
+}
+
+/// 颜色选择：默认色 + 预设色 + 自定义（色相、饱和度、亮度滑块与十六进制）。[value] 为 0 表示默认色。
+class ColorChoiceRow extends StatelessWidget {
+  const ColorChoiceRow({super.key, required this.title, required this.value, required this.defaultColor, required this.defaultLabel, required this.onChanged});
+
+  final String title;
+  final int value;
+  final Color defaultColor;
+  final String defaultLabel;
+  final ValueChanged<int> onChanged;
+
+  static const presets = [0xFFFFFFFF, 0xFFFFD45E, 0xFF5FE3FF, 0xFFFF7EB3, 0xFF7CF29C, 0xFFB794FF, 0xFFFF8A3D];
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final custom = value != 0 && !presets.contains(value);
+    Widget dot({required Color color, required bool selected, Widget? child, required VoidCallback onTap, required String label}) => Pressable(
+      onTap: onTap,
+      semanticLabel: label,
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color,
+          border: Border.all(color: selected ? p.text : p.separator, width: selected ? 2.5 : 1),
+        ),
+        alignment: Alignment.center,
+        child: child,
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text(title, style: ts(16, color: p.text)),
+            ),
+          ),
+          Expanded(
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                dot(
+                  color: defaultColor,
+                  selected: value == 0,
+                  label: defaultLabel,
+                  onTap: () => onChanged(0),
+                  child: Text(
+                    defaultLabel.characters.first,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: defaultColor.computeLuminance() > 0.6 ? Colors.black87 : Colors.white),
+                  ),
+                ),
+                for (final c in presets) dot(color: Color(c), selected: value == c, label: '颜色', onTap: () => onChanged(c)),
+                dot(
+                  color: custom ? Color(value) : p.field,
+                  selected: custom,
+                  label: '自定义颜色',
+                  onTap: () async {
+                    final picked = await pickColor(context, initial: value == 0 ? defaultColor : Color(value));
+                    if (picked != null) onChanged(picked.toARGB32());
+                  },
+                  child: custom ? null : YIcon(YIcons.plus, size: 16, color: p.text2),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 自定义颜色：色相、饱和度与亮度滑块，也可以直接输入十六进制颜色。
+Future<Color?> pickColor(BuildContext context, {required Color initial}) {
+  var hsl = HSLColor.fromColor(initial);
+  String hexOf(Color c) => c.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+  final hex = TextEditingController(text: hexOf(initial));
+  return showDialog<Color>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) {
+        final p = Palette.of(ctx);
+        final color = hsl.toColor();
+        void update(HSLColor v) => setState(() {
+          hsl = v;
+          hex.text = hexOf(v.toColor());
+        });
+        Widget slider(String label, double value, ValueChanged<double> onChanged, Gradient gradient) => Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 52,
+                child: Text(label, style: ts(14, color: p.text2)),
+              ),
+              Expanded(
+                child: Container(
+                  height: 28,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), gradient: gradient),
+                  child: SeekBar(value: value, height: 28, track: Colors.transparent, fill: Colors.white, onSeek: onChanged),
+                ),
+              ),
+            ],
+          ),
+        );
+        return AlertDialog(
+          backgroundColor: p.bg,
+          title: Text(
+            '自定义颜色',
+            style: ts(18, weight: w700, color: p.text),
+          ),
+          content: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  height: 56,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: const Color(0xFF1E2430)),
+                  child: Text(
+                    '故事的小黄花',
+                    style: ts(22, weight: w700, color: color),
+                  ),
+                ),
+                slider(
+                  '色相',
+                  hsl.hue / 360,
+                  (v) => update(hsl.withHue((v * 360).clamp(0, 360))),
+                  LinearGradient(colors: [for (var h = 0; h <= 360; h += 60) HSLColor.fromAHSL(1, h.toDouble(), 1, 0.5).toColor()]),
+                ),
+                slider(
+                  '饱和度',
+                  hsl.saturation,
+                  (v) => update(hsl.withSaturation(v)),
+                  LinearGradient(colors: [hsl.withSaturation(0).toColor(), hsl.withSaturation(1).toColor()]),
+                ),
+                slider(
+                  '亮度',
+                  hsl.lightness,
+                  (v) => update(hsl.withLightness(v)),
+                  LinearGradient(colors: [Colors.black, hsl.withLightness(0.5).toColor(), Colors.white]),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(color: p.field, borderRadius: BorderRadius.circular(12)),
+                  child: Row(
+                    children: [
+                      Text('#', style: ts(15, color: p.text2)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: TextField(
+                          controller: hex,
+                          maxLength: 6,
+                          style: ts(15, color: p.text),
+                          decoration: const InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: ''),
+                          onChanged: (t) {
+                            final v = int.tryParse(t, radix: 16);
+                            if (t.length == 6 && v != null) setState(() => hsl = HSLColor.fromColor(Color(0xFF000000 | v)));
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(hsl.toColor()), child: const Text('确定')),
+          ],
+        );
+      },
+    ),
+  );
 }

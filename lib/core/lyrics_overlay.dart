@@ -52,7 +52,7 @@ class LyricsOverlay extends ChangeNotifier {
   void _configure() {
     final playing = _player.playing;
     final key =
-        '${_settings.desktopLyrics}|${_settings.statusBarLyrics}|${_settings.lyricsLocked}|$playing|${_settings.lyricsDisplayColor.toARGB32()}|${_settings.lyricsOpacity}|${_settings.statusLyricsOffset}';
+        '${_settings.desktopLyrics}|${_settings.statusBarLyrics}|${_settings.lyricsLocked}|$playing|${_settings.lyricsDisplayColor.toARGB32()}|${_settings.lyricsOpacity}|${_settings.statusLyricsOffset}|${_settings.statusLyricsColor}';
     if (key == _config) return;
     _config = key;
     _index = -2;
@@ -65,6 +65,7 @@ class LyricsOverlay extends ChangeNotifier {
         'accent': _settings.lyricsDisplayColor.toARGB32(),
         'opacity': _settings.lyricsOpacity,
         'statusOffset': _settings.statusLyricsOffset,
+        'statusColor': _settings.statusLyricsDisplayColor.toARGB32(),
       });
     }
     _compute();

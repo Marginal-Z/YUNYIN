@@ -105,6 +105,8 @@ class CoverColors {
     final v = HSLColor.fromColor(vibrant);
     final hue = v.hue;
     final sat = v.saturation.clamp(0.0, 0.6);
+    // 控件颜色的饱和度：近灰色封面保持低饱和（不硬加颜色），其余保证足够鲜明。
+    final control = v.saturation < 0.12 ? v.saturation : v.saturation.clamp(0.35, 0.75);
     Color hsl(double s, double l) => HSLColor.fromAHSL(1, hue, s, l).toColor();
     if (p.isDark) {
       return p.withPlayer(
@@ -117,6 +119,11 @@ class CoverColors {
         playerText2: hsl(sat * 0.6, 0.78),
         lyricDim: hsl(sat * 0.4, 0.62),
         lyricActive: hsl(sat * 0.3, 0.97),
+        // 播放控件跟随封面：深色模式用浅色调的强调色，按钮上的图标用深色。
+        primaryButton: hsl(control, 0.74),
+        primaryButtonText: hsl(sat * 0.5, 0.12),
+        trackFill: hsl(control, 0.74),
+        playerAccent: hsl(control, 0.72),
       );
     }
     return p.withPlayer(
@@ -129,6 +136,11 @@ class CoverColors {
       playerText2: hsl(sat * 0.7, 0.27),
       lyricDim: hsl(sat * 0.45, 0.36),
       lyricActive: hsl(sat * 0.4, 0.07),
+      // 播放控件跟随封面：浅色模式用较深的强调色（白色图标保持清晰）。
+      primaryButton: hsl(control, 0.3),
+      primaryButtonText: Colors.white,
+      trackFill: hsl(control, 0.32),
+      playerAccent: hsl(control, 0.4),
     );
   }
 
@@ -240,6 +252,10 @@ class _CoverThemedState extends State<CoverThemed> {
       playerText2: c(a.playerText2, b.playerText2),
       lyricDim: c(a.lyricDim, b.lyricDim),
       lyricActive: c(a.lyricActive, b.lyricActive),
+      primaryButton: c(a.primaryButton, b.primaryButton),
+      primaryButtonText: c(a.primaryButtonText, b.primaryButtonText),
+      trackFill: c(a.trackFill, b.trackFill),
+      playerAccent: b.playerAccent == null ? null : c(a.playerAccent ?? b.playerAccent!, b.playerAccent!),
     );
   }
 }

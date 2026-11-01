@@ -214,6 +214,9 @@ class AppSettings extends ChangeNotifier {
   /// 状态栏歌词水平位置（相对屏幕宽度的偏移，-0.4–0.4）。
   double statusLyricsOffset = 0;
 
+  /// 状态栏歌词颜色（ARGB）；0 表示白色。
+  int statusLyricsColor = 0;
+
   /// 自定义背景图片（应用数据目录中的副本）。
   String? backgroundImage;
 
@@ -281,6 +284,7 @@ class AppSettings extends ChangeNotifier {
     lyricsColor = _p.getInt('lyricsColor') ?? 0;
     lyricsOpacity = _p.getDouble('lyricsOpacity') ?? 1;
     statusLyricsOffset = _p.getDouble('statusLyricsOffset') ?? 0;
+    statusLyricsColor = _p.getInt('statusLyricsColor') ?? 0;
     background = BackgroundMode.values[(_p.getInt('background') ?? 0).clamp(0, BackgroundMode.values.length - 1)];
     backgroundImage = _p.getString('backgroundImage');
     backgroundBlur = _p.getBool('backgroundBlur') ?? false;
@@ -419,7 +423,11 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setLyricsStyle({int? color, double? opacity, double? statusOffset}) {
+  void setLyricsStyle({int? color, double? opacity, double? statusOffset, int? statusColor}) {
+    if (statusColor != null) {
+      statusLyricsColor = statusColor;
+      _p.setInt('statusLyricsColor', statusColor);
+    }
     if (color != null) {
       lyricsColor = color;
       _p.setInt('lyricsColor', color);
@@ -434,6 +442,9 @@ class AppSettings extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// 状态栏歌词实际使用的颜色。
+  Color get statusLyricsDisplayColor => statusLyricsColor == 0 ? const Color(0xFFFFFFFF) : Color(statusLyricsColor);
 
   /// 桌面歌词实际使用的颜色。
   Color get lyricsDisplayColor => lyricsColor == 0 ? accent.base : Color(lyricsColor);

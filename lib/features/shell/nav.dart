@@ -111,10 +111,13 @@ class SearchRoute extends AppRoute {
 }
 
 class SearchResultRoute extends AppRoute {
-  SearchResultRoute(this.keyword, {this.type = SearchType.all});
+  SearchResultRoute(this.keyword, {this.type = SearchType.all, this.sourceId});
 
   final String keyword;
   final SearchType type;
+
+  /// 搜索源（网易云 / QQ 音乐 / 酷狗）；为空时使用当前平台。
+  final String? sourceId;
 
   @override
   Chrome get chrome => Chrome.miniOnly;

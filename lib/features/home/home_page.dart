@@ -86,6 +86,22 @@ class HomePage extends StatelessWidget {
                     top: safeTop + 14,
                     child: PhotoWallHeader(title: greeting(), subtitle: todayText(), feed: feed),
                   ),
+                  // 照片墙样式没有首页头部：右上角保留个人中心入口（在那里可以切换平台与首页样式）。
+                  Positioned(
+                    right: 16,
+                    top: safeTop + 20,
+                    child: Pressable(
+                      onTap: () => go(context, ProfileRoute()),
+                      semanticLabel: '个人中心',
+                      child: Glass(
+                        radius: 26,
+                        width: 52,
+                        height: 52,
+                        alignment: Alignment.center,
+                        child: user?.avatar != null ? Cover(user!.avatar, size: 40, circle: true) : YIcon(YIcons.user, size: 22, color: p.text),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

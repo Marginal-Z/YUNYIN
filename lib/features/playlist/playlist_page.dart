@@ -211,7 +211,8 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
     final c = await CoverColors.of(widget.playlist.cover);
     if (!mounted || c == null) return;
     final hsl = HSLColor.fromColor(c.dominant.computeLuminance() > 0.02 ? c.dominant : c.vibrant);
-    setState(() => _tone = hsl.withSaturation((hsl.saturation * 0.85).clamp(0.12, 0.6)).withLightness(hsl.lightness.clamp(0.2, 0.3)).toColor());
+    // 饱和度与亮度都压低：白色文字在任何封面底色上都有足够对比度。
+    setState(() => _tone = hsl.withSaturation((hsl.saturation * 0.7).clamp(0.08, 0.42)).withLightness(hsl.lightness.clamp(0.16, 0.22)).toColor());
   }
 
   @override
@@ -366,7 +367,7 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
                           playlist.creator!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: ts(13, weight: w500, color: const Color(0xE6FFFFFF)),
+                          style: ts(14, weight: w600, color: Colors.white),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -394,7 +395,7 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
                           [if (playlist.playCount > 0) _countText(playlist.playCount), desc.isEmpty ? collectionMeta(playlist) : desc].join('   '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: ts(12, color: const Color(0xB3FFFFFF)),
+                          style: ts(13, color: const Color(0xD9FFFFFF)),
                         ),
                       ),
                       if (desc.isNotEmpty) const YIcon(YIcons.chevronRight, size: 14, color: Color(0xB3FFFFFF)),

@@ -111,7 +111,11 @@ class Palette {
     required this.tagPlain,
     required this.tagPlainText,
     required this.buttonInsetHighlight,
+    this.playerAccent,
   });
+
+  /// 播放页控件的强调色（封面取色时为封面的主色调，否则为 null，使用主题色）。
+  final Color? playerAccent;
 
   final bool isDark;
   final AccentColor accent;
@@ -193,7 +197,17 @@ class Palette {
   static Palette of(BuildContext context) => PaletteScope.of(context);
 
   /// 播放页使用封面取色时，替换与播放页相关的颜色。
-  Palette withPlayer({Color? playerBg, List<Glow>? playerGlows, Color? playerText2, Color? lyricDim, Color? lyricActive}) => Palette(
+  Palette withPlayer({
+    Color? playerBg,
+    List<Glow>? playerGlows,
+    Color? playerText2,
+    Color? lyricDim,
+    Color? lyricActive,
+    Color? primaryButton,
+    Color? primaryButtonText,
+    Color? trackFill,
+    Color? playerAccent,
+  }) => Palette(
     isDark: isDark,
     accent: accent,
     bg: bg,
@@ -224,12 +238,12 @@ class Palette {
     navActive: navActive,
     navActiveInset: navActiveInset,
     track: track,
-    trackFill: trackFill,
+    trackFill: trackFill ?? this.trackFill,
     playerText2: playerText2 ?? this.playerText2,
     lyricDim: lyricDim ?? this.lyricDim,
     lyricActive: lyricActive ?? this.lyricActive,
-    primaryButton: primaryButton,
-    primaryButtonText: primaryButtonText,
+    primaryButton: primaryButton ?? this.primaryButton,
+    primaryButtonText: primaryButtonText ?? this.primaryButtonText,
     segmentTrack: segmentTrack,
     segmentSelected: segmentSelected,
     field: field,
@@ -262,6 +276,7 @@ class Palette {
     tagPlain: tagPlain,
     tagPlainText: tagPlainText,
     buttonInsetHighlight: buttonInsetHighlight,
+    playerAccent: playerAccent ?? this.playerAccent,
   );
 
   /// 纯白背景（浅色模式默认背景）：白底上的白色卡片只靠很淡的阴影区分，几乎看不出边界；

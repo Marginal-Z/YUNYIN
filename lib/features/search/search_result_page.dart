@@ -34,6 +34,7 @@ class SearchResultPage extends StatefulWidget {
 class _SearchResultPageState extends State<SearchResultPage> {
   late final _c = TextEditingController(text: widget.route.keyword);
   late int _tab = widget.route.type.index;
+  late String _source = widget.route.sourceId ?? context.read<SourceManager>().current.id;
 
   @override
   void dispose() {
@@ -47,10 +48,11 @@ class _SearchResultPageState extends State<SearchResultPage> {
     final sources = context.watch<SourceManager>();
     final k = widget.route.keyword;
     final type = SearchType.values[_tab];
+    final source = sources.byId(_source);
     final body = AsyncView<SearchResult>(
-      key: ValueKey('$k-$_tab-${sources.generation}'),
-      cacheKey: 'search:$k:${type.name}',
-      load: () => sources.current.search(k, type: type, limit: type == SearchType.all ? 20 : 50),
+      key: ValueKey('$k-$_tab-$_source-${sources.generation}'),
+      cacheKey: 'search:$_source:$k:${type.name}',
+      load: () => source.search(k, type: type, limit: type == SearchType.all ? 20 : 50),
       builder: (context, r, _) => switch (type) {
         SearchType.all =>
           desktop
@@ -78,11 +80,24 @@ class _SearchResultPageState extends State<SearchResultPage> {
               CircleButton(YIcons.back, size: 44, iconSize: 22, label: '返回', onTap: () => context.read<AppNav>().pop()),
               const SizedBox(width: 12),
               Expanded(
-                child: SearchField(controller: _c, onSubmit: (q) => submitSearch(context, q), onClear: () => _c.clear()),
+                child: SearchField(
+                  controller: _c,
+                  onSubmit: (q) => submitSearch(context, q, sourceId: _source),
+                  onClear: () => _c.clear(),
+                ),
               ),
             ],
           ),
         SizedBox(height: desktop ? 0 : 16),
+        // 搜索源：在网易云、QQ 音乐、酷狗中任选一个平台搜索（结果按所属平台播放）。
+        _SourcePicker(
+          sources: [
+            for (final x in sources.selectable) (x.id, const {'netease': '网易云'}[x.id] ?? x.name),
+          ],
+          selected: _source,
+          onChanged: (id) => setState(() => _source = id),
+        ),
+        const SizedBox(height: 12),
         ChipBar(labels: _tabs, index: _tab, scroll: !desktop, onChanged: (i) => setState(() => _tab = i)),
         SizedBox(height: desktop ? 22 : 18),
         EntranceFade(key: ValueKey(_tab), child: body),
@@ -93,6 +108,36 @@ class _SearchResultPageState extends State<SearchResultPage> {
   Widget _empty(String k) => YCard(
     child: StateView.empty(title: '没有找到“$k”', message: '换个关键词试试吧。', icon: YIcons.search),
   );
+}
+
+/// 搜索源选择：分段按钮。
+class _SourcePicker extends StatelessWidget {
+  const _SourcePicker({required this.sources, required this.selected, required this.onChanged});
+
+  final List<(String, String)> sources;
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    return Row(
+      children: [
+        Text(
+          '搜索源',
+          style: ts(13, weight: w600, color: p.text2),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Segmented(
+            labels: [for (final s in sources) s.$2],
+            index: sources.indexWhere((s) => s.$1 == selected).clamp(0, sources.length - 1),
+            onChanged: (i) => onChanged(sources[i].$1),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _MobileAll extends StatelessWidget {

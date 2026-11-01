@@ -245,7 +245,9 @@ class _Item extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final color = Color.lerp(p.text3, p.accentText, active)!;
+    // 液态玻璃很透明：未选中的标签用更深的文字色，并加一圈与背景相反的柔和描边，滚动到任何内容上都清晰可读。
+    final color = Color.lerp(p.isDark ? const Color(0xF2FFFFFF) : const Color(0xE6202024), p.accentText, active)!;
+    final halo = [Shadow(color: p.isDark ? const Color(0x99000000) : const Color(0xCCFFFFFF), blurRadius: 4)];
     return Semantics(
       button: true,
       selected: selected,
@@ -261,7 +263,7 @@ class _Item extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               item.label,
-              style: ts(11, weight: active > 0.5 ? w600 : w500, color: color, height: 1.2),
+              style: ts(11, weight: w600, color: color, height: 1.2).copyWith(shadows: halo),
               maxLines: 1,
               overflow: TextOverflow.clip,
             ),

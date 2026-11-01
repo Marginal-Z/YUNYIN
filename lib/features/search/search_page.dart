@@ -79,15 +79,18 @@ class SearchField extends StatelessWidget {
   }
 }
 
-void submitSearch(BuildContext context, String q) {
+void submitSearch(BuildContext context, String q, {String? sourceId}) {
   final k = q.trim();
   if (k.isEmpty) return;
   context.read<AppSettings>().addSearch(k);
   final nav = context.read<AppNav>();
-  if (nav.top is SearchResultRoute) {
-    nav.replace(SearchResultRoute(k));
+  // 在结果页再次搜索时沿用已选择的搜索源。
+  final top = nav.top;
+  final source = sourceId ?? (top is SearchResultRoute ? top.sourceId : null);
+  if (top is SearchResultRoute) {
+    nav.replace(SearchResultRoute(k, sourceId: source));
   } else {
-    nav.push(SearchResultRoute(k));
+    nav.push(SearchResultRoute(k, sourceId: source));
   }
 }
 

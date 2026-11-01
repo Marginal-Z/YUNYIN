@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../data/listen_stats.dart';
 import '../../data/lx/lx_sources.dart';
 import 'lx_page.dart';
 import '../../core/settings.dart';
@@ -39,7 +40,7 @@ class SettingsPage extends StatelessWidget {
           child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
         ),
       ],
-      children: const [PageTitle('设置'), SizedBox(height: 16), SettingsEntries(), GroupLabel('账号与关于'), AccountCard(), SizedBox(height: 12), AboutEntry()],
+      children: const [PageTitle('设置'), SizedBox(height: 16), SettingsEntries(), GroupLabel('关于'), AboutEntry()],
     );
   }
 }
@@ -333,6 +334,13 @@ class SettingsEntries extends StatelessWidget {
         ),
         SettingsRow(icon: YIcons.code, tile: TileColor.teal, title: '洛雪音源', value: lxSummary(lx), onTap: () => go(context, LxSourcesRoute())),
         SettingsRow(icon: YIcons.download, tile: TileColor.blue, title: '下载与缓存', onTap: () => go(context, StorageSettingsRoute())),
+        SettingsRow(
+          icon: YIcons.equalizer,
+          tile: TileColor.teal,
+          title: '听歌统计',
+          value: context.select<ListenStats, int>((st) => st.today.inMinutes) > 0 ? '今日 ${context.select<ListenStats, int>((st) => st.today.inMinutes)} 分钟' : null,
+          onTap: () => go(context, StatsRoute()),
+        ),
       ],
     );
   }
@@ -555,9 +563,7 @@ class _DesktopSettings extends StatelessWidget {
                 children: [
                   const GroupLabel('设置', top: 14),
                   const SettingsEntries(),
-                  const GroupLabel('账号与关于'),
-                  const AccountCard(),
-                  const SizedBox(height: 12),
+                  const GroupLabel('关于'),
                   const AboutEntry(),
                 ],
               ),

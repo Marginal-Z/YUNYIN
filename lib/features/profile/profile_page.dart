@@ -8,7 +8,6 @@ import '../../core/ui/feedback.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
-import '../../data/listen_stats.dart';
 import '../../data/models.dart';
 import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
@@ -87,7 +86,6 @@ class ProfilePage extends StatelessWidget {
         CardList(
           indent: 56,
           children: [
-            SettingsRow(icon: YIcons.equalizer, tile: TileColor.teal, title: '听歌统计', value: _todayText(context), onTap: () => go(context, StatsRoute())),
             SettingsRow(icon: YIcons.sliders, tile: TileColor.graphite, title: '设置', onTap: () => go(context, SettingsRoute())),
             if (user != null)
               SettingsRow(
@@ -105,11 +103,6 @@ class ProfilePage extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  static String? _todayText(BuildContext context) {
-    final minutes = context.watch<ListenStats>().today.inMinutes;
-    return minutes > 0 ? '今日 $minutes 分钟' : null;
   }
 
   static Future<void> _switch(BuildContext context, MusicSource s) async {
