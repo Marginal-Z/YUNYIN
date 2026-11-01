@@ -410,6 +410,8 @@ class SearchResult {
   final Song? bestSong;
   final PlaylistInfo? bestPlaylist;
   final int songCount;
+
+  bool get isEmpty => songs.isEmpty && artists.isEmpty && albums.isEmpty && playlists.isEmpty && bestSong == null && bestPlaylist == null;
 }
 
 class HotSearch {

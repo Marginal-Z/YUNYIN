@@ -65,6 +65,7 @@ class PlayerController extends ChangeNotifier {
   Timer? _sleepTimer;
   DateTime? sleepAt;
   int _loadToken = 0;
+  bool _playRequested = false;
   double _fade = 1;
 
   List<Song> get queue => List.unmodifiable(_queue);
@@ -528,11 +529,13 @@ class PlayerController extends ChangeNotifier {
 
   // ── 控制 ──────────────────────────────────────────
 
-  Future<void> toggle() => playing ? pause() : play();
+  Future<void> toggle() => (_opening ? _playRequested : playing) ? pause() : play();
 
   Future<void> play() async {
     if (_disposed) return;
     if (current == null) return;
+    _playRequested = true;
+    if (_opening) return;
     if (_player?.state.playlist.medias.isEmpty ?? true) {
       await _load(autoplay: true, keepPosition: true);
       return;
@@ -540,7 +543,7 @@ class PlayerController extends ChangeNotifier {
     if (settings.crossfade) {
       final token = _loadToken;
       await _setFade(0);
-      if (_disposed || token != _loadToken) return;
+      if (_disposed || token != _loadToken || !_playRequested) return;
       await _player?.play();
       await _rampFade(1, 380);
     } else {
@@ -550,10 +553,11 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> pause() async {
     if (_disposed) return;
+    _playRequested = false;
     if (settings.crossfade && playing) {
       final token = _loadToken;
       await _rampFade(0, 320);
-      if (_disposed || token != _loadToken) return;
+      if (_disposed || token != _loadToken || _playRequested) return;
       await _player?.pause();
       await _setFade(1);
     } else {
@@ -654,7 +658,7 @@ class PlayerController extends ChangeNotifier {
   DateTime _openedAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   void _onCompleted() {
-    if (_opening) return;
+    if (_opening || !_playRequested) return;
     // 刚打开就“播放结束”且几乎没有播放：多半是地址失效或网络错误，提示一次后再切到下一首，而不是连续跳过好几首。
     if (DateTime.now().difference(_openedAt) < const Duration(seconds: 2) && position.value < const Duration(seconds: 1)) {
       final token = _loadToken;
@@ -675,6 +679,7 @@ class PlayerController extends ChangeNotifier {
     if (_disposed) return;
     final song = current;
     if (song == null) return;
+    _playRequested = autoplay;
     final token = ++_loadToken;
     _opening = true;
     final resume = keepPosition ? position.value : Duration.zero;
@@ -705,6 +710,7 @@ class PlayerController extends ChangeNotifier {
       buffering = false;
       // 新歌取不到地址时停止上一首，否则界面显示的是新歌，听到的却还是上一首。
       await _player?.stop();
+      if (_disposed || token != _loadToken) return;
       notifyListeners();
       _notices.add(
         PlayerNotice(
@@ -728,6 +734,7 @@ class PlayerController extends ChangeNotifier {
     if (info.url == null) {
       buffering = false;
       await _player?.stop();
+      if (_disposed || token != _loadToken) return;
       notifyListeners();
       _notices.add(const PlayerNotice('暂无播放版权', message: '该歌曲暂时无法播放，已为你切到下一首。', blocking: true));
       if (_queue.length > 1) {
@@ -754,16 +761,16 @@ class PlayerController extends ChangeNotifier {
       notifyListeners();
       if (resume > Duration.zero) await p.seek(resume);
       if (token != _loadToken) return;
-      if (autoplay) {
+      if (_playRequested) {
         if (settings.crossfade) {
           await _setFade(0);
-          if (token != _loadToken) return;
+          if (token != _loadToken || !_playRequested) return;
           await p.play();
-          if (token != _loadToken) return;
+          if (token != _loadToken || !_playRequested) return;
           await _rampFade(1, 420);
         } else {
           await _setFade(1);
-          if (token != _loadToken) return;
+          if (token != _loadToken || !_playRequested) return;
           await p.play();
         }
         if (token != _loadToken) return;
@@ -889,6 +896,7 @@ class PlayerController extends ChangeNotifier {
     _restoringQueue = true;
     final token = ++_loadToken;
     _opening = false;
+    _playRequested = false;
     _platform = next;
     _queue = [];
     _index = -1;

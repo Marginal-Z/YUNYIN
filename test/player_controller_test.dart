@@ -30,6 +30,7 @@ class _Streams implements PlayerStream {
 
 class _Engine implements Player {
   bool failOpen = false;
+  int playCalls = 0;
   final stops = <Completer<void>>[];
   bool delayStop = false;
   @override
@@ -56,7 +57,12 @@ class _Engine implements Player {
   @override
   Future<void> seek(Duration duration) async {}
   @override
-  Future<void> play() async {}
+  Future<void> play() async {
+    playCalls++;
+  }
+
+  @override
+  Future<void> pause() async {}
   @override
   Future<void> dispose() async {}
   @override
@@ -68,6 +74,7 @@ class _Source extends MusicSource {
   @override
   final String id;
   Object? streamError;
+  Completer<StreamInfo>? pendingStream;
   @override
   String get name => id;
   @override
@@ -77,6 +84,7 @@ class _Source extends MusicSource {
   @override
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
     if (streamError != null) throw streamError!;
+    if (pendingStream != null) return pendingStream!.future;
     return const StreamInfo(url: 'https://example.com/audio.mp3');
   }
 }
@@ -115,6 +123,36 @@ void main() {
     expect(player.loading, isFalse);
     expect(player.buffering, isFalse);
     expect((await notice).message, contains('open failed'));
+  });
+
+  test('取地址期间暂停后，迟到的地址不能自动开始播放', () async {
+    final source = sources.byId('a') as _Source;
+    source.pendingStream = Completer<StreamInfo>();
+    final loading = player.playSongs([first]);
+    await Future<void>.delayed(Duration.zero);
+    await player.pause();
+    source.pendingStream!.complete(const StreamInfo(url: 'https://example.com/audio.mp3'));
+    await loading;
+    expect(engine.playCalls, 0);
+    expect(player.loading, isFalse);
+  });
+
+  test('旧歌曲失败的停止操作结束后不再弹出过期失败提示', () async {
+    final source = sources.byId('a') as _Source;
+    source.streamError = Exception('旧歌曲失败');
+    engine.delayStop = true;
+    final notices = <PlayerNotice>[];
+    final subscription = player.notices.listen(notices.add);
+    addTearDown(subscription.cancel);
+    final oldLoading = player.playSongs([first]);
+    await Future<void>.delayed(Duration.zero);
+    source.streamError = null;
+    await player.playSongs([second]);
+    engine.stops.single.complete();
+    await oldLoading;
+    await Future<void>.delayed(Duration.zero);
+    expect(player.current, second);
+    expect(notices, isEmpty);
   });
 
   test('平台要求验证时保留官方验证入口，停止播放但不连续跳歌', () async {

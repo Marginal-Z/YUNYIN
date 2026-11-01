@@ -68,6 +68,14 @@ void main() {
 
   const song = Song(id: '1', sourceId: 'test', name: '同名歌曲');
 
+  test('官方试听地址不作为完整歌曲保存到下载库', () async {
+    source.resolve = (_) async => StreamInfo(url: 'http://127.0.0.1:${server.port}/audio.mp3', trial: true);
+    await expectLater(downloads.download(song), throwsA(predicate((error) => '$error'.contains('试听'))));
+    expect(downloads.items, isEmpty);
+    expect(downloads.progress, isEmpty);
+    expect(await Directory('${directory.path}/music').exists(), isFalse);
+  });
+
   test('解析地址期间重复下载共用同一个结果', () async {
     final resolving = Completer<StreamInfo>();
     source.resolve = (_) => resolving.future;

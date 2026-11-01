@@ -34,6 +34,7 @@ class SearchResultPage extends StatefulWidget {
 class _SearchResultPageState extends State<SearchResultPage> {
   late final _c = TextEditingController(text: widget.route.keyword);
   late int _tab = widget.route.type.index;
+
   /// 只在当前平台模式中搜索（各平台彼此独立）。
   String get _source => context.read<SourceManager>().current.id;
 
@@ -59,8 +60,8 @@ class _SearchResultPageState extends State<SearchResultPage> {
       builder: (context, r, _) => switch (type) {
         SearchType.all =>
           desktop
-              ? _DesktopAll(result: r, keyword: k, onMore: () => setState(() => _tab = 1))
-              : _MobileAll(result: r, keyword: k, onMore: () => setState(() => _tab = 1)),
+              ? _DesktopAll(result: r, keyword: k, onMore: (type) => setState(() => _tab = type.index))
+              : _MobileAll(result: r, keyword: k, onMore: (type) => setState(() => _tab = type.index)),
         SearchType.song => _Songs(songs: r.songs, keyword: k),
         SearchType.artist => r.artists.isEmpty ? _empty(k) : ArtistStrip(artists: r.artists, wrap: true),
         SearchType.album => r.albums.isEmpty ? _empty(k) : AlbumGrid(items: r.albums),
@@ -83,11 +84,7 @@ class _SearchResultPageState extends State<SearchResultPage> {
               CircleButton(YIcons.back, size: 44, iconSize: 22, label: '返回', onTap: () => context.read<AppNav>().pop()),
               const SizedBox(width: 12),
               Expanded(
-                child: SearchField(
-                  controller: _c,
-                  onSubmit: (q) => submitSearch(context, q),
-                  onClear: () => _c.clear(),
-                ),
+                child: SearchField(controller: _c, onSubmit: (q) => submitSearch(context, q), onClear: () => _c.clear()),
               ),
             ],
           ),
@@ -114,14 +111,14 @@ class _MobileAll extends StatelessWidget {
 
   final SearchResult result;
   final String keyword;
-  final VoidCallback onMore;
+  final ValueChanged<SearchType> onMore;
 
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final best = result.bestSong;
+    final best = result.bestSong ?? result.songs.firstOrNull;
     final songs = result.songs.take(4).toList();
-    if (best == null && result.artists.isEmpty) {
+    if (result.isEmpty) {
       return YCard(
         child: StateView.empty(title: '没有找到“$keyword”', message: '换个关键词试试吧。', icon: YIcons.search),
       );
@@ -172,7 +169,7 @@ class _MobileAll extends StatelessWidget {
             ),
           ),
         if (songs.isNotEmpty) ...[
-          SectionHeader('歌曲', top: 24, action: '更多', onAction: onMore),
+          SectionHeader('歌曲', top: 24, action: '更多', onAction: () => onMore(SearchType.song)),
           CardList(
             indent: 70,
             children: [
@@ -186,7 +183,21 @@ class _MobileAll extends StatelessWidget {
             ],
           ),
         ],
-        if (result.artists.isNotEmpty) ...[const SectionHeader('相关歌手', top: 24), ArtistStrip(artists: result.artists.take(4).toList())],
+        if (result.artists.isNotEmpty) ...[
+          SectionHeader('相关歌手', top: 24, action: '更多', onAction: () => onMore(SearchType.artist)),
+          ArtistStrip(artists: result.artists.take(4).toList()),
+        ],
+        if (result.albums.isNotEmpty) ...[
+          SectionHeader('专辑', top: 24, action: '更多', onAction: () => onMore(SearchType.album)),
+          AlbumGrid(items: result.albums.take(4).toList()),
+        ],
+        if (result.playlists.isNotEmpty) ...[
+          SectionHeader('相关歌单', top: 24, action: '更多', onAction: () => onMore(SearchType.playlist)),
+          CardList(
+            indent: 78,
+            children: [for (final playlist in result.playlists.take(4)) PlaylistRow(playlist: playlist, subtitle: playlistSubtitle(playlist))],
+          ),
+        ],
       ],
     );
   }
@@ -225,15 +236,15 @@ class _DesktopAll extends StatelessWidget {
 
   final SearchResult result;
   final String keyword;
-  final VoidCallback onMore;
+  final ValueChanged<SearchType> onMore;
 
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final best = result.bestSong;
-    final pl = result.bestPlaylist;
+    final best = result.bestSong ?? result.songs.firstOrNull;
+    final pl = result.bestPlaylist ?? result.playlists.firstOrNull;
     final songs = result.songs.take(6).toList();
-    if (best == null && pl == null) {
+    if (result.isEmpty) {
       return YCard(
         child: StateView.empty(title: '没有找到“$keyword”', message: '换个关键词试试吧。', icon: YIcons.search),
       );
@@ -248,120 +259,126 @@ class _DesktopAll extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  heading('最佳匹配'),
-                  if (best != null)
-                    Pressable(
-                      onTap: () => playAll(context, result.songs, start: result.songs.indexOf(best), title: '搜索“$keyword”'),
-                      child: YCard(
-                        child: SizedBox(
-                          height: 150,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 22),
-                            child: Row(
-                              children: [
-                                Cover(best.coverUrl, size: 106, radius: 18, shadows: [Shadow2(0, 6, 18, CoverArt.tint(best.coverUrl).withValues(alpha: 0.3))]),
-                                const SizedBox(width: 20),
-                                Expanded(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '歌曲',
-                                        style: ts(12, weight: w600, color: p.text2),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        best.name,
-                                        style: ts(26, weight: w700, em: -0.02, height: 1.15, color: p.text),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        best.subtitle,
-                                        style: ts(14, color: p.text2),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
+        if (best != null || pl != null)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (best != null)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      heading('最佳匹配'),
+                      Pressable(
+                        onTap: () => playAll(context, result.songs, start: result.songs.indexOf(best), title: '搜索“$keyword”'),
+                        child: YCard(
+                          child: SizedBox(
+                            height: 150,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 22),
+                              child: Row(
+                                children: [
+                                  Cover(
+                                    best.coverUrl,
+                                    size: 106,
+                                    radius: 18,
+                                    shadows: [Shadow2(0, 6, 18, CoverArt.tint(best.coverUrl).withValues(alpha: 0.3))],
                                   ),
-                                ),
-                                const SizedBox(width: 20),
-                                _RedPlay(
-                                  size: 46,
-                                  iconSize: 20,
-                                  onTap: () => playAll(context, result.songs, start: result.songs.indexOf(best), title: '搜索“$keyword”'),
-                                ),
-                              ],
+                                  const SizedBox(width: 20),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '歌曲',
+                                          style: ts(12, weight: w600, color: p.text2),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          best.name,
+                                          style: ts(26, weight: w700, em: -0.02, height: 1.15, color: p.text),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          best.subtitle,
+                                          style: ts(14, color: p.text2),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 20),
+                                  _RedPlay(
+                                    size: 46,
+                                    iconSize: 20,
+                                    onTap: () => playAll(context, result.songs, start: result.songs.indexOf(best), title: '搜索“$keyword”'),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  heading('相关歌单'),
-                  if (pl != null)
-                    Pressable(
-                      onTap: () => openPlaylist(context, pl),
-                      child: YBox(
-                        clip: true,
-                        height: 150,
-                        radius: BorderRadius.circular(26),
-                        gradient: CssGradient(150, colors: p.dailyGradient),
-                        shadows: const [Shadow2(0, 16, 34, Color.fromRGBO(255, 106, 87, 0.22))],
-                        insets: [Shadow2(0, 1, 0, p.highlightInset)],
-                        padding: const EdgeInsets.symmetric(horizontal: 22),
-                        child: Row(
-                          children: [
-                            Cover(pl.cover, size: 106, radius: 18),
-                            const SizedBox(width: 20),
-                            Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '歌单',
-                                    style: ts(12, weight: w600, color: p.dailyDesc),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    pl.name,
-                                    style: ts(26, weight: w700, em: -0.02, height: 1.15, color: p.text),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text('${pl.creator ?? ''} · ${pl.trackCount} 首', style: ts(14, color: p.dailyDesc), maxLines: 1),
-                                ],
+                    ],
+                  ),
+                ),
+              if (best != null && pl != null) const SizedBox(width: 20),
+              if (pl != null)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      heading('相关歌单'),
+                      Pressable(
+                        onTap: () => openPlaylist(context, pl),
+                        child: YBox(
+                          clip: true,
+                          height: 150,
+                          radius: BorderRadius.circular(26),
+                          gradient: CssGradient(150, colors: p.dailyGradient),
+                          shadows: const [Shadow2(0, 16, 34, Color.fromRGBO(255, 106, 87, 0.22))],
+                          insets: [Shadow2(0, 1, 0, p.highlightInset)],
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          child: Row(
+                            children: [
+                              Cover(pl.cover, size: 106, radius: 18),
+                              const SizedBox(width: 20),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '歌单',
+                                      style: ts(12, weight: w600, color: p.dailyDesc),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      pl.name,
+                                      style: ts(26, weight: w700, em: -0.02, height: 1.15, color: p.text),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text('${pl.creator ?? ''} · ${pl.trackCount} 首', style: ts(14, color: p.dailyDesc), maxLines: 1),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         if (songs.isNotEmpty) ...[
-          SectionHeader('歌曲', top: 26, bottom: 10, action: '查看全部', onAction: onMore),
+          SectionHeader('歌曲', top: 26, bottom: 10, action: '查看全部', onAction: () => onMore(SearchType.song)),
           CardList(
             indent: 66,
             children: [
@@ -376,7 +393,14 @@ class _DesktopAll extends StatelessWidget {
             ],
           ),
         ],
-        if (result.albums.isNotEmpty) ...[const SectionHeader('专辑', top: 26, action: '查看全部'), AlbumGrid(items: result.albums.take(6).toList())],
+        if (result.artists.isNotEmpty) ...[
+          SectionHeader('相关歌手', top: 26, action: '查看全部', onAction: () => onMore(SearchType.artist)),
+          ArtistStrip(artists: result.artists.take(6).toList(), wrap: true),
+        ],
+        if (result.albums.isNotEmpty) ...[
+          SectionHeader('专辑', top: 26, action: '查看全部', onAction: () => onMore(SearchType.album)),
+          AlbumGrid(items: result.albums.take(6).toList()),
+        ],
       ],
     );
   }

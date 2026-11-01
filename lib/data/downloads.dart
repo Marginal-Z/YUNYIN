@@ -106,6 +106,7 @@ class DownloadManager extends ChangeNotifier {
       final source = sources.byId(song.sourceId);
       final info = await resolveStream(source, song, settings.downloadQuality);
       if (info.url == null || _disposed) return false;
+      if (info.trial) throw Exception('这首歌仅提供试听片段，不能作为完整歌曲下载');
       final folder = Directory(await dir());
       await folder.create(recursive: true);
       final ext = Uri.parse(info.url!).pathSegments.lastOrNull?.split('.').last.toLowerCase() ?? '';

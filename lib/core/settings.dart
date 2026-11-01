@@ -161,6 +161,7 @@ class AppSettings extends ChangeNotifier {
     _p.setInt('consentVersion', consentVersion);
     notifyListeners();
   }
+
   bool wifiOnlyDownload = true;
   bool autoClean = true;
   bool glass = true;
@@ -264,63 +265,88 @@ class AppSettings extends ChangeNotifier {
 
   Palette palette(bool dark) => _palettes.putIfAbsent((dark, accent), () => dark ? Palette.dark(accent) : Palette.light(accent));
 
+  T? _read<T>(String key) {
+    final value = _p.get(key);
+    return value is T ? value : null;
+  }
+
+  T _enumValue<T>(String key, List<T> values, T fallback) {
+    final index = _read<int>(key);
+    return index != null && index >= 0 && index < values.length ? values[index] : fallback;
+  }
+
+  static double _boundedValue(double? value, double fallback, double minimum, double maximum) =>
+      value != null && value.isFinite ? value.clamp(minimum, maximum).toDouble() : fallback;
+
+  double _number(String key, double fallback, double minimum, double maximum) => _boundedValue(_read<num>(key)?.toDouble(), fallback, minimum, maximum);
+
   Future<void> init() async {
     _p = await SharedPreferences.getInstance();
-    themeMode = ThemeMode.values[_p.getInt('themeMode') ?? ThemeMode.light.index];
-    accent = AccentColor.values[_p.getInt('accent') ?? 0];
-    quality = AudioQuality.values[_p.getInt('quality') ?? AudioQuality.hires.index];
-    downloadQuality = AudioQuality.values[_p.getInt('downloadQuality') ?? AudioQuality.higher.index];
-    crossfade = _p.getBool('crossfade') ?? true;
-    normalize = _p.getBool('normalize') ?? true;
-    openSles = _p.getBool('openSles') ?? false;
-    splashSeen = _p.getBool('splashSeen') ?? false;
-    consentVersion = _p.getInt('consentVersion') ?? 0;
-    wifiOnlyDownload = _p.getBool('wifiOnlyDownload') ?? true;
-    autoClean = _p.getBool('autoClean') ?? true;
-    glass = _p.getBool('glass') ?? true;
-    pushNotify = _p.getBool('pushNotify') ?? true;
-    personalized = _p.getBool('personalized') ?? true;
-    showTranslation = _p.getBool('showTranslation') ?? false;
-    iconFollowsAccent = _p.getBool('iconFollowsAccent') ?? true;
-    coverColors = _p.getBool('coverColors') ?? true;
-    autoUpdate = _p.getBool('autoUpdate') ?? true;
-    glassMaterial = GlassMaterial.values[(_p.getInt('glassMaterial') ?? 0).clamp(0, GlassMaterial.values.length - 1)];
-    playerStyle = PlayerStyle.values[(_p.getInt('playerStyle') ?? 0).clamp(0, PlayerStyle.values.length - 1)];
-    homeLayout = HomeLayout.values[(_p.getInt('homeLayout') ?? 0).clamp(0, HomeLayout.values.length - 1)];
-    orientation = ScreenOrientation.values[(_p.getInt('orientation') ?? ScreenOrientation.auto.index).clamp(0, ScreenOrientation.values.length - 1)];
+    themeMode = _enumValue('themeMode', ThemeMode.values, ThemeMode.light);
+    accent = _enumValue('accent', AccentColor.values, AccentColor.red);
+    quality = _enumValue('quality', AudioQuality.values, AudioQuality.hires);
+    downloadQuality = _enumValue('downloadQuality', AudioQuality.values, AudioQuality.higher);
+    crossfade = _read<bool>('crossfade') ?? true;
+    normalize = _read<bool>('normalize') ?? true;
+    openSles = _read<bool>('openSles') ?? false;
+    splashSeen = _read<bool>('splashSeen') ?? false;
+    consentVersion = _read<int>('consentVersion') ?? 0;
+    wifiOnlyDownload = _read<bool>('wifiOnlyDownload') ?? true;
+    autoClean = _read<bool>('autoClean') ?? true;
+    glass = _read<bool>('glass') ?? true;
+    pushNotify = _read<bool>('pushNotify') ?? true;
+    personalized = _read<bool>('personalized') ?? true;
+    showTranslation = _read<bool>('showTranslation') ?? false;
+    iconFollowsAccent = _read<bool>('iconFollowsAccent') ?? true;
+    coverColors = _read<bool>('coverColors') ?? true;
+    autoUpdate = _read<bool>('autoUpdate') ?? true;
+    glassMaterial = GlassMaterial.values[(_read<int>('glassMaterial') ?? 0).clamp(0, GlassMaterial.values.length - 1)];
+    playerStyle = PlayerStyle.values[(_read<int>('playerStyle') ?? 0).clamp(0, PlayerStyle.values.length - 1)];
+    homeLayout = HomeLayout.values[(_read<int>('homeLayout') ?? 0).clamp(0, HomeLayout.values.length - 1)];
+    orientation = ScreenOrientation.values[(_read<int>('orientation') ?? ScreenOrientation.auto.index).clamp(0, ScreenOrientation.values.length - 1)];
     // 旧版本只有“波浪动画”开关：关闭时迁移为直线。
-    final ps = _p.getInt('progressStyle');
-    progressStyle = ps != null ? ProgressStyle.values[ps.clamp(0, ProgressStyle.values.length - 1)] : (_p.getBool('waveProgress') ?? true ? ProgressStyle.wave : ProgressStyle.line);
-    volumeBoost = _p.getInt('volumeBoost') ?? 0;
-    eqEnabled = _p.getBool('eqEnabled') ?? false;
-    eqPreset = EqPreset.values[(_p.getInt('eqPreset') ?? 0).clamp(0, EqPreset.values.length - 1)];
-    final gains = _p.getStringList('eqGains');
-    if (gains != null && gains.length == kEqBands.length) eqGains = [for (final g in gains) double.tryParse(g) ?? 0];
-    normalizeStrength = _p.getDouble('normalizeStrength') ?? 1;
-    hiResOutput = _p.getBool('hiResOutput') ?? false;
-    exclusiveAudio = _p.getBool('exclusiveAudio') ?? false;
+    final ps = _read<int>('progressStyle');
+    progressStyle = ps != null
+        ? ProgressStyle.values[ps.clamp(0, ProgressStyle.values.length - 1)]
+        : (_read<bool>('waveProgress') ?? true ? ProgressStyle.wave : ProgressStyle.line);
+    volumeBoost = (_read<int>('volumeBoost') ?? 0).clamp(0, 6);
+    eqEnabled = _read<bool>('eqEnabled') ?? false;
+    eqPreset = EqPreset.values[(_read<int>('eqPreset') ?? 0).clamp(0, EqPreset.values.length - 1)];
+    final gains = _read<List<String>>('eqGains');
+    if (gains != null && gains.length == kEqBands.length) eqGains = [for (final gain in gains) _boundedValue(double.tryParse(gain), 0, -12, 12)];
+    normalizeStrength = _number('normalizeStrength', 1, 0, 1);
+    hiResOutput = _read<bool>('hiResOutput') ?? false;
+    exclusiveAudio = _read<bool>('exclusiveAudio') ?? false;
     try {
-      final raw = _p.getString('platformStyles');
+      final raw = _read<String>('platformStyles');
       if (raw != null) {
-        (jsonDecode(raw) as Map).forEach((k, v) => _platformStyles['$k'] = ((v as List)[0] as int, v[1] as int));
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          for (final entry in decoded.entries) {
+            final value = entry.value;
+            if (value is List && value.length == 2 && value[0] is int && value[1] is int) {
+              _platformStyles['${entry.key}'] = (value[0] as int, value[1] as int);
+            }
+          }
+        }
       }
     } catch (_) {}
-    desktopLyrics = _p.getBool('desktopLyrics') ?? false;
-    statusBarLyrics = _p.getBool('statusBarLyrics') ?? false;
-    lyricsLocked = _p.getBool('lyricsLocked') ?? false;
-    lyricsColor = _p.getInt('lyricsColor') ?? 0;
-    lyricsOpacity = _p.getDouble('lyricsOpacity') ?? 1;
-    statusLyricsOffset = _p.getDouble('statusLyricsOffset') ?? 0;
-    statusLyricsColor = _p.getInt('statusLyricsColor') ?? 0;
-    background = BackgroundMode.values[(_p.getInt('background') ?? 0).clamp(0, BackgroundMode.values.length - 1)];
-    backgroundImage = _p.getString('backgroundImage');
-    backgroundBlur = _p.getBool('backgroundBlur') ?? false;
+    desktopLyrics = _read<bool>('desktopLyrics') ?? false;
+    statusBarLyrics = _read<bool>('statusBarLyrics') ?? false;
+    lyricsLocked = _read<bool>('lyricsLocked') ?? false;
+    lyricsColor = _read<int>('lyricsColor') ?? 0;
+    lyricsOpacity = _number('lyricsOpacity', 1, 0.3, 1);
+    statusLyricsOffset = _number('statusLyricsOffset', 0, -0.4, 0.4);
+    statusLyricsColor = _read<int>('statusLyricsColor') ?? 0;
+    background = BackgroundMode.values[(_read<int>('background') ?? 0).clamp(0, BackgroundMode.values.length - 1)];
+    backgroundImage = _read<String>('backgroundImage');
+    backgroundBlur = _read<bool>('backgroundBlur') ?? false;
     if (background == BackgroundMode.image && backgroundImage == null) background = BackgroundMode.glow;
-    skippedUpdate = _p.getString('skippedUpdate');
-    lyricScale = _p.getDouble('lyricScale') ?? 1.0;
-    downloadDir = _p.getString('downloadDir');
-    volume = _p.getDouble('volume') ?? 0.65;
-    searchHistory = _p.getStringList('searchHistory') ?? [];
+    skippedUpdate = _read<String>('skippedUpdate');
+    lyricScale = _number('lyricScale', 1, 0.5, 2);
+    downloadDir = _read<String>('downloadDir');
+    volume = _number('volume', 0.65, 0, 1);
+    searchHistory = _read<List<String>>('searchHistory') ?? [];
   }
 
   void setThemeMode(ThemeMode m) {
@@ -338,7 +364,12 @@ class AppSettings extends ChangeNotifier {
 
   void _rememberPlatformStyle() {
     _platformStyles[_platform] = (accent.index, playerStyle.index);
-    _p.setString('platformStyles', jsonEncode({for (final e in _platformStyles.entries) e.key: [e.value.$1, e.value.$2]}));
+    _p.setString(
+      'platformStyles',
+      jsonEncode({
+        for (final e in _platformStyles.entries) e.key: [e.value.$1, e.value.$2],
+      }),
+    );
   }
 
   /// 切换平台：记下离开的平台的样式，换成新平台记住的样式（第一次使用该平台时用平台默认样式）。
@@ -435,6 +466,7 @@ class AppSettings extends ChangeNotifier {
 
   /// 调整单个频段：自动切换为“自定义”预设。
   void setEqGain(int band, double db) {
+    if (band < 0 || band >= eqGains.length || !db.isFinite) return;
     eqGains = List.of(eqGains)..[band] = db.clamp(-12, 12).toDouble();
     eqPreset = EqPreset.custom;
     _p.setInt('eqPreset', eqPreset.index);
@@ -443,6 +475,7 @@ class AppSettings extends ChangeNotifier {
   }
 
   void setNormalizeStrength(double v) {
+    if (!v.isFinite) return;
     normalizeStrength = v.clamp(0, 1).toDouble();
     _p.setDouble('normalizeStrength', normalizeStrength);
     notifyListeners();
@@ -457,11 +490,11 @@ class AppSettings extends ChangeNotifier {
       lyricsColor = color;
       _p.setInt('lyricsColor', color);
     }
-    if (opacity != null) {
+    if (opacity != null && opacity.isFinite) {
       lyricsOpacity = opacity.clamp(0.3, 1).toDouble();
       _p.setDouble('lyricsOpacity', lyricsOpacity);
     }
-    if (statusOffset != null) {
+    if (statusOffset != null && statusOffset.isFinite) {
       statusLyricsOffset = statusOffset.clamp(-0.4, 0.4).toDouble();
       _p.setDouble('statusLyricsOffset', statusLyricsOffset);
     }
@@ -475,8 +508,8 @@ class AppSettings extends ChangeNotifier {
   Color get lyricsDisplayColor => lyricsColor == 0 ? accent.base : Color(lyricsColor);
 
   void setVolumeBoost(int db) {
-    volumeBoost = db;
-    _p.setInt('volumeBoost', db);
+    volumeBoost = db.clamp(0, 6);
+    _p.setInt('volumeBoost', volumeBoost);
     notifyListeners();
   }
 
@@ -515,8 +548,9 @@ class AppSettings extends ChangeNotifier {
   }
 
   void setLyricScale(double v) {
-    lyricScale = v;
-    _p.setDouble('lyricScale', v);
+    if (!v.isFinite) return;
+    lyricScale = v.clamp(0.5, 2).toDouble();
+    _p.setDouble('lyricScale', lyricScale);
     notifyListeners();
   }
 
@@ -535,8 +569,9 @@ class AppSettings extends ChangeNotifier {
   }
 
   void setVolume(double v) {
-    volume = v;
-    _p.setDouble('volume', v);
+    if (!v.isFinite) return;
+    volume = v.clamp(0, 1).toDouble();
+    _p.setDouble('volume', volume);
   }
 
   void addSearch(String q) {
