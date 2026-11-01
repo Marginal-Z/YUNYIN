@@ -33,7 +33,11 @@ void main() {
               body = "ptuiCB('0','0','https://ssl.ptlogin2.qq.com/check_sig?uin=12345&ptsigx=a%2Bb','0','登录成功')";
             case '/check_sig':
               checkSig = options.uri;
-              headers['set-cookie'] = ['p_skey=oauth-test; Domain=graph.qq.com; Path=/; Secure, skey=session-test; Domain=.qq.com; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Path=/'];
+              // 与 QQ 的真实响应一致：给 graph.qq.com 设置 p_skey，同时清除另一个域名下的同名 Cookie。
+              headers['set-cookie'] = [
+                'p_skey=oauth-test; Domain=graph.qq.com; Path=/; Secure, skey=session-test; Domain=.qq.com; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Path=/',
+                'p_skey=; Domain=ptlogin2.graph.qq.com; Path=/; Max-Age=0',
+              ];
             case '/oauth2.0/authorize':
               authorization = Map<String, dynamic>.from(options.data as Map);
               headers['location'] = ['https://y.qq.com/portal/wx_redirect.html?code=code%2Btest&state=state'];
@@ -128,7 +132,8 @@ void main() {
             case '/oauth2.0/authorize':
               headers['location'] = ['https://y.qq.com/portal/wx_redirect.html?code=expired'];
             default:
-              body = '{"req":{"code":20252,"data":{"musicid":12345,"musickey":"invalid"}}}';
+              // QQ 音乐对已注销帐号的真实回复。
+              body = '{"req":{"code":20252,"data":{"musicid":12345,"musickey":"","errMsg":"您的帐号已注销完成，请先到手机端QQ音乐重新注册帐号，再重新登录！"}}}';
               headers['set-cookie'] = ['qqmusic_key=invalid; Path=/'];
           }
           handler.resolve(Response<String>(requestOptions: options, statusCode: 200, data: body, headers: Headers.fromMap(headers)));
@@ -137,7 +142,10 @@ void main() {
     );
     final source = QQMusicSource(dio: dio);
     await source.init();
-    await expectLater(source.checkQrLogin(const QrTicket('test', '')), throwsA(predicate((error) => '$error'.contains('20252'))));
+    await expectLater(
+      source.checkQrLogin(const QrTicket('test', '')),
+      throwsA(predicate((error) => '$error'.contains('20252') && '$error'.contains('帐号已注销') && !'$error'.contains('重新扫码'))),
+    );
     expect(source.user?.id, '42');
     expect((await SharedPreferences.getInstance()).getString('qq.account'), saved);
     dio.close();

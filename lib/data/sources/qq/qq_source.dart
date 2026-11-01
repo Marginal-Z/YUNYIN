@@ -703,8 +703,15 @@ class QQMusicSource extends MusicSource {
         if (a.toLowerCase().startsWith('domain=')) domain = a.substring(7).trim().replaceFirst(RegExp(r'^\.'), '').toLowerCase();
       }
       if (value.isEmpty || value == 'deleted' || RegExp(r'(?:^|;)\s*max-age=0(?:;|$)', caseSensitive: false).hasMatch(c)) {
+        // 只删除这个域名下的 Cookie：QQ 的 check_sig 会给 graph.qq.com 设置 p_skey，同时清除另一个域名下的同名 Cookie，
+        // 不能因此丢掉仍然有效的那一份（此前因此报“没有获得 QQ 互联授权凭据”）。
         _jar.remove('$domain|$name');
-        _loginCookies.remove(name);
+        final other = _jar.entries.where((e) => e.key.endsWith('|$name')).firstOrNull;
+        if (other == null) {
+          _loginCookies.remove(name);
+        } else {
+          _loginCookies[name] = other.value.$2;
+        }
       } else {
         _jar['$domain|$name'] = (domain, value);
         _loginCookies[name] = value;
@@ -959,7 +966,13 @@ class QQMusicSource extends MusicSource {
       ].map((t) => t.trim()).firstWhere((t) => t.isNotEmpty, orElse: () => '');
       failures.add('$resultCode${why.isEmpty ? '' : '：$why'}');
     }
-    if (j == null) throw Exception('QQ 音乐凭据交换失败（${failures.join('；')}），请重新扫码');
+    if (j == null) {
+      // QQ 给出明确原因时（例如 20252：QQ 音乐帐号已注销，需要先在 QQ 音乐 App 重新注册）直接显示，重新扫码无济于事。
+      final reasons = {for (final f in failures) f};
+      final told = reasons.where((f) => f.contains('：')).firstOrNull;
+      if (told != null) throw Exception('QQ 音乐拒绝登录（${told.replaceFirst('：', '）：')}');
+      throw Exception('QQ 音乐凭据交换失败（${reasons.join('；')}），请重新扫码');
+    }
     final data = (j['req'] as Map?)?['data'] as Map? ?? const {};
     // 部分账号的 musickey 放在 Set-Cookie 里而不是 JSON 中。
     var uin = '${data['musicid'] ?? data['uin'] ?? ''}'.replaceAll(RegExp(r'^0+$'), '');
