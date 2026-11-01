@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
@@ -37,10 +38,6 @@ class DesktopLyricsWindow with WindowListener {
   String _last = '';
 
   static const _positionKey = 'desktopLyrics.position';
-
-  /// 歌词窗口已启动并与主窗口连通（测试用）。
-  @visibleForTesting
-  bool get ready => _ready;
 
   static DesktopLyricsWindow attach(LyricsOverlay overlay, PlayerController player, AppSettings settings) {
     final w = DesktopLyricsWindow._(overlay, player, settings);
@@ -138,6 +135,8 @@ class DesktopLyricsWindow with WindowListener {
 Future<void> runLyricsWindow(String arguments) async {
   final args = jsonDecode(arguments) as Map<String, dynamic>;
   await windowManager.ensureInitialized();
+  // GNOME 下新窗口带有 GTK 标题栏：隐藏它，否则会占去歌词条的高度。
+  if (Platform.isLinux) await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
   await windowManager.setAsFrameless();
   await windowManager.setBackgroundColor(Colors.transparent);
   await windowManager.setTitle('云音桌面歌词');
@@ -161,6 +160,21 @@ Future<void> runLyricsWindow(String arguments) async {
   if (position != null) await windowManager.setPosition(position);
   runApp(const _LyricsApp());
   await windowManager.show();
+  await _fitSize();
+}
+
+/// 窗口装饰（标题栏、阴影）会占去一部分尺寸：按实际绘制区域补齐到 [_size]。
+Future<void> _fitSize() async {
+  for (var i = 0; i < 3; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final view = ui.PlatformDispatcher.instance.views.firstOrNull;
+    if (view == null) return;
+    final actual = view.physicalSize / view.devicePixelRatio;
+    final dw = _size.width - actual.width, dh = _size.height - actual.height;
+    if (dw.abs() < 2 && dh.abs() < 2) return;
+    final current = await windowManager.getSize();
+    await windowManager.setSize(Size(current.width + dw, current.height + dh));
+  }
 }
 
 class _LyricsApp extends StatefulWidget {
@@ -270,7 +284,7 @@ class _LyricsAppState extends State<_LyricsApp> with WindowListener {
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 260),
                           child: Text(
-                            '${_state['line'] ?? ''}',
+                            '${_state['line'] ?? ''}'.ifBlank('云音'),
                             key: ValueKey('${_state['line']}'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -279,7 +293,7 @@ class _LyricsAppState extends State<_LyricsApp> with WindowListener {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${_state['next'] ?? ''}',
+                          '${_state['line'] ?? ''}'.trim().isEmpty ? '桌面歌词' : '${_state['next'] ?? ''}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: ts(17, weight: w500, color: Colors.white.withValues(alpha: 0.9 * opacity)).copyWith(shadows: shadow),
@@ -310,4 +324,8 @@ class _LyricsAppState extends State<_LyricsApp> with WindowListener {
       ),
     );
   }
+}
+
+extension on String {
+  String ifBlank(String other) => trim().isEmpty ? other : this;
 }
