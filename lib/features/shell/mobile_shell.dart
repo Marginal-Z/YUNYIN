@@ -193,14 +193,14 @@ class MiniPlayer extends StatelessWidget {
                       children: [
                         Text(
                           song?.name ?? '',
-                          style: ts(14, weight: w600, color: p.text).copyWith(shadows: legibleHalo(p)),
+                          style: ts(14, weight: w600, color: p.text).copyWith(shadows: legibleHalo(p.text)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
                           song?.artistText ?? '',
-                          style: ts(12, weight: w500, color: p.text2).copyWith(shadows: legibleHalo(p)),
+                          style: ts(12, weight: w500, color: p.text2).copyWith(shadows: legibleHalo(p.text2)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),

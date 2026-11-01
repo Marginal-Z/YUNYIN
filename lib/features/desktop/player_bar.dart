@@ -51,14 +51,14 @@ class DesktopPlayerBar extends StatelessWidget {
                       children: [
                         Text(
                           song?.name ?? '云音',
-                          style: ts(14, weight: w600, color: p.text).copyWith(shadows: legibleHalo(p)),
+                          style: ts(14, weight: w600, color: p.text).copyWith(shadows: legibleHalo(p.text)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
                           song?.subtitle ?? '听见好音乐',
-                          style: ts(12, color: p.text4).copyWith(shadows: legibleHalo(p)),
+                          style: ts(12, color: p.text4).copyWith(shadows: legibleHalo(p.text4)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -112,7 +112,7 @@ class DesktopPlayerBar extends StatelessWidget {
                       final f = total.inMilliseconds == 0 ? 0.0 : pos.inMilliseconds / total.inMilliseconds;
                       return Row(
                         children: [
-                          Text(formatDuration(pos), style: ts(12, color: p.text4, tabular: true).copyWith(shadows: legibleHalo(p))),
+                          Text(formatDuration(pos), style: ts(12, color: p.text4, tabular: true).copyWith(shadows: legibleHalo(p.text4))),
                           const SizedBox(width: 10),
                           Expanded(
                             child: SeekBar(
@@ -125,7 +125,7 @@ class DesktopPlayerBar extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          Text(formatDuration(total), style: ts(12, color: p.text4, tabular: true).copyWith(shadows: legibleHalo(p))),
+                          Text(formatDuration(total), style: ts(12, color: p.text4, tabular: true).copyWith(shadows: legibleHalo(p.text4))),
                         ],
                       );
                     },

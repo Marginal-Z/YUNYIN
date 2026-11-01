@@ -248,7 +248,7 @@ class _Item extends StatelessWidget {
     final p = Palette.of(context);
     // 液态玻璃很透明：未选中的标签用更深的文字色，并加一圈与背景相反的柔和描边，滚动到任何内容上都清晰可读。
     final color = Color.lerp(p.isDark ? const Color(0xF2FFFFFF) : const Color(0xE6202024), p.accentText, active)!;
-    final halo = legibleHalo(p);
+    final halo = legibleHalo(color);
     return Semantics(
       button: true,
       selected: selected,

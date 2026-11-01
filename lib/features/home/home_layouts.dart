@@ -201,11 +201,11 @@ class PhotoWallHeader extends StatelessWidget {
             children: [
               Text(
                 subtitle,
-                style: ts(12, weight: w600, color: p.text2).copyWith(shadows: legibleHalo(p)),
+                style: ts(12, weight: w600, color: p.text2).copyWith(shadows: legibleHalo(p.text2)),
               ),
               Text(
                 title,
-                style: ts(24, weight: w700, em: -0.02, height: 1.15, color: p.text).copyWith(shadows: legibleHalo(p)),
+                style: ts(24, weight: w700, em: -0.02, height: 1.15, color: p.text).copyWith(shadows: legibleHalo(p.text)),
               ),
             ],
           ),
