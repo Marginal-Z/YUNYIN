@@ -507,7 +507,7 @@ class QQMusicSource extends MusicSource {
           Comment(
             id: '${c['CmId']}',
             userName: '${c['Nick'] ?? ''}',
-            avatar: c['Avatar'] as String?,
+            avatar: _https(c['Avatar'] as String?).ifEmpty(null),
             content: _unescape('${c['Content']}'.trim()),
             time: int.tryParse('${c['PubTime']}') == null ? null : DateTime.fromMillisecondsSinceEpoch(int.parse('${c['PubTime']}') * 1000),
             location: (c['Location'] as String?)?.ifEmpty(null),

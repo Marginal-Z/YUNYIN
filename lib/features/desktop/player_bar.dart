@@ -30,6 +30,7 @@ class DesktopPlayerBar extends StatelessWidget {
     return Glass(
       radius: 38,
       height: 76,
+      legible: true,
       padding: const EdgeInsets.fromLTRB(12, 0, 20, 0),
       shadows: onPlayerPage ? const [Shadow2(0, 10, 30, Color.fromRGBO(0, 0, 0, 0.12)), Shadow2(0, 1, 3, Color.fromRGBO(0, 0, 0, 0.08))] : null,
       child: Row(

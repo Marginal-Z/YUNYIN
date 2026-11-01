@@ -421,7 +421,7 @@ class KugouSource extends MusicSource {
           Comment(
             id: '${c['id']}',
             userName: '${c['user_name'] ?? ''}',
-            avatar: c['user_pic'] as String?,
+            avatar: (c['user_pic'] as String? ?? '').replaceFirst('http://', 'https://').ifEmpty(null),
             content: '${c['content']}'.trim(),
             time: DateTime.tryParse('${c['addtime'] ?? ''}'.replaceFirst(' ', 'T')),
             likedCount: ((c['like'] as Map?)?['likenum'] as num?)?.toInt() ?? 0,

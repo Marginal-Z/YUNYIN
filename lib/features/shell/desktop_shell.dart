@@ -187,6 +187,7 @@ class _DesktopShellState extends State<DesktopShell> {
                   width: 340,
                   height: 40,
                   radius: 20,
+                  legible: true,
                   shadows: p.glassButtonShadow,
                   insets: p.glassButtonInset,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -240,6 +241,8 @@ class _Sidebar extends StatelessWidget {
     final sm = context.watch<SourceManager>();
     final source = sm.current;
     final active = nav.top.sideKey;
+    // 照片墙首页的封面会滚到侧边栏下面，这时才需要模糊背景，保证文字可读。
+    final overWall = active == 'home' && context.select<AppSettings, bool>((s) => s.homeLayout == HomeLayout.photoWall);
     void open(AppRoute r) {
       if (nav.top.sideKey == r.sideKey) return;
       nav.push(r);
@@ -256,7 +259,8 @@ class _Sidebar extends StatelessWidget {
     return YBox(
       radius: BorderRadius.circular(26),
       color: p.sidebar,
-      // 侧边栏只覆盖静态的光晕背景，模糊没有可见效果，省去每帧的背景截取。
+      // 侧边栏通常只覆盖静态的光晕背景，模糊没有可见效果，省去每帧的背景截取。
+      blur: overWall,
       border: p.glassBorder,
       shadows: p.sidebarShadow,
       insets: p.glassButtonInset,
