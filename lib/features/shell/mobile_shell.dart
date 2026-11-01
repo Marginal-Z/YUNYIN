@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Theme;
 import 'package:provider/provider.dart';
 
+import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
@@ -81,7 +83,7 @@ class _MobileShellState extends State<MobileShell> {
               left: 16,
               width: 340,
               bottom: showNav ? bottom : -100,
-              child: const _BottomBar(),
+              child: const _OverPage(child: _BottomBar()),
             ),
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
@@ -91,7 +93,7 @@ class _MobileShellState extends State<MobileShell> {
               bottom: bottom + 3,
               child: IgnorePointer(
                 ignoring: !showMini,
-                child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const MiniPlayer()),
+                child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const _OverPage(child: MiniPlayer())),
               ),
             ),
           ] else ...[
@@ -103,7 +105,7 @@ class _MobileShellState extends State<MobileShell> {
               bottom: chrome == Chrome.miniOnly ? bottom + 2 : bottom + 74,
               child: IgnorePointer(
                 ignoring: !showMini,
-                child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const MiniPlayer()),
+                child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const _OverPage(child: MiniPlayer())),
               ),
             ),
             AnimatedPositioned(
@@ -112,11 +114,31 @@ class _MobileShellState extends State<MobileShell> {
               left: 16 + barInset,
               right: 16 + barInset,
               bottom: showNav ? bottom : -100,
-              child: const _BottomBar(),
+              child: const _OverPage(child: _BottomBar()),
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// 歌单、专辑、电台与收藏页的背景由封面取色、始终是深色（浅色主题下也是）：浮在其上的导航栏与迷你播放条
+/// 改用深色外观（浅色文字、深色玻璃色调），否则浅色主题的深色文字落在深色页面上看不清。
+class _OverPage extends StatelessWidget {
+  const _OverPage({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = context.select<AppNav, AppRoute>((n) => n.top);
+    final darkPage = top is PlaylistRoute || top is AlbumRoute || top is RadioRoute || top is CollectionRoute;
+    if (!darkPage || Palette.of(context).isDark) return child;
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(colorScheme: theme.colorScheme.copyWith(brightness: Brightness.dark)),
+      child: PaletteScope(palette: context.read<AppSettings>().palette(true), child: child),
     );
   }
 }
