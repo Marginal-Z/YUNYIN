@@ -746,86 +746,77 @@ class QQMusicSource extends MusicSource {
     return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
   }
 
-  /// 扫码确认后：访问 check_sig 拿到 p_skey → QQ 互联授权拿到 code → 用 code 登录 QQ 音乐拿到 musickey。
+  /// 扫码确认后：依次访问 check_sig 跳转链收集 skey / p_skey → QQ 互联授权拿到 code → 用 code 登录 QQ 音乐拿到 musickey。
+  /// 每一步都带上之前收集到的全部 Cookie（包括二维码的 qrsig），与 QQ 音乐网页版一致。
   Future<void> _finishLogin(String checkSig) async {
-    final link = Uri.tryParse(checkSig);
-    final qqUin = link?.queryParameters['uin'];
-    final sigx = link?.queryParameters['ptsigx'];
-    if (link == null || qqUin == null || sigx == null) throw Exception('登录失败：没有返回授权地址');
-    final sig = await _dio.get<String>(
-      'https://ssl.ptlogin2.graph.qq.com/check_sig',
-      queryParameters: {
-        'uin': qqUin,
-        'pttype': 1,
-        'service': 'ptqrlogin',
-        'nodirect': 0,
-        'ptsigx': sigx,
-        's_url': 'https://graph.qq.com/oauth2.0/login_jump',
-        'ptlang': 2052,
-        'ptredirect': 100,
-        'aid': _appid,
-        'daid': 383,
-        'j_later': 0,
-        'low_login_hour': 0,
-        'regmaster': 0,
-        'pt_login_type': 3,
-        'pt_aid': 0,
-        'pt_aaid': 16,
-        'pt_light': 0,
-        'pt_3rd_aid': _thirdAid,
-      },
-      options: Options(
-        followRedirects: false,
-        validateStatus: (s) => s != null && s < 400,
-        headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://xui.ptlogin2.qq.com/'},
-      ),
-    );
-    _absorb(sig.headers);
-    final pSkey = _loginCookies['p_skey'];
-    if (pSkey == null) throw Exception('登录失败：没有获得授权凭据');
+    if (!checkSig.startsWith('http')) throw Exception('登录失败：没有返回授权地址');
+    const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    var current = checkSig;
+    for (var hop = 0; hop < 6; hop++) {
+      final res = await _dio.get<String>(
+        current,
+        options: Options(
+          followRedirects: false,
+          validateStatus: (s) => s != null && s < 500,
+          headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://xui.ptlogin2.qq.com/', 'User-Agent': ua},
+        ),
+      );
+      _absorb(res.headers);
+      final location = res.headers.value('location');
+      if (res.statusCode == null || res.statusCode! < 300 || res.statusCode! >= 400 || location == null || location.isEmpty) break;
+      current = Uri.parse(current).resolve(location).toString();
+    }
+    final pSkey = _loginCookies['p_skey'] ?? _loginCookies['skey'];
+    if (pSkey == null) throw Exception('登录失败：没有获得授权凭据（p_skey）');
     final auth = await _dio.post<String>(
       'https://graph.qq.com/oauth2.0/authorize',
       data: {
         'response_type': 'code',
         'client_id': _thirdAid,
         'redirect_uri': 'https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/',
-        'scope': 'get_user_info,get_app_friends',
+        'scope': 'all',
         'state': 'state',
         'switch': '',
         'from_ptlogin': 1,
         'src': 1,
         'update_auth': 1,
-        'openapi': '1010_1030',
+        'openapi': '80901010_1030',
         'g_tk': _hash33(pSkey, 5381),
-        'auth_time': DateTime.now().millisecondsSinceEpoch ~/ 1000 * 1000,
+        'auth_time': DateTime.now().millisecondsSinceEpoch,
         'ui': _uuid(),
       },
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
         followRedirects: false,
-        validateStatus: (s) => s != null && s < 400,
-        headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://xui.ptlogin2.qq.com/'},
+        validateStatus: (s) => s != null && s < 500,
+        headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://graph.qq.com/', 'User-Agent': ua},
       ),
     );
+    _absorb(auth.headers);
     final location = auth.headers.value('location') ?? '';
-    final code = Uri.tryParse(location)?.queryParameters['code'] ?? RegExp(r'[?&]code=([^&]+)').firstMatch(location)?.group(1);
-    if (code == null || code.isEmpty) throw Exception('登录失败：QQ 互联没有返回授权码');
+    final code = RegExp(r'[?&]code=([^&]+)').firstMatch(location)?.group(1);
+    if (code == null || code.isEmpty) throw Exception('登录失败：QQ 互联没有返回授权码，请重新扫码');
     final login = await _dio.post<String>(
       _api,
       data: jsonEncode({
-        'comm': {'g_tk': 5381, 'platform': 'yqq', 'ct': 24, 'cv': 0, 'tmeLoginType': '2'},
+        'comm': {'g_tk': 5381, 'platform': 'yqq', 'ct': 24, 'cv': 0},
         'req': {
           'module': 'QQConnectLogin.LoginServer',
           'method': 'QQLogin',
           'param': {'code': code},
         },
       }),
+      options: Options(headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://y.qq.com/', 'User-Agent': ua, 'Content-Type': 'application/json'}),
     );
+    _absorb(login.headers);
     final j = jsonDecode(login.data ?? '{}') as Map<String, dynamic>;
     final data = (j['req'] as Map?)?['data'] as Map? ?? const {};
-    final uin = '${data['musicid'] ?? data['uin'] ?? ''}';
-    final key = '${data['musickey'] ?? ''}';
-    if (uin.isEmpty || uin == '0' || key.isEmpty) throw Exception('登录 QQ 音乐失败（${(j['req'] as Map?)?['code']}）');
+    // 部分账号的 musickey 放在 Set-Cookie 里而不是 JSON 中。
+    var uin = '${data['musicid'] ?? data['uin'] ?? ''}'.replaceAll(RegExp(r'^0+$'), '');
+    if (uin.isEmpty) uin = _loginCookies['uin']?.replaceFirst(RegExp(r'^o0*'), '') ?? '';
+    var key = '${data['musickey'] ?? ''}';
+    if (key.isEmpty) key = _loginCookies['qqmusic_key'] ?? _loginCookies['qm_keyst'] ?? '';
+    if (uin.isEmpty || key.isEmpty) throw Exception('登录 QQ 音乐失败（${(j['req'] as Map?)?['code'] ?? j['code']}）');
     _uin = uin;
     _key = key;
     _loginCookies.clear();
