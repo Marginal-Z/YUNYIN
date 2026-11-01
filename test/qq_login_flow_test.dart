@@ -16,6 +16,7 @@ void main() {
     Map<String, dynamic>? authorization;
     Map<String, dynamic>? exchange;
     String? pollingCookie;
+    String? exchangeCookie;
     Uri? checkSig;
     dio.interceptors.add(
       InterceptorsWrapper(
@@ -32,7 +33,7 @@ void main() {
               body = "ptuiCB('0','0','https://ssl.ptlogin2.qq.com/check_sig?uin=12345&ptsigx=a%2Bb','0','登录成功')";
             case '/check_sig':
               checkSig = options.uri;
-              headers['set-cookie'] = ['p_skey=oauth-test; Path=/; Secure, skey=session-test; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Path=/'];
+              headers['set-cookie'] = ['p_skey=oauth-test; Domain=graph.qq.com; Path=/; Secure, skey=session-test; Domain=.qq.com; Expires=Wed, 09 Jun 2027 10:18:14 GMT; Path=/'];
             case '/oauth2.0/authorize':
               authorization = Map<String, dynamic>.from(options.data as Map);
               headers['location'] = ['https://y.qq.com/portal/wx_redirect.html?code=code%2Btest&state=state'];
@@ -41,6 +42,7 @@ void main() {
               final request = jsonDecode(options.data as String) as Map<String, dynamic>;
               if ((request['req'] as Map)['method'] == 'QQLogin') {
                 exchange = request;
+                exchangeCookie = options.headers['Cookie'] as String?;
                 body = jsonEncode({
                   'req': {
                     'code': 0,
@@ -69,6 +71,10 @@ void main() {
     expect(authorization!['openapi'], '1010_1030');
     expect((exchange!['comm'] as Map)['tmeLoginType'], 2);
     expect(((exchange!['req'] as Map)['param'] as Map)['code'], 'code+test');
+    // 与浏览器一样按域名发送 Cookie：qq.com 的 skey 发给 QQ 音乐，graph.qq.com 的 p_skey 与 ptlogin 的 qrsig 不发。
+    expect(exchangeCookie, contains('skey=session-test'));
+    expect(exchangeCookie, isNot(contains('p_skey')));
+    expect(exchangeCookie, isNot(contains('qrsig')));
     expect(source.user?.id, '12345');
     final restored = QQMusicSource();
     await restored.init();

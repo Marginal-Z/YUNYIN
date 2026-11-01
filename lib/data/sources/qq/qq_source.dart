@@ -685,22 +685,42 @@ class QQMusicSource extends MusicSource {
     return h & 0x7fffffff;
   }
 
-  void _absorb(Headers headers) {
+  /// 扫码登录过程中收到的 Cookie，按域名保存（键为“域名|名称”），请求时只带上该域名可见的 Cookie，
+  /// 与浏览器和可用的开源客户端（Cookie Jar）一致：例如 graph.qq.com 的 p_skey 不会发给 QQ 音乐接口。
+  final Map<String, (String, String)> _jar = {};
+
+  void _absorb(Headers headers, Uri from) {
     for (final c in (headers['set-cookie'] ?? const <String>[]).expand((header) => header.split(RegExp(r',(?=\s*[^;,=\s]+\s*=)')))) {
-      final kv = c.split(';').first;
+      final parts = c.split(';');
+      final kv = parts.first;
       final i = kv.indexOf('=');
       if (i <= 0) continue;
       final value = kv.substring(i + 1);
       final name = kv.substring(0, i).trim();
+      var domain = from.host;
+      for (final attr in parts.skip(1)) {
+        final a = attr.trim();
+        if (a.toLowerCase().startsWith('domain=')) domain = a.substring(7).trim().replaceFirst(RegExp(r'^\.'), '').toLowerCase();
+      }
       if (value.isEmpty || value == 'deleted' || RegExp(r'(?:^|;)\s*max-age=0(?:;|$)', caseSensitive: false).hasMatch(c)) {
+        _jar.remove('$domain|$name');
         _loginCookies.remove(name);
       } else {
+        _jar['$domain|$name'] = (domain, value);
         _loginCookies[name] = value;
       }
     }
   }
 
-  String get _loginCookieHeader => _loginCookies.entries.map((e) => '${e.key}=${e.value}').join('; ');
+  /// 发往 [to] 的 Cookie 请求头：只包含域名与目标主机匹配的 Cookie。
+  String _cookiesFor(Uri to) {
+    final host = to.host.toLowerCase();
+    return [
+      for (final e in _jar.entries)
+        if (host == e.value.$1 || host.endsWith('.${e.value.$1}')) '${e.key.substring(e.key.indexOf('|') + 1)}=${e.value.$2}',
+    ].join('; ');
+  }
+
 
   @override
   Future<QrTicket> createQrLogin() async {
@@ -712,7 +732,7 @@ class QQMusicSource extends MusicSource {
       options: Options(responseType: ResponseType.bytes, headers: {'Referer': 'https://xui.ptlogin2.qq.com/'}),
     );
     _checkLoginGeneration(generation);
-    _absorb(res.headers);
+    _absorb(res.headers, Uri.https('ssl.ptlogin2.qq.com', '/ptqrshow'));
     final qrsig = _loginCookies['qrsig'];
     if (qrsig == null || res.data == null) throw Exception('获取二维码失败');
     _qrKey = qrsig;
@@ -746,12 +766,12 @@ class QQMusicSource extends MusicSource {
       options: Options(
         headers: {
           'Referer': 'https://xui.ptlogin2.qq.com/',
-          'Cookie': {..._loginCookies, 'qrsig': ticket.key}.entries.map((entry) => '${entry.key}=${entry.value}').join('; '),
+          'Cookie': [_cookiesFor(Uri.https('ssl.ptlogin2.qq.com', '/ptqrlogin')), 'qrsig=${ticket.key}'].where((c) => c.isNotEmpty).join('; '),
         },
       ),
     );
     _checkLoginGeneration(generation);
-    _absorb(res.headers);
+    _absorb(res.headers, Uri.https('ssl.ptlogin2.qq.com', '/ptqrlogin'));
     final args = RegExp(r"'([^']*)'").allMatches(res.data ?? '').map((m) => m[1]!).toList();
     final code = args.firstOrNull ?? '';
     switch (code) {
@@ -794,6 +814,7 @@ class QQMusicSource extends MusicSource {
     _loginGeneration++;
     _qrKey = null;
     _loginCookies.clear();
+    _jar.clear();
     _finishing = null;
   }
 
@@ -849,11 +870,11 @@ class QQMusicSource extends MusicSource {
         options: Options(
           followRedirects: false,
           validateStatus: (s) => s != null && s < 500,
-          headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://xui.ptlogin2.qq.com/', 'User-Agent': ua},
+          headers: {'Cookie': _cookiesFor(current), 'Referer': 'https://xui.ptlogin2.qq.com/', 'User-Agent': ua},
         ),
       );
       _checkLoginGeneration(generation);
-      _absorb(res.headers);
+      _absorb(res.headers, current);
       if ((_loginCookies['p_skey'] ?? '').isNotEmpty) break;
       final location = res.headers.value('location');
       if (res.statusCode == null || res.statusCode! < 300 || res.statusCode! >= 400 || location == null || location.isEmpty) break;
@@ -882,11 +903,11 @@ class QQMusicSource extends MusicSource {
         contentType: Headers.formUrlEncodedContentType,
         followRedirects: false,
         validateStatus: (s) => s != null && s < 500,
-        headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://graph.qq.com/', 'User-Agent': ua},
+        headers: {'Cookie': _cookiesFor(Uri.https('graph.qq.com', '/oauth2.0/authorize')), 'Referer': 'https://graph.qq.com/', 'User-Agent': ua},
       ),
     );
     _checkLoginGeneration(generation);
-    _absorb(auth.headers);
+    _absorb(auth.headers, Uri.https('graph.qq.com', '/oauth2.0/authorize'));
     final location = auth.headers.value('location') ?? '';
     final code = Uri.tryParse(location)?.queryParameters['code'];
     if (code == null || code.isEmpty) throw Exception('登录失败：QQ 互联没有返回授权码，请重新扫码');
@@ -900,13 +921,19 @@ class QQMusicSource extends MusicSource {
           'param': {'code': code},
         },
       }),
-      options: Options(headers: {'Cookie': _loginCookieHeader, 'Referer': 'https://y.qq.com/', 'User-Agent': ua, 'Content-Type': 'application/json'}),
+      options: Options(headers: {'Cookie': _cookiesFor(Uri.parse(_api)), 'Referer': 'https://y.qq.com/', 'User-Agent': ua, 'Content-Type': 'application/json'}),
     );
     _checkLoginGeneration(generation);
-    _absorb(login.headers);
+    _absorb(login.headers, Uri.parse(_api));
     final j = jsonDecode(login.data ?? '{}') as Map<String, dynamic>;
     final resultCode = int.tryParse('${(j['req'] as Map?)?['code'] ?? j['code'] ?? -1}') ?? -1;
-    if (resultCode != 0) throw Exception('QQ 音乐凭据交换失败（$resultCode），请重新扫码');
+    if (resultCode != 0) {
+      final r = j['req'] as Map? ?? const {};
+      final data = r['data'] as Map? ?? const {};
+      final why = ['${r['msg'] ?? r['message'] ?? ''}', '${data['errMsg'] ?? data['errtip'] ?? ''}'].map((t) => t.trim()).firstWhere((t) => t.isNotEmpty, orElse: () => '');
+      debugPrint('qq login exchange failed: ${login.data}');
+      throw Exception('QQ 音乐凭据交换失败（$resultCode${why.isEmpty ? '' : '：$why'}），请重新扫码');
+    }
     final data = (j['req'] as Map?)?['data'] as Map? ?? const {};
     // 部分账号的 musickey 放在 Set-Cookie 里而不是 JSON 中。
     var uin = '${data['musicid'] ?? data['uin'] ?? ''}'.replaceAll(RegExp(r'^0+$'), '');
@@ -917,6 +944,7 @@ class QQMusicSource extends MusicSource {
     _uin = uin;
     _key = key;
     _loginCookies.clear();
+    _jar.clear();
     _user = UserProfile(id: uin, nickname: 'QQ 用户 $uin');
     await _refreshProfile();
   }
