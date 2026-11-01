@@ -208,7 +208,7 @@ class _MembershipCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${source.name}会员',
+              source.supports(SourceFeature.login) ? '${source.name}会员' : source.name,
               style: ts(13, weight: w600, color: const Color(0xCCFFFFFF)),
             ),
             const SizedBox(height: 6),
@@ -242,7 +242,7 @@ class _MembershipCard extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    '${source.name}会员',
+                    source.supports(SourceFeature.login) ? '${source.name}会员' : source.name,
                     style: ts(13, weight: w600, color: const Color(0xCCFFFFFF)),
                   ),
                   const Spacer(),

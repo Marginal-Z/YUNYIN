@@ -142,6 +142,8 @@ class PlayerController extends ChangeNotifier {
       }),
       p.stream.error.listen((e) {
         if (current != null && e.isNotEmpty) debugPrint('player error: $e');
+        // 播放地址打不开（失效、404、网络错误）：结束加载并给出原因，而不是一直显示加载中。
+        if (e.contains('Failed to open') && current != null) _onOpenFailed();
         // 音频滤镜（均衡器）创建失败：关闭均衡器并在原位置重新播放，避免一直没有声音。
         if (e.contains('Audio filter') && _eqApplied.isNotEmpty) unawaited(_onEqFailed().then((_) => current != null ? _load(autoplay: true, keepPosition: true) : null));
       }),
@@ -601,6 +603,18 @@ class PlayerController extends ChangeNotifier {
       await Future<void>.delayed(Duration(milliseconds: ms ~/ steps));
       await _setFade(from + (to - from) * i / steps);
     }
+  }
+
+  void _onOpenFailed() {
+    final song = current;
+    if (song == null) return;
+    _opening = false;
+    buffering = false;
+    notifyListeners();
+    final lx = song.sourceId == 'lx';
+    _notices.add(
+      PlayerNotice('无法打开这首歌', message: lx ? '洛雪音源返回的播放地址已失效，请在“设置 → 洛雪音源”中更换或调整音源顺序' : '播放地址已失效或网络不可用，请稍后重试'),
+    );
   }
 
   /// 正在打开新歌曲（从开始加载到播放器打开媒体）：这期间上一首的“播放结束”事件不能触发切歌。

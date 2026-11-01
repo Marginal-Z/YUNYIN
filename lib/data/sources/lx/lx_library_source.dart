@@ -64,6 +64,9 @@ class LxLibrarySource extends MusicSource {
   // ── 搜索 ──────────────────────────────────────────
 
   @override
+  List<SearchType> get searchTypes => const [SearchType.all, SearchType.song];
+
+  @override
   Future<SearchResult> search(String keyword, {SearchType type = SearchType.all, int offset = 0, int limit = 30}) async {
     if (type != SearchType.all && type != SearchType.song) return const SearchResult();
     final j = await _get(

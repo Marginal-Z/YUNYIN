@@ -25,6 +25,12 @@ class AlbumRef {
   factory AlbumRef.fromJson(Map<String, dynamic> j) => AlbumRef('${j['id']}', '${j['name']}', cover: j['cover'] as String?);
 }
 
+/// 修正已保存的图片地址：酷我的图片服务器（kwcdn）不支持 https，早先保存成 https 的地址改回 http。
+String? fixImageUrl(String? url) {
+  if (url == null || !url.startsWith('https://') || !url.contains('.kwcdn.kuwo.cn/')) return url;
+  return 'http://${url.substring(8)}';
+}
+
 class Song {
   const Song({
     required this.id,
@@ -66,7 +72,7 @@ class Song {
   String get artistText => artists.isEmpty ? '未知歌手' : artists.map((a) => a.name).join(' / ');
   String get albumName => album?.name ?? '';
   String get subtitle => albumName.isEmpty ? artistText : '$artistText · $albumName';
-  String? get coverUrl => cover ?? album?.cover;
+  String? get coverUrl => fixImageUrl(cover ?? album?.cover);
 
   Song copyWith({String? localPath, String? cover, Duration? duration}) => Song(
     id: id,

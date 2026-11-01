@@ -103,6 +103,9 @@ abstract class MusicSource extends ChangeNotifier {
   Future<void> followArtist(String id, bool follow) => throw const SourceUnsupported('关注歌手');
 
   // ── 搜索 ──────────────────────────────────────────
+  /// 支持的搜索类型（搜索结果页只显示这些分类）。
+  List<SearchType> get searchTypes => SearchType.values;
+
   Future<SearchResult> search(String keyword, {SearchType type = SearchType.all, int offset = 0, int limit = 30}) => throw const SourceUnsupported('搜索');
   Future<List<HotSearch>> hotSearches() => throw const SourceUnsupported('热搜');
 

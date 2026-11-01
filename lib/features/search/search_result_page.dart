@@ -48,8 +48,10 @@ class _SearchResultPageState extends State<SearchResultPage> {
     final desktop = LayoutScope.isDesktop(context);
     final sources = context.watch<SourceManager>();
     final k = widget.route.keyword;
-    final type = SearchType.values[_tab];
     final source = sources.byId(_source);
+    // 只显示当前平台支持的搜索分类（洛雪曲库只有歌曲）。
+    final types = source.searchTypes;
+    final type = types.contains(SearchType.values[_tab]) ? SearchType.values[_tab] : SearchType.all;
     final body = AsyncView<SearchResult>(
       key: ValueKey('$k-$_tab-$_source-${sources.generation}'),
       cacheKey: 'search:$_source:$k:${type.name}',
@@ -90,7 +92,12 @@ class _SearchResultPageState extends State<SearchResultPage> {
             ],
           ),
         SizedBox(height: desktop ? 0 : 16),
-        ChipBar(labels: _tabs, index: _tab, scroll: !desktop, onChanged: (i) => setState(() => _tab = i)),
+        ChipBar(
+          labels: [for (final t in types) _tabs[t.index]],
+          index: types.indexOf(type),
+          scroll: !desktop,
+          onChanged: (i) => setState(() => _tab = types[i].index),
+        ),
         SizedBox(height: desktop ? 22 : 18),
         EntranceFade(key: ValueKey(_tab), child: body),
       ],

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -31,7 +32,8 @@ abstract final class Toast {
     );
     _entry = entry;
     overlay.insert(entry);
-    _timer = Timer(const Duration(milliseconds: 2200), () {
+    // 较长的说明（例如播放失败的原因）显示得久一些。
+    _timer = Timer(Duration(milliseconds: (2200 + math.max(0, message.length - 16) * 70).clamp(2200, 5500)), () {
       if (_entry == entry) {
         entry.remove();
         _entry = null;
@@ -64,20 +66,27 @@ class _ToastView extends StatelessWidget {
               opacity: t.clamp(0, 1),
               child: Transform.translate(offset: Offset(0, -12 * (1 - t)), child: child),
             ),
-            child: Glass(
-              radius: 22,
-              height: 44,
-              padding: const EdgeInsets.fromLTRB(14, 0, 18, 0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  YIcon(icon, size: 18, color: p.text, strokeWidth: 2),
-                  const SizedBox(width: 8),
-                  Text(
-                    message,
-                    style: ts(14, weight: w600, color: p.text),
-                  ),
-                ],
+            child: ConstrainedBox(
+              // 长消息换行显示（最多 3 行），不再被截断。
+              constraints: BoxConstraints(maxWidth: math.min(MediaQuery.sizeOf(context).width - 32, 520), minHeight: 44),
+              child: Glass(
+                radius: 22,
+                padding: const EdgeInsets.fromLTRB(14, 11, 18, 11),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    YIcon(icon, size: 18, color: p.text, strokeWidth: 2),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        message,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: ts(14, weight: w600, height: 1.35, color: p.text),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
