@@ -232,3 +232,84 @@ footer { max-width: var(--max); margin: 140px auto 0; padding: 32px 20px 48px; b
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .reveal { opacity: 1; transform: none; }
 }
+
+/* ── 1.1.14 改版：颗粒质感、平台切换、平台模式卡片、播放样式长廊 ── */
+.grain {
+  position: fixed; inset: 0; z-index: 30; pointer-events: none; opacity: .05; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* 首屏平台切换：光晕与标题渐变跟随平台主色 */
+.hero { --p1: #ff4d6a; --p2: #2f6fff; --p3: rgba(40, 190, 160, .7); transition: --p1 .6s; }
+.hero[data-platform="qq"] { --p1: #1fc27c; --p2: #2fb8ff; --p3: rgba(120, 220, 140, .6); }
+.hero[data-platform="kugou"] { --p1: #3a9bff; --p2: #7a5cff; --p3: rgba(80, 170, 255, .6); }
+.hero .aurora i:nth-child(1) { background: radial-gradient(closest-side, var(--p2), transparent); transition: background .8s; }
+.hero .aurora i:nth-child(2) { background: radial-gradient(closest-side, var(--p1), transparent); transition: background .8s; }
+.hero .aurora i:nth-child(3) { background: radial-gradient(closest-side, var(--p3), transparent); }
+.hero[data-platform="qq"] .grad { background-image: linear-gradient(100deg, #fff 10%, #b8f5d6 45%, #1fc27c 80%); }
+.hero[data-platform="kugou"] .grad { background-image: linear-gradient(100deg, #fff 10%, #b8d9ff 45%, #3a9bff 80%); }
+.switch {
+  display: inline-flex; gap: 4px; margin-top: 30px; padding: 5px; border-radius: 16px;
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--line); backdrop-filter: blur(20px);
+}
+.switch button {
+  display: inline-flex; align-items: center; gap: 8px; border: 0; padding: 9px 16px; border-radius: 11px;
+  background: none; color: var(--text2); font-size: 14px; font-weight: 600; cursor: pointer; transition: background .25s, color .25s;
+}
+.switch button i { width: 8px; height: 8px; border-radius: 50%; background: #ff4d6a; box-shadow: 0 0 10px currentColor; }
+.switch button[data-platform="qq"] i { background: #1fc27c; }
+.switch button[data-platform="kugou"] i { background: #3a9bff; }
+.switch button[aria-selected="true"] { background: rgba(255, 255, 255, .1); color: var(--text); }
+#hero-phone { transition: opacity .3s; }
+#hero-phone.fade { opacity: 0; }
+
+/* 平台模式卡片 */
+.platform-modes { max-width: var(--max); margin: 160px auto 0; padding: 0 20px; }
+.plats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.plat {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: 24px;
+  min-height: 560px; padding: 28px 28px 0; border-radius: 28px; border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .015));
+  transition: transform .35s cubic-bezier(.2, .8, .2, 1), border-color .35s;
+}
+.plat:hover { transform: translateY(-4px); border-color: var(--line2); }
+.plat::before { content: ""; position: absolute; inset: -40% -20% auto; height: 70%; filter: blur(60px); opacity: .5; pointer-events: none; }
+.plat.netease::before { background: radial-gradient(closest-side, #ff4d6a, transparent); }
+.plat.qq::before { background: radial-gradient(closest-side, #1fc27c, transparent); }
+.plat.kugou::before { background: radial-gradient(closest-side, #3a9bff, transparent); }
+.plat-copy { position: relative; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: #fff; }
+.netease .badge { background: linear-gradient(90deg, #ff4d6a, #dc1031); }
+.qq .badge { background: linear-gradient(90deg, #2ed58b, #0a8f55); }
+.kugou .badge { background: linear-gradient(90deg, #4aa8ff, #1560c9); }
+.plat h3 { font-size: 22px; margin: 16px 0 8px; }
+.plat p { margin: 0; color: var(--text2); font-size: 15px; }
+.plat .phone.small { width: 230px; align-self: center; margin-bottom: -120px; transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
+.plat:hover .phone.small { transform: translateY(-14px); }
+.note { text-align: center; color: var(--text2); font-size: 15px; margin: 30px auto 0; max-width: 720px; }
+
+/* 播放样式长廊 */
+.styles { margin: 170px auto 0; }
+.styles-rail { justify-content: flex-start; padding-left: max(20px, calc((100vw - var(--max)) / 2)); padding-right: 40px; }
+.styles-rail .phone { width: 230px; flex: none; }
+.window.land { max-width: 980px; margin: 70px auto 0; border-radius: 22px; }
+
+/* 渐变描边的标题装饰 */
+h2 { background: linear-gradient(180deg, #fff 30%, rgba(255, 255, 255, .62)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+@media (max-width: 1000px) {
+  .plats { grid-template-columns: 1fr; }
+  .plat { min-height: 0; padding-bottom: 28px; }
+  .plat .phone.small { width: 200px; margin-bottom: 0; }
+}
+@media (max-width: 720px) {
+  .switch { flex-wrap: wrap; justify-content: center; }
+  .platform-modes, .styles { margin-top: 110px; }
+  .styles-rail .phone { width: 200px; }
+}
+/* 窄屏时桌面端截图的标签横向滚动 */
+.tabs { max-width: calc(100vw - 32px); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: none; }
+.styles-rail { scrollbar-width: none; }
+.styles-rail::-webkit-scrollbar { display: none; }

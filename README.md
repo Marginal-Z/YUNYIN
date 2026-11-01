@@ -21,13 +21,23 @@
 
 ## 截图
 
-| 首页 | 正在播放 | 歌词 | 歌单 |
-| :---: | :---: | :---: | :---: |
-| <img src="website/shots/mobile-home.webp" width="200"> | <img src="website/shots/mobile-player.webp" width="200"> | <img src="website/shots/mobile-lyrics.webp" width="200"> | <img src="website/shots/mobile-playlist.webp" width="200"> |
+**三大平台模式**
 
-| 桌面端首页 | 桌面端播放页 |
+| 网易云音乐 | QQ 音乐 | 酷狗音乐 | 照片墙首页 |
+| :---: | :---: | :---: | :---: |
+| <img src="website/shots/mobile-home.webp" width="200"> | <img src="website/shots/mobile-home-qq.webp" width="200"> | <img src="website/shots/mobile-home-kugou.webp" width="200"> | <img src="website/shots/mobile-home-wall.webp" width="200"> |
+
+**播放样式与歌词**
+
+| 封面 | 黑胶 | 3D 封面流 | 歌词 |
+| :---: | :---: | :---: | :---: |
+| <img src="website/shots/mobile-player.webp" width="200"> | <img src="website/shots/mobile-player-vinyl.webp" width="200"> | <img src="website/shots/mobile-player-coverFlow.webp" width="200"> | <img src="website/shots/mobile-lyrics-dark.webp" width="200"> |
+
+**桌面端**
+
+| 首页 | 正在播放 |
 | :---: | :---: |
-| <img src="website/shots/desktop-home.webp" width="420"> | <img src="website/shots/desktop-player.webp" width="420"> |
+| <img src="website/shots/desktop-home.webp" width="420"> | <img src="website/shots/desktop-player-dark.webp" width="420"> |
 
 > 截图均为应用的真实渲染画面（截图模式 `YUNYIN_SHOTS` 自动生成）。
 
@@ -74,7 +84,7 @@
 | Linux | `YunYin-<版本>-linux-<x64\|arm64>.tar.gz` | 便携版，解压后运行 `./yunyin` |
 | macOS | `YunYin-<版本>-macos-universal.zip` | Intel 与 Apple 芯片通用；未签名，首次请右键 → 打开 |
 
-安装后，新版本会在应用内提示并自动下载安装（可在“设置 → 账号与关于”中关闭自动检查）。
+安装后，新版本会在应用内提示并自动下载安装（可在“设置 → 关于云音”中关闭自动检查）。
 
 ## 使用指南
 

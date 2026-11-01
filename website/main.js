@@ -20,6 +20,25 @@ onScroll();
 
 // 桌面端截图：页面标签 × 浅色 / 深色（只有首页与正在播放有深色截图）。
 const DARK = new Set(['desktop-home', 'desktop-player']);
+
+// 首屏平台切换：手机截图换成对应平台的首页，光晕与标题渐变跟随平台主色。
+const hero = document.getElementById('hero');
+const heroPhone = document.getElementById('hero-phone');
+const PHONE = { netease: 'mobile-home', qq: 'mobile-home-qq', kugou: 'mobile-home-kugou' };
+document.querySelectorAll('.switch [data-platform]').forEach((b) => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.switch [data-platform]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    hero.dataset.platform = b.dataset.platform;
+    const src = `shots/${PHONE[b.dataset.platform]}.webp`;
+    heroPhone.classList.add('fade');
+    const next = new Image();
+    next.onload = () => {
+      heroPhone.src = src;
+      heroPhone.classList.remove('fade');
+    };
+    next.src = src;
+  });
+});
 const shotImg = document.getElementById('desktop-shot');
 const modeBtn = document.getElementById('mode-toggle');
 let shot = 'desktop-home';
