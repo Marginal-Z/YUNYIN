@@ -151,7 +151,7 @@ class AppearanceRoute extends AppRoute {
   String get sideKey => 'settings';
 }
 
-/// 账号与关于中的隐私政策、用户协议、权限管理与意见反馈。
+/// 关于页中的隐私政策、用户协议、权限管理与意见反馈。
 class AboutRoute extends AppRoute {
   AboutRoute(this.page);
 

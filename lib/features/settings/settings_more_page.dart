@@ -5,19 +5,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
-import '../../core/ui/feedback.dart';
 import '../../core/ui/icons.dart';
-import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../core/update/updater.dart';
-import '../../data/sources/source_manager.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
 import '../common/actions.dart';
 import 'about_pages.dart';
 import 'update_dialog.dart';
 
-/// 账号与关于。
+/// 关于云音：协议、隐私、权限与版本。
 class SettingsMorePage extends StatelessWidget {
   const SettingsMorePage({super.key});
 
@@ -25,8 +22,6 @@ class SettingsMorePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final s = context.watch<AppSettings>();
-    final sm = context.watch<SourceManager>();
-    final source = sm.current;
     final updater = context.watch<UpdateManager>();
     final desktop = LayoutScope.isDesktop(context);
     Future<void> open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -41,7 +36,7 @@ class SettingsMorePage extends StatelessWidget {
         ),
       ],
       children: [
-        PageTitle('账号与关于', size: desktop ? 40 : 36),
+        PageTitle('关于', size: desktop ? 40 : 36),
         const GroupLabel('通知与隐私', top: 18),
         CardList(
           indent: 56,
@@ -105,46 +100,6 @@ class SettingsMorePage extends StatelessWidget {
             SettingsRow(icon: YIcons.code, tile: TileColor.graphite, title: '项目主页', value: 'GitHub', onTap: () => open(kRepoUrl)),
           ],
         ),
-        const SizedBox(height: 22),
-        if (source.loggedIn)
-          Pressable(
-            onTap: () async {
-              final ok = await showConfirm(context, title: '退出登录？', message: '退出后将无法同步${source.name}的歌单与喜欢。', confirm: '退出');
-              if (!ok || !context.mounted) return;
-              await source.logout();
-              if (context.mounted) {
-                final nav = context.read<AppNav>();
-                nav.pop();
-                nav.push(LoginRoute());
-              }
-            },
-            child: YCard(
-              child: SizedBox(
-                height: 52,
-                child: Center(
-                  child: Text(
-                    '退出登录',
-                    style: ts(16, weight: w600, color: p.danger),
-                  ),
-                ),
-              ),
-            ),
-          )
-        else
-          Pressable(
-            onTap: () => context.read<AppNav>().push(LoginRoute()),
-            child: YCard(
-              child: SizedBox(
-                height: 52,
-                child: Center(
-                  child: Text(
-                    '登录${source.name}',
-                    style: ts(16, weight: w600, color: p.accentText),
-                  ),
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }

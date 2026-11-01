@@ -10,15 +10,12 @@ import 'lx_page.dart';
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
-import '../../core/ui/cover.dart';
 import '../../core/ui/feedback.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/downloads.dart';
 import '../../data/models.dart';
-import '../../data/sources/music_source.dart';
-import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
@@ -45,53 +42,7 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-/// 账号卡片（头像 56 + 昵称）。
-class AccountCard extends StatelessWidget {
-  const AccountCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = Palette.of(context);
-    final source = context.watch<SourceManager>().current;
-    final user = source.user;
-    return Pressable(
-      onTap: () => go(context, user == null && source.supports(SourceFeature.login) ? LoginRoute() : SettingsMoreRoute()),
-      child: YCard(
-        child: SizedBox(
-          height: 80,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 14, 0),
-            child: Row(
-              children: [
-                Avatar(user?.avatar, size: 56),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user?.nickname ?? '未登录',
-                        style: ts(18, weight: w600, color: p.text),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(user == null ? '登录${source.name}账号' : '账号与安全', style: ts(13, color: p.text2)),
-                    ],
-                  ),
-                ),
-                const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// “账号与关于”入口：隐私政策、用户协议、权限管理、开源许可、意见反馈与版本信息（未登录也可以进入）。
+/// “关于”入口：隐私政策、用户协议、权限管理、开源许可、意见反馈与版本信息。
 class AboutEntry extends StatelessWidget {
   const AboutEntry({super.key});
 
@@ -99,7 +50,7 @@ class AboutEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return CardList(
       indent: 56,
-      children: [SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '账号与关于', value: '协议与版本', onTap: () => go(context, SettingsMoreRoute()))],
+      children: [SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '关于云音', value: '协议与版本', onTap: () => go(context, SettingsMoreRoute()))],
     );
   }
 }

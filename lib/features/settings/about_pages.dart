@@ -20,7 +20,7 @@ const kRepoUrl = 'https://github.com/Marginal-Z/YUNYIN';
 /// 反馈群组链接（Telegram）。为空时意见反馈页不显示这一项。
 const kTelegramGroup = '';
 
-/// 账号与关于中的二级页面。
+/// 关于页中的二级页面。
 enum AboutPage { privacy, agreement, permissions, feedback }
 
 Future<void> _open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
@@ -72,7 +72,7 @@ const kPrivacySections = <Widget>[
     '• 本地歌曲联网补全封面与歌词时，会用歌名与歌手在上述平台中搜索。',
     '• 你挂载的网盘（WebDAV）服务器。',
     '• 你导入的洛雪音源脚本可能访问脚本作者指定的服务器以获取播放地址；云音只代为发送脚本发起的网络请求，脚本无法读取你的文件、账号或其他应用数据。请只导入可信来源的脚本。',
-    '• GitHub（api.github.com、github.com）：检查与下载新版本，可在“账号与关于”中关闭自动检查。',
+    '• GitHub（api.github.com、github.com）：检查与下载新版本，可在“设置 → 关于云音”中关闭自动检查。',
   ]),
   _Section('系统权限', ['云音申请的系统权限及用途见“权限管理”，每项权限只在对应功能需要时使用。']),
   _Section('删除数据', ['退出登录会删除对应平台的登录凭据；移除网盘或音源会删除其配置；卸载云音会删除它保存在应用目录中的全部数据。你自己的音乐文件不会被删除。']),

@@ -155,6 +155,7 @@ class _SlidingTabBarState extends State<SlidingTabBar> with TickerProviderStateM
     return Glass(
       radius: widget.height / 2,
       height: widget.height,
+      legible: true,
       padding: const EdgeInsets.all(5),
       child: LayoutBuilder(
         builder: (context, c) {

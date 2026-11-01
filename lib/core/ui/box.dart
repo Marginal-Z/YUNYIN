@@ -180,10 +180,11 @@ Widget _shaderGlass({
   double? height,
   EdgeInsetsGeometry? padding,
   AlignmentGeometry? alignment,
+  bool legible = false,
   Widget? child,
 }) {
   Widget content = Container(padding: padding, alignment: alignment, child: child);
-  content = LiquidGlassBackdrop(radius: radius, material: material, child: content);
+  content = LiquidGlassBackdrop(radius: radius, material: material, legible: legible, child: content);
   // 投影：浅色模式下柔和、贴近（迷你播放条与导航栏上下相邻，投影不能落到另一块玻璃里再被折射成一圈暗边）；
   // 深色模式的黑色投影在深色背景上只会形成一圈脏边，不画。
   if (!dark) {
@@ -271,7 +272,19 @@ class YBox extends StatelessWidget {
 
 /// Liquid Glass 材质。
 class Glass extends StatelessWidget {
-  const Glass({super.key, required this.radius, this.width, this.height, this.padding, this.color, this.shadows, this.insets, this.alignment, this.child});
+  const Glass({
+    super.key,
+    required this.radius,
+    this.width,
+    this.height,
+    this.padding,
+    this.color,
+    this.shadows,
+    this.insets,
+    this.alignment,
+    this.legible = false,
+    this.child,
+  });
 
   final double radius;
   final double? width;
@@ -281,6 +294,9 @@ class Glass extends StatelessWidget {
   final List<Shadow2>? shadows;
   final List<Shadow2>? insets;
   final AlignmentGeometry? alignment;
+
+  /// 承载文字的玻璃，见 [LiquidGlassBackdrop.legible]。
+  final bool legible;
   final Widget? child;
 
   @override
@@ -296,6 +312,7 @@ class Glass extends StatelessWidget {
         height: height,
         padding: padding,
         alignment: alignment,
+        legible: legible,
         child: child,
       );
     }

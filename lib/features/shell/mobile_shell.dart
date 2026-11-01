@@ -151,6 +151,7 @@ class _BottomBar extends StatelessWidget {
             width: 64,
             height: 64,
             alignment: Alignment.center,
+            legible: true,
             child: YIcon(YIcons.search, size: 24, strokeWidth: 2.3, color: p.text),
           ),
         ),
@@ -174,6 +175,7 @@ class MiniPlayer extends StatelessWidget {
     return Glass(
       radius: 29,
       height: 58,
+      legible: true,
       padding: const EdgeInsets.fromLTRB(7, 7, 8, 7),
       child: Row(
         children: [
