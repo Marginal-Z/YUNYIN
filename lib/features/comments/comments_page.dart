@@ -11,6 +11,7 @@ import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
+import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 
 String formatCount(int n) {
@@ -144,6 +145,7 @@ class _CommentsPageState extends State<CommentsPage> {
     final pad = MediaQuery.paddingOf(context);
     final song = widget.song;
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final canPost = context.read<SourceManager>().byId(song.sourceId).supports(SourceFeature.postComment);
     return Material(
       type: MaterialType.transparency,
       child: AppBackground(
@@ -220,7 +222,7 @@ class _CommentsPageState extends State<CommentsPage> {
                       else
                         CardList(
                           indent: 66,
-                          children: [for (final c in _items) _CommentRow(comment: c, liked: _likedIds.contains(c.id), onLike: () => _like(c))],
+                          children: [for (final c in _items) _CommentRow(comment: c, liked: _likedIds.contains(c.id), onLike: canPost ? () => _like(c) : null)],
                         ),
                       if (_loading && _items.isNotEmpty)
                         const Padding(
@@ -259,57 +261,64 @@ class _CommentsPageState extends State<CommentsPage> {
                     YIcons.share,
                     label: '分享',
                     onTap: () {
-                      final url = song.sourceId == 'netease' ? 'https://music.163.com/song?id=${song.id}' : '${song.name} - ${song.artistText}';
+                      final url = switch (song.sourceId) {
+                        'netease' => 'https://music.163.com/song?id=${song.id}',
+                        'qq' => 'https://y.qq.com/n/ryqq/songDetail/${song.id.split(':').first}',
+                        'kugou' => 'https://www.kugou.com/song/#hash=${song.id.split(':').first}',
+                        _ => '${song.name} - ${song.artistText}',
+                      };
                       Clipboard.setData(ClipboardData(text: url));
                       Toast.show(context, '链接已复制');
                     },
                   ),
                 ),
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: pad.bottom + 22 + bottomInset,
-                  child: Glass(
-                    radius: 30,
-                    height: 60,
-                    padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _input,
-                            onSubmitted: (_) => _send(),
-                            textInputAction: TextInputAction.send,
-                            style: ts(16, color: p.text),
-                            cursorColor: p.accentText,
-                            decoration: InputDecoration(
-                              isCollapsed: true,
-                              border: InputBorder.none,
-                              hintText: '说点什么吧…',
-                              hintStyle: ts(16, color: p.text2),
+                // 只有支持发表评论的平台（网易云）显示输入框。
+                if (canPost)
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: pad.bottom + 22 + bottomInset,
+                    child: Glass(
+                      radius: 30,
+                      height: 60,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _input,
+                              onSubmitted: (_) => _send(),
+                              textInputAction: TextInputAction.send,
+                              style: ts(16, color: p.text),
+                              cursorColor: p.accentText,
+                              decoration: InputDecoration(
+                                isCollapsed: true,
+                                border: InputBorder.none,
+                                hintText: '说点什么吧…',
+                                hintStyle: ts(16, color: p.text2),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Pressable(
-                          onTap: _send,
-                          scale: 0.92,
-                          semanticLabel: '发送',
-                          child: YBox(
-                            width: 44,
-                            height: 44,
-                            radius: BorderRadius.circular(22),
-                            gradient: CssGradient.vertical(p.buttonGradient),
-                            shadows: p.buttonShadow,
-                            insets: [Shadow2(0, 1, 0, p.buttonInsetHighlight)],
-                            alignment: Alignment.center,
-                            child: const YIcon(YIcons.send, size: 20, color: Colors.white),
+                          const SizedBox(width: 10),
+                          Pressable(
+                            onTap: _send,
+                            scale: 0.92,
+                            semanticLabel: '发送',
+                            child: YBox(
+                              width: 44,
+                              height: 44,
+                              radius: BorderRadius.circular(22),
+                              gradient: CssGradient.vertical(p.buttonGradient),
+                              shadows: p.buttonShadow,
+                              insets: [Shadow2(0, 1, 0, p.buttonInsetHighlight)],
+                              alignment: Alignment.center,
+                              child: const YIcon(YIcons.send, size: 20, color: Colors.white),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -324,7 +333,7 @@ class _CommentRow extends StatelessWidget {
 
   final Comment comment;
   final bool liked;
-  final VoidCallback onLike;
+  final VoidCallback? onLike;
 
   @override
   Widget build(BuildContext context) {

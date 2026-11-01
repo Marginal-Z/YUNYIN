@@ -295,7 +295,8 @@ class _Sidebar extends StatelessWidget {
                   label('发现', 20),
                   _SideItem(icon: YIcons.home, label: '首页', active: active == 'home', onTap: () => open(HomeRoute())),
                   _SideItem(icon: YIcons.discover, label: '发现', active: active == 'discover', onTap: () => open(DiscoverRoute())),
-                  _SideItem(icon: YIcons.radio, label: '电台', active: active == 'radio', onTap: () => open(DiscoverRoute(tab: 2))),
+                  if (source.supports(SourceFeature.radio))
+                    _SideItem(icon: YIcons.radio, label: '电台', active: active == 'radio', onTap: () => open(DiscoverRoute(tab: 2))),
                   label('乐库', 18),
                   _SideItem(icon: YIcons.clock, label: '最近播放', active: active == 'collection:recent', onTap: () => open(CollectionRoute(PlaylistKind.recent))),
                   _SideItem(
@@ -325,10 +326,7 @@ class _Sidebar extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(6, 0, 4, 0),
             child: Row(
               children: [
-                Pressable(
-                  onTap: () => open(ProfileRoute()),
-                  child: Avatar(source.user?.avatar, size: 34),
-                ),
+                Pressable(onTap: () => open(ProfileRoute()), child: Avatar(source.user?.avatar, size: 34)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Pressable(
@@ -548,7 +546,11 @@ class _LyricsWindowState extends State<_LyricsWindow> {
                         key: ValueKey(lyrics.line),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: ts(30, weight: w700, color: style.lyricsDisplayColor.withValues(alpha: style.lyricsOpacity)).copyWith(shadows: shadow),
+                        style: ts(
+                          30,
+                          weight: w700,
+                          color: style.lyricsDisplayColor.withValues(alpha: style.lyricsOpacity),
+                        ).copyWith(shadows: shadow),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -556,7 +558,11 @@ class _LyricsWindowState extends State<_LyricsWindow> {
                       lyrics.next,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: ts(17, weight: w500, color: Colors.white.withValues(alpha: 0.9 * style.lyricsOpacity)).copyWith(shadows: shadow),
+                      style: ts(
+                        17,
+                        weight: w500,
+                        color: Colors.white.withValues(alpha: 0.9 * style.lyricsOpacity),
+                      ).copyWith(shadows: shadow),
                     ),
                   ],
                 ),

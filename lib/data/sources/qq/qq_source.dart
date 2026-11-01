@@ -54,9 +54,13 @@ class QQMusicSource extends MusicSource {
     SourceFeature.search,
     SourceFeature.hotSearch,
     SourceFeature.charts,
+    SourceFeature.newAlbums,
     SourceFeature.lyrics,
     SourceFeature.lyricTranslation,
     SourceFeature.dailyRecommend,
+    SourceFeature.artist,
+    SourceFeature.album,
+    SourceFeature.comments,
     SourceFeature.login,
     SourceFeature.qrLogin,
     if (_user != null) SourceFeature.userPlaylists,
@@ -133,8 +137,10 @@ class QQMusicSource extends MusicSource {
     final albumName = '${album['name'] ?? album['title'] ?? j['albumname'] ?? ''}';
     final singers = (j['singer'] as List? ?? const []).cast<Map>();
     final pay = j['pay'] as Map? ?? const {};
+    // 评论接口需要数字 id，一并编码在歌曲 id 中：“songmid:media_mid:数字 id”。
+    final numeric = '${j['id'] ?? j['songid'] ?? ''}';
     return Song(
-      id: '$mid:$media',
+      id: numeric.isEmpty || numeric == '0' ? '$mid:$media' : '$mid:$media:$numeric',
       sourceId: sourceId,
       name: '${j['name'] ?? j['title'] ?? j['songname'] ?? ''}',
       artists: [for (final s in singers) ArtistRef('${s['mid'] ?? s['id'] ?? ''}', '${s['name'] ?? s['title'] ?? ''}')],
@@ -147,16 +153,41 @@ class QQMusicSource extends MusicSource {
     );
   }
 
-  ({String mid, String media}) _ids(Song s) {
-    final i = s.id.indexOf(':');
-    return i < 0 ? (mid: s.id, media: s.id) : (mid: s.id.substring(0, i), media: s.id.substring(i + 1));
+  ({String mid, String media, String numeric}) _ids(Song s) {
+    final p = s.id.split(':');
+    return (mid: p.first, media: p.length > 1 ? p[1] : p.first, numeric: p.length > 2 ? p[2] : '');
   }
 
   // ── 搜索 ──────────────────────────────────────────
 
   @override
   Future<SearchResult> search(String keyword, {SearchType type = SearchType.all, int offset = 0, int limit = 30}) async {
-    if (type != SearchType.all && type != SearchType.song) return const SearchResult();
+    switch (type) {
+      case SearchType.artist:
+      case SearchType.album:
+        final box = await _smartbox(keyword);
+        return SearchResult(artists: type == SearchType.artist ? box.artists : const [], albums: type == SearchType.album ? box.albums : const []);
+      case SearchType.playlist:
+        return SearchResult(
+          playlists: await _searchPlaylists(keyword, offset: offset, limit: limit),
+        );
+      case SearchType.song:
+        final songs = await _searchSongs(keyword, offset: offset, limit: limit);
+        return SearchResult(songs: songs, bestSong: songs.firstOrNull);
+      case SearchType.all:
+        final r = await Future.wait([
+          _searchSongs(keyword, offset: offset, limit: limit),
+          _smartbox(keyword).catchError((Object _) => (artists: <ArtistInfo>[], albums: <AlbumInfo>[])),
+          _searchPlaylists(keyword, limit: 6).catchError((Object _) => <PlaylistInfo>[]),
+        ]);
+        final songs = r[0] as List<Song>;
+        final box = r[1] as ({List<ArtistInfo> artists, List<AlbumInfo> albums});
+        final pls = r[2] as List<PlaylistInfo>;
+        return SearchResult(songs: songs, artists: box.artists, albums: box.albums, playlists: pls, bestSong: songs.firstOrNull, bestPlaylist: pls.firstOrNull);
+    }
+  }
+
+  Future<List<Song>> _searchSongs(String keyword, {int offset = 0, int limit = 30}) async {
     final d = await _one('music.search.SearchCgiService', 'DoSearchForQQMusicMobile', {
       // 搜索 id 是随机数；13 位时间戳会被拒绝（2001）。
       'searchid': '${math.Random().nextInt(1 << 30)}',
@@ -168,10 +199,66 @@ class QQMusicSource extends MusicSource {
       'grp': 1,
     });
     final body = d['body'] as Map? ?? const {};
-    final items = (body['item_song'] as List? ?? const []).cast<Map<String, dynamic>>();
-    final songs = [for (final x in items) _song(x)];
-    return SearchResult(songs: songs, bestSong: songs.firstOrNull);
+    return [for (final x in (body['item_song'] as List? ?? const []).cast<Map<String, dynamic>>()) _song(x)];
   }
+
+  /// 歌手与专辑搜索（联想接口，返回最相关的几个）。
+  Future<({List<ArtistInfo> artists, List<AlbumInfo> albums})> _smartbox(String keyword) async {
+    final res = await _dio.get<String>(
+      'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
+      queryParameters: {'key': keyword, 'format': 'json', 'g_tk': 5381},
+    );
+    final d = ((jsonDecode(res.data ?? '{}') as Map)['data'] as Map?) ?? const {};
+    List<Map> items(String k) => ((d[k] as Map?)?['itemlist'] as List? ?? const []).cast<Map>();
+    return (
+      artists: [
+        for (final a in items('singer'))
+          ArtistInfo(id: '${a['mid']}', sourceId: sourceId, name: '${a['name']}', avatar: 'https://y.gtimg.cn/music/photo_new/T001R300x300M000${a['mid']}.jpg'),
+      ],
+      albums: [
+        for (final a in items('album'))
+          AlbumInfo(
+            id: '${a['mid']}',
+            sourceId: sourceId,
+            name: '${a['name']}',
+            cover: _albumCover('${a['mid']}'),
+            artist: ArtistRef('', '${a['singer'] ?? ''}'),
+          ),
+      ],
+    );
+  }
+
+  Future<List<PlaylistInfo>> _searchPlaylists(String keyword, {int offset = 0, int limit = 20}) async {
+    final res = await _dio.get<String>(
+      'https://c.y.qq.com/soso/fcgi-bin/client_music_search_songlist',
+      queryParameters: {
+        'query': keyword,
+        'page_no': offset ~/ limit,
+        'num_per_page': limit,
+        'format': 'json',
+        'remoteplace': 'txt.yqq.playlist',
+        'searchid': 1,
+        'flag_qc': 0,
+      },
+    );
+    final list = (((jsonDecode(res.data ?? '{}') as Map)['data'] as Map?)?['list'] as List? ?? const []).cast<Map>();
+    return [
+      for (final p in list)
+        PlaylistInfo(
+          id: 'diss:${p['dissid']}',
+          sourceId: sourceId,
+          name: _unescape('${p['dissname']}'),
+          cover: _https(p['imgurl'] as String?),
+          trackCount: (p['song_count'] as num?)?.toInt() ?? 0,
+          playCount: (p['listennum'] as num?)?.toInt() ?? 0,
+          creator: _unescape('${(p['creator'] as Map?)?['name'] ?? ''}'),
+        ),
+    ];
+  }
+
+  /// 旧接口的文字里带有 HTML 实体（&#39; 等）。
+  static String _unescape(String s) =>
+      s.replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&#39;', "'").replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&nbsp;', ' ');
 
   @override
   Future<List<HotSearch>> hotSearches() async {
@@ -256,18 +343,183 @@ class QQMusicSource extends MusicSource {
   @override
   Future<PlaylistInfo> soaringChart() => playlist('top:62');
 
+  /// 推荐歌单：歌单广场按热度排序。
   @override
   Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) async {
-    final list = await charts();
+    final d = await _one('playlist.PlayListPlazaServer', 'get_playlist_by_tag', {'id': 10000000, 'sin': 0, 'size': limit, 'order': 5, 'cur_page': 1});
     return [
-      for (final c in list.take(limit)) PlaylistInfo(id: c.id, sourceId: sourceId, name: c.name, cover: c.cover, creator: 'QQ 音乐', kind: PlaylistKind.chart),
+      for (final p in (d['v_playlist'] as List? ?? const []).cast<Map>())
+        PlaylistInfo(
+          id: 'diss:${p['tid']}',
+          sourceId: sourceId,
+          name: '${p['title']}',
+          cover: _https('${p['cover_url_medium'] ?? p['cover_url_big'] ?? ''}'),
+          playCount: (p['access_num'] as num?)?.toInt() ?? 0,
+          creator: '${(p['creator_info'] as Map?)?['nick'] ?? ''}'.ifEmpty(null),
+          description: p['desc'] as String?,
+        ),
     ];
   }
 
   @override
   Future<HomeFeed> homeFeed() async {
-    final results = await Future.wait([_top(62, num: 30), recommendPlaylists(limit: 6)]);
+    final results = await Future.wait([_top(62, num: 30), recommendPlaylists(limit: 12)]);
     return HomeFeed(daily: results[0] as List<Song>, playlists: results[1] as List<PlaylistInfo>);
+  }
+
+  @override
+  Future<List<AlbumInfo>> newAlbums({int limit = 12}) async {
+    final d = await _one('newalbum.NewAlbumServer', 'get_new_album_info', {'area': 1, 'sin': 0, 'num': limit});
+    return [
+      for (final a in (d['albums'] as List? ?? const []).cast<Map>())
+        AlbumInfo(
+          id: '${a['mid']}',
+          sourceId: sourceId,
+          name: '${a['name']}',
+          cover: _albumCover('${a['mid']}'),
+          artist: (a['singers'] as List?)?.isNotEmpty == true ? ArtistRef('${a['singers'][0]['mid']}', '${a['singers'][0]['name']}') : null,
+          publishTime: DateTime.tryParse('${a['release_time'] ?? ''}'),
+        ),
+    ];
+  }
+
+  @override
+  Future<AlbumInfo> album(String id) async {
+    final j = await _call({
+      'a': {
+        'module': 'music.musichallAlbum.AlbumInfoServer',
+        'method': 'GetAlbumDetail',
+        'param': {'albumMid': id},
+      },
+      's': {
+        'module': 'music.musichallAlbum.AlbumSongList',
+        'method': 'GetAlbumSongList',
+        'param': {'albumMid': id, 'begin': 0, 'num': 200, 'order': 2},
+      },
+    });
+    final info = (((j['a'] as Map?)?['data'] as Map?)?['basicInfo'] as Map?) ?? const {};
+    final singers = ((((j['a'] as Map?)?['data'] as Map?)?['singer'] as Map?)?['singerList'] as List? ?? const []).cast<Map>();
+    final songs = [
+      for (final x in ((((j['s'] as Map?)?['data'] as Map?)?['songList'] as List?) ?? const []).cast<Map>())
+        if (x['songInfo'] is Map) _song(Map<String, dynamic>.from(x['songInfo'] as Map)),
+    ];
+    return AlbumInfo(
+      id: id,
+      sourceId: sourceId,
+      name: '${info['albumName'] ?? ''}',
+      cover: _albumCover(id),
+      artist: singers.isNotEmpty ? ArtistRef('${singers.first['mid']}', '${singers.first['name']}') : songs.firstOrNull?.artists.firstOrNull,
+      publishTime: DateTime.tryParse('${info['publishDate'] ?? ''}'),
+      description: info['desc'] as String?,
+      songs: songs,
+      size: songs.length,
+    );
+  }
+
+  @override
+  Future<ArtistInfo> artist(String id) async {
+    final j = await _call({
+      'd': {
+        'module': 'music.musichallSinger.SingerInfoInter',
+        'method': 'GetSingerDetail',
+        'param': {
+          'singer_mids': [id],
+          'ex_singer': 1,
+          'wiki_singer': 1,
+          'group_singer': 0,
+          'pic': 1,
+          'photos': 0,
+        },
+      },
+      's': {
+        'module': 'musichall.song_list_server',
+        'method': 'GetSingerSongList',
+        'param': {'singerMid': id, 'begin': 0, 'num': 50, 'order': 1},
+      },
+    });
+    final singer = (((((j['d'] as Map?)?['data'] as Map?)?['singer_list'] as List?) ?? const []).firstOrNull as Map?) ?? const {};
+    final basic = singer['basic_info'] as Map? ?? const {};
+    final ex = singer['ex_info'] as Map? ?? const {};
+    final songs = [
+      for (final x in ((((j['s'] as Map?)?['data'] as Map?)?['songList'] as List?) ?? const []).cast<Map>())
+        if (x['songInfo'] is Map) _song(Map<String, dynamic>.from(x['songInfo'] as Map)),
+    ];
+    return ArtistInfo(
+      id: id,
+      sourceId: sourceId,
+      name: '${basic['name'] ?? songs.firstOrNull?.artists.firstOrNull?.name ?? ''}',
+      avatar: 'https://y.gtimg.cn/music/photo_new/T001R500x500M000$id.jpg',
+      description: ex['desc'] as String?,
+      hotSongs: songs,
+    );
+  }
+
+  @override
+  Future<List<AlbumInfo>> artistAlbums(String id, {int limit = 30}) async {
+    final d = await _one('music.musichallAlbum.AlbumListServer', 'GetAlbumList', {
+      'singerMid': id,
+      'order': 0,
+      'begin': 0,
+      'num': limit,
+      'songNumTag': 0,
+      'singerID': 0,
+    });
+    return [
+      for (final a in (d['albumList'] as List? ?? const []).cast<Map>())
+        AlbumInfo(
+          id: '${a['albumMid']}',
+          sourceId: sourceId,
+          name: '${a['albumName']}',
+          cover: _albumCover('${a['albumMid']}'),
+          artist: ArtistRef(id, '${a['singerName'] ?? ''}'),
+          publishTime: DateTime.tryParse('${a['publishDate'] ?? ''}'),
+          size: (a['totalNum'] as num?)?.toInt() ?? 0,
+        ),
+    ];
+  }
+
+  @override
+  Future<CommentPage> comments(Song song, {CommentSort sort = CommentSort.recommend, int offset = 0}) async {
+    final ids = _ids(song);
+    var bizId = ids.numeric;
+    if (bizId.isEmpty) {
+      // 旧格式的歌曲 id 没有数字 id：按 songmid 查一次歌曲信息。
+      final d = await _one('music.pf_song_detail_svr', 'get_song_detail_yqq', {'song_mid': ids.mid});
+      bizId = '${(d['track_info'] as Map?)?['id'] ?? ''}';
+    }
+    if (bizId.isEmpty) return const CommentPage(total: 0, comments: []);
+    const size = 20;
+    final latest = sort == CommentSort.latest;
+    final d = await _one('music.globalComment.CommentReadServer', latest ? 'GetNewCommentList' : 'GetHotCommentList', {
+      'BizType': 1,
+      'BizId': bizId,
+      'LastCommentSeqNo': '',
+      'PageSize': size,
+      'PageNum': offset ~/ size,
+      if (latest) ...{'FromCommentId': '', 'WithHot': 0} else ...{'HotType': 1, 'WithAirborne': 0},
+      'PicEnable': 1,
+    });
+    final list = d['CommentList'] as Map? ?? const {};
+    final comments = [
+      for (final c in (list['Comments'] as List? ?? const []).cast<Map>())
+        // 跳过只有语音或图片的评论（文字只有“[音频]”“[图片]”）。
+        if (!RegExp(r'^\s*(\[(音频|图片|表情)\]\s*)*$').hasMatch('${c['Content'] ?? ''}'))
+          Comment(
+            id: '${c['CmId']}',
+            userName: '${c['Nick'] ?? ''}',
+            avatar: c['Avatar'] as String?,
+            content: _unescape('${c['Content']}'.trim()),
+            time: int.tryParse('${c['PubTime']}') == null ? null : DateTime.fromMillisecondsSinceEpoch(int.parse('${c['PubTime']}') * 1000),
+            location: (c['Location'] as String?)?.ifEmpty(null),
+            likedCount: int.tryParse('${c['PraiseNum']}') ?? 0,
+            replyCount: int.tryParse('${c['ReplyCnt']}') ?? 0,
+          ),
+    ];
+    return CommentPage(
+      total: (list['Total'] as num?)?.toInt() ?? comments.length,
+      comments: comments,
+      hasMore: list['HasMore'] == 1 || list['HasMore'] == true,
+    );
   }
 
   @override

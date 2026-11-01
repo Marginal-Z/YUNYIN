@@ -52,6 +52,32 @@ void main() {
         expect('$e', contains('洛雪'));
       }
 
+      // 完整的平台功能：歌手、专辑、歌单、评论、新碟与各类搜索。
+      final artistId = song.artists.first.id;
+      final artist = await qq.artist(artistId);
+      print('歌手: ${artist.name} ${artist.hotSongs.length} 首');
+      expect(artist.hotSongs, isNotEmpty);
+      final albums = await qq.artistAlbums(artistId, limit: 5);
+      expect(albums, isNotEmpty);
+      final album = await qq.album(song.album!.id);
+      print('专辑: ${album.name} ${album.songs?.length} 首 ${album.publishTime}');
+      expect(album.songs, isNotEmpty);
+      final pls = await qq.recommendPlaylists(limit: 6);
+      expect(pls, isNotEmpty);
+      final pl = await qq.playlist(pls.first.id);
+      print('歌单: ${pl.name} ${pl.tracks?.length} 首');
+      expect(pl.tracks, isNotEmpty);
+      expect(await qq.newAlbums(limit: 5), isNotEmpty);
+      final hotCm = await qq.comments(song);
+      final latest = await qq.comments(song, sort: CommentSort.latest);
+      print('评论: 共 ${hotCm.total} 条，热门 ${hotCm.comments.first.userName}：${hotCm.comments.first.content}');
+      expect(hotCm.comments, isNotEmpty);
+      expect(latest.comments, isNotEmpty);
+      final all = await qq.search('周杰伦');
+      print('综合搜索: 歌曲 ${all.songs.length} 歌手 ${all.artists.length} 专辑 ${all.albums.length} 歌单 ${all.playlists.length}');
+      expect(all.artists, isNotEmpty);
+      expect(all.playlists, isNotEmpty);
+
       final ticket = await qq.createQrLogin();
       expect(ticket.image, isNotNull);
       expect(ticket.image!.take(4).toList(), [0x89, 0x50, 0x4E, 0x47]);

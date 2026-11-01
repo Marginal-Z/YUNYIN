@@ -40,6 +40,29 @@ void main() {
       print('歌词 ${ly.lines.length} 行，同步 ${ly.synced}: ${ly.lines.take(3).map((l) => l.text).join(' / ')}');
       expect(ly.lines.length, greaterThan(10));
 
+      // 完整的平台功能：歌手、专辑、歌单、评论与各类搜索。
+      final artist = await kg.artist('kugou:周杰伦');
+      print('歌手: ${artist.name} ${artist.hotSongs.length} 首 ${artist.avatar}');
+      expect(artist.hotSongs, isNotEmpty);
+      final albums = await kg.artistAlbums(artist.id, limit: 5);
+      expect(albums, isNotEmpty);
+      final album = await kg.album(albums.first.id);
+      print('专辑: ${album.name} ${album.songs?.length} 首 ${album.cover}');
+      final pls = await kg.recommendPlaylists(limit: 6);
+      expect(pls, isNotEmpty);
+      final pl = await kg.playlist(pls.first.id);
+      print('歌单: ${pl.name} ${pl.tracks?.length} 首 ${pl.creator}');
+      expect(pl.tracks, isNotEmpty);
+      final cm = await kg.comments(pl.tracks!.first);
+      final cmLatest = await kg.comments(pl.tracks!.first, sort: CommentSort.latest);
+      print('评论: 共 ${cm.total} 条 ${cm.comments.firstOrNull?.userName}：${cm.comments.firstOrNull?.content}');
+      expect(cmLatest.comments, isNotEmpty);
+      final all = await kg.search('周杰伦');
+      print('综合搜索: 歌曲 ${all.songs.length} 歌手 ${all.artists.length} 专辑 ${all.albums.length} 歌单 ${all.playlists.length}');
+      expect(all.artists, isNotEmpty);
+      expect(all.albums, isNotEmpty);
+      expect(all.playlists, isNotEmpty);
+
       // 平台彼此独立：游客取不到完整地址时给出指向洛雪音源的说明，而不是换用其他平台的歌曲。
       try {
         final st = await kg.stream(r.songs.first, AudioQuality.standard);

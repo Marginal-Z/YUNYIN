@@ -96,13 +96,16 @@ class DesktopHomePage extends StatelessWidget {
                         onPlay: () => playAll(context, feed.daily, title: '每日推荐'),
                       ),
                     ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: RadarCard(
-                        // 网易云“私人雷达”歌单需要登录；未登录时引导登录。
-                        onTap: () => source.loggedIn ? go(context, PlaylistRoute(kRadarPlaylistId, sourceId: source.id)) : go(context, LoginRoute()),
+                    // “私人雷达”是网易云的歌单，其他平台不显示。
+                    if (source.id == 'netease') ...[
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: RadarCard(
+                          // 网易云“私人雷达”歌单需要登录；未登录时引导登录。
+                          onTap: () => source.loggedIn ? go(context, PlaylistRoute(kRadarPlaylistId, sourceId: source.id)) : go(context, LoginRoute()),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
                 SectionHeader('歌单精选', top: 26, action: '全部', onAction: () => go(context, DiscoverRoute())),

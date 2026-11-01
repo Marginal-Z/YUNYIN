@@ -24,6 +24,7 @@ enum SourceFeature {
   likeSong,
   recentPlays,
   followArtist,
+  similarArtists,
 }
 
 class SourceUnsupported implements Exception {

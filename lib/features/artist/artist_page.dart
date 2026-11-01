@@ -9,6 +9,7 @@ import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
+import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
 import '../common/actions.dart';
@@ -41,7 +42,7 @@ class _ArtistPageState extends State<ArtistPage> {
     final source = context.read<SourceManager>().current;
     final desktop = LayoutScope.isDesktop(context);
     return AsyncView<ArtistInfo>(
-      cacheKey: 'artist:${widget.route.id}',
+      cacheKey: 'artist:${source.id}:${widget.route.id}',
       load: () => source.artist(widget.route.id),
       loading: _frame(context, ArtistInfo(id: widget.route.id, sourceId: source.id, name: widget.route.name ?? ''), loading: true),
       builder: (context, artist, _) => _frame(context, artist),
@@ -51,32 +52,37 @@ class _ArtistPageState extends State<ArtistPage> {
   Widget _frame(BuildContext context, ArtistInfo a, {bool loading = false}) {
     final source = context.read<SourceManager>().current;
     final followed = _followed ?? a.followed;
+    final canFollow = source.supports(SourceFeature.followArtist);
+    final canSimilar = source.supports(SourceFeature.similarArtists);
     final children = <Widget>[
       _Hero(artist: a),
       const SizedBox(height: 18),
       Row(
         children: [
-          Expanded(
-            child: PrimaryButton(
-              label: followed ? '已关注' : '关注',
-              icon: followed ? YIcons.check : YIcons.plus,
-              iconSize: 18,
-              height: 48,
-              expand: true,
-              onTap: loading
-                  ? null
-                  : () async {
-                      try {
-                        await source.followArtist(a.id, !followed);
-                        setState(() => _followed = !followed);
-                        if (context.mounted) Toast.show(context, followed ? '已取消关注' : '已关注 ${a.name}');
-                      } catch (e) {
-                        if (context.mounted) Toast.show(context, errorText(e), icon: YIcons.info);
-                      }
-                    },
+          // 只有支持关注歌手的平台显示“关注”。
+          if (canFollow) ...[
+            Expanded(
+              child: PrimaryButton(
+                label: followed ? '已关注' : '关注',
+                icon: followed ? YIcons.check : YIcons.plus,
+                iconSize: 18,
+                height: 48,
+                expand: true,
+                onTap: loading
+                    ? null
+                    : () async {
+                        try {
+                          await source.followArtist(a.id, !followed);
+                          setState(() => _followed = !followed);
+                          if (context.mounted) Toast.show(context, followed ? '已取消关注' : '已关注 ${a.name}');
+                        } catch (e) {
+                          if (context.mounted) Toast.show(context, errorText(e), icon: YIcons.info);
+                        }
+                      },
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: SecondaryButton(
               label: '播放热门',
@@ -89,7 +95,7 @@ class _ArtistPageState extends State<ArtistPage> {
         ],
       ),
       const SizedBox(height: 18),
-      ChipBar(labels: const ['热门歌曲', '专辑', '相似歌手'], index: _tab, onChanged: (i) => setState(() => _tab = i)),
+      ChipBar(labels: ['热门歌曲', '专辑', if (canSimilar) '相似歌手'], index: _tab, onChanged: (i) => setState(() => _tab = i)),
       const SizedBox(height: 14),
       if (loading)
         const SkeletonList()
@@ -99,12 +105,12 @@ class _ArtistPageState extends State<ArtistPage> {
           child: switch (_tab) {
             0 => _HotSongs(artist: a),
             1 => AsyncView<List<AlbumInfo>>(
-              cacheKey: 'artistAlbums:${a.id}',
+              cacheKey: 'artistAlbums:${source.id}:${a.id}',
               load: () => source.artistAlbums(a.id),
               builder: (c, list, _) => AlbumGrid(items: list),
             ),
             _ => AsyncView<List<ArtistInfo>>(
-              cacheKey: 'similarArtists:${a.id}',
+              cacheKey: 'similarArtists:${source.id}:${a.id}',
               load: () => source.similarArtists(a.id),
               builder: (c, list, _) => ArtistStrip(artists: list, wrap: true),
             ),

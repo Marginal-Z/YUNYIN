@@ -38,6 +38,9 @@ class KugouSource extends MusicSource {
     SourceFeature.charts,
     SourceFeature.lyrics,
     SourceFeature.dailyRecommend,
+    SourceFeature.artist,
+    SourceFeature.album,
+    SourceFeature.comments,
   };
 
   /// 主要榜单（酷狗榜单 ID 与名称）。
@@ -102,13 +105,73 @@ class KugouSource extends MusicSource {
 
   @override
   Future<SearchResult> search(String keyword, {SearchType type = SearchType.all, int offset = 0, int limit = 30}) async {
-    if (type != SearchType.all && type != SearchType.song) return const SearchResult();
     final page = offset ~/ limit + 1;
-    final j = await _get('$_api/search/song?format=json&keyword=${Uri.encodeQueryComponent(keyword)}&page=$page&pagesize=$limit&showtype=1');
-    final info = ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map<String, dynamic>>();
-    final songs = [for (final x in info) _song(x)];
-    return SearchResult(songs: songs, bestSong: songs.firstOrNull);
+    final kw = Uri.encodeQueryComponent(keyword);
+    Future<List<Map<String, dynamic>>> list(String kind, int size, {bool flat = false}) async {
+      final j = await _get('$_api/search/$kind?format=json&keyword=$kw&page=$page&pagesize=$size&showtype=1');
+      final data = j['data'];
+      // 歌手搜索的 data 直接是列表，其余为 {info: [...]}。
+      final items = flat ? data : (data is Map ? data['info'] : null);
+      return (items is List ? items : const []).cast<Map<String, dynamic>>();
+    }
+
+    Future<List<Song>> songs() async => [for (final x in await list('song', limit)) _song(x)];
+    Future<List<ArtistInfo>> artists(int size) async => [
+      for (final a in await list('singer', size, flat: true)) ArtistInfo(id: '${a['singerid']}', sourceId: sourceId, name: '${a['singername']}'),
+    ];
+    Future<List<AlbumInfo>> albums(int size) async => [for (final a in await list('album', size)) _album(a)];
+    Future<List<PlaylistInfo>> playlists(int size) async => [for (final p in await list('special', size)) _special(p)];
+    switch (type) {
+      case SearchType.song:
+        final s = await songs();
+        return SearchResult(songs: s, bestSong: s.firstOrNull);
+      case SearchType.artist:
+        return SearchResult(artists: await artists(limit));
+      case SearchType.album:
+        return SearchResult(albums: await albums(limit));
+      case SearchType.playlist:
+        return SearchResult(playlists: await playlists(limit));
+      case SearchType.all:
+        final r = await Future.wait([
+          songs(),
+          artists(4).then((a) => a.take(4).toList()).catchError((Object _) => <ArtistInfo>[]),
+          albums(6).catchError((Object _) => <AlbumInfo>[]),
+          playlists(6).catchError((Object _) => <PlaylistInfo>[]),
+        ]);
+        final s = r[0] as List<Song>;
+        final pls = r[3] as List<PlaylistInfo>;
+        return SearchResult(
+          songs: s,
+          artists: r[1] as List<ArtistInfo>,
+          albums: r[2] as List<AlbumInfo>,
+          playlists: pls,
+          bestSong: s.firstOrNull,
+          bestPlaylist: pls.firstOrNull,
+        );
+    }
   }
+
+  AlbumInfo _album(Map a) => AlbumInfo(
+    id: '${a['albumid']}',
+    sourceId: sourceId,
+    name: '${a['albumname'] ?? ''}',
+    cover: _cover(a['imgurl'] as String?),
+    artist: ArtistRef('kugou:${a['singername'] ?? ''}', '${a['singername'] ?? ''}'),
+    publishTime: DateTime.tryParse('${a['publishtime'] ?? ''}'.replaceFirst(' ', 'T')),
+    description: (a['intro'] as String?)?.trim(),
+    size: (a['songcount'] as num?)?.toInt() ?? 0,
+  );
+
+  PlaylistInfo _special(Map p) => PlaylistInfo(
+    id: 'special:${p['specialid']}',
+    sourceId: sourceId,
+    name: '${p['specialname'] ?? ''}',
+    cover: _cover(p['imgurl'] as String?),
+    creator: '${p['username'] ?? p['nickname'] ?? ''}',
+    description: (p['intro'] as String?)?.trim(),
+    playCount: (p['playcount'] as num?)?.toInt() ?? 0,
+    trackCount: (p['songcount'] as num?)?.toInt() ?? 0,
+  );
 
   @override
   Future<List<HotSearch>> hotSearches() async {
@@ -127,6 +190,7 @@ class KugouSource extends MusicSource {
 
   @override
   Future<PlaylistInfo> playlist(String id) async {
+    if (id.startsWith('special:')) return _specialDetail(id.substring(8));
     final rankId = id.startsWith('rank:') ? id.substring(5) : id;
     final name = charts_.where((c) => c.$1 == rankId).firstOrNull?.$2 ?? '酷狗榜单';
     final songs = await _rank(rankId);
@@ -159,18 +223,123 @@ class KugouSource extends MusicSource {
     ];
   }
 
+  /// 推荐歌单：歌单广场按热度排序。
   @override
   Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) async {
-    final list = await charts();
-    return [
-      for (final c in list.take(limit)) PlaylistInfo(id: c.id, sourceId: sourceId, name: c.name, cover: c.cover, creator: '酷狗音乐', kind: PlaylistKind.chart),
-    ];
+    final j = await _get('$_api/category/special?categoryid=0&page=1&pagesize=$limit&withsong=0&sort=2&plat=2');
+    return [for (final p in ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map>()) _special(p)];
+  }
+
+  Future<PlaylistInfo> _specialDetail(String specialId) async {
+    final results = await Future.wait([
+      _get('$_api/special/song?specialid=$specialId&page=1&pagesize=300&plat=2&version=9108'),
+      _get('$_api/special/info?specialid=$specialId&plat=2').catchError((Object _) => <String, dynamic>{}),
+    ]);
+    final songs = [for (final x in ((results[0]['data'] as Map?)?['info'] as List? ?? const []).cast<Map<String, dynamic>>()) _song(x)];
+    final info = results[1]['data'] as Map? ?? const {};
+    return PlaylistInfo(
+      id: 'special:$specialId',
+      sourceId: sourceId,
+      name: '${info['specialname'] ?? '酷狗歌单'}',
+      cover: _cover(info['imgurl'] as String?) ?? songs.firstOrNull?.coverUrl,
+      creator: '${info['nickname'] ?? info['username'] ?? ''}',
+      description: (info['intro'] as String?)?.trim(),
+      playCount: (info['playcount'] as num?)?.toInt() ?? 0,
+      trackCount: songs.length,
+      tracks: songs,
+    );
   }
 
   @override
   Future<HomeFeed> homeFeed() async {
-    final results = await Future.wait([_rank('6666', size: 30), recommendPlaylists(limit: 6)]);
+    final results = await Future.wait([_rank('6666', size: 30), recommendPlaylists(limit: 12)]);
     return HomeFeed(daily: results[0] as List<Song>, playlists: results[1] as List<PlaylistInfo>);
+  }
+
+  // ── 专辑与歌手 ──────────────────────────────────────
+
+  @override
+  Future<AlbumInfo> album(String id) async {
+    final r = await Future.wait([_get('$_api/album/info?albumid=$id&plat=0'), _get('$_api/album/song?albumid=$id&page=1&pagesize=200&plat=2&version=9108')]);
+    final info = r[0]['data'] as Map? ?? const {};
+    final songs = [for (final x in ((r[1]['data'] as Map?)?['info'] as List? ?? const []).cast<Map<String, dynamic>>()) _song(x)];
+    final a = _album({...info, 'albumid': id});
+    return AlbumInfo(
+      id: id,
+      sourceId: sourceId,
+      name: a.name,
+      cover: a.cover ?? songs.firstOrNull?.coverUrl,
+      artist: a.artist,
+      publishTime: a.publishTime,
+      description: a.description,
+      songs: songs,
+      size: songs.length,
+    );
+  }
+
+  /// 歌曲里的歌手只有名字（id 为“kugou:名字”）：按名字搜索出歌手 id。
+  Future<String> _singerId(String id) async {
+    if (!id.startsWith('kugou:')) return id;
+    final r = await search(id.substring(6), type: SearchType.artist, limit: 1);
+    final found = r.artists.firstOrNull;
+    if (found == null) throw Exception('没有找到这位歌手');
+    return found.id;
+  }
+
+  @override
+  Future<ArtistInfo> artist(String id) async {
+    final singerId = await _singerId(id);
+    final r = await Future.wait([
+      _get('$_api/singer/info?singerid=$singerId&plat=0'),
+      _get('$_api/singer/song?singerid=$singerId&page=1&pagesize=50&plat=2&version=9108'),
+    ]);
+    final info = r[0]['data'] as Map? ?? const {};
+    final songs = [for (final x in ((r[1]['data'] as Map?)?['info'] as List? ?? const []).cast<Map<String, dynamic>>()) _song(x)];
+    return ArtistInfo(
+      id: singerId,
+      sourceId: sourceId,
+      name: '${info['singername'] ?? ''}',
+      avatar: _cover(info['imgurl'] as String?),
+      description: ((info['intro'] ?? info['profile']) as String?)?.trim(),
+      hotSongs: songs,
+    );
+  }
+
+  @override
+  Future<List<AlbumInfo>> artistAlbums(String id, {int limit = 30}) async {
+    final singerId = await _singerId(id);
+    final j = await _get('$_api/singer/album?singerid=$singerId&page=1&pagesize=$limit&plat=0');
+    return [for (final a in ((j['data'] as Map?)?['info'] as List? ?? const []).cast<Map>()) _album(a)];
+  }
+
+  // ── 评论 ──────────────────────────────────────────
+
+  @override
+  Future<CommentPage> comments(Song song, {CommentSort sort = CommentSort.recommend, int offset = 0}) async {
+    const size = 20;
+    final hash = _ids(song).hash.toUpperCase();
+    final j = await _get(
+      'https://mcomment.kugou.com/index.php?r=commentsv2/getCommentWithLike&code=fc4be23b4e972707f36b8a828a93ba8a&extdata=$hash&p=${offset ~/ size + 1}&pagesize=$size',
+    );
+    // 热门评论在第一页的 weightList 中（有时为空字符串），其余为按时间排列的 list。
+    final hot = j['weightList'] is List ? (j['weightList'] as List).cast<Map>() : const <Map>[];
+    final latest = (j['list'] as List? ?? const []).cast<Map>();
+    final source = sort == CommentSort.latest || offset > 0 || hot.isEmpty ? latest : hot;
+    final comments = [
+      for (final c in source)
+        if ('${c['content'] ?? ''}'.trim().isNotEmpty)
+          Comment(
+            id: '${c['id']}',
+            userName: '${c['user_name'] ?? ''}',
+            avatar: c['user_pic'] as String?,
+            content: '${c['content']}'.trim(),
+            time: DateTime.tryParse('${c['addtime'] ?? ''}'.replaceFirst(' ', 'T')),
+            likedCount: ((c['like'] as Map?)?['likenum'] as num?)?.toInt() ?? 0,
+            replyCount: (c['reply_num'] as num?)?.toInt() ?? 0,
+          ),
+    ];
+    final total = (j['count'] as num?)?.toInt() ?? comments.length;
+    return CommentPage(total: total, comments: comments, hasMore: offset + latest.length < total && latest.isNotEmpty);
   }
 
   // ── 播放 ──────────────────────────────────────────
