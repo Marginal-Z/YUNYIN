@@ -66,6 +66,32 @@ void main() {
   // 测试绑定默认把 HTTP 请求全部替换成 400；这里要访问本机的测试服务，恢复真实的 HttpClient。
   setUp(() => HttpOverrides.global = null);
 
+  test('损坏的音源记录不丢弃后续有效音源，并拒绝不安全的脚本路径标识', () async {
+    SharedPreferences.setMockInitialValues({
+      'lx.scripts': '[42,{"id":"../outside","name":"invalid"},{"id":"valid","name":"有效音源","enabled":false}]',
+    });
+    final sources = LxSources();
+    addTearDown(sources.dispose);
+    await sources.init();
+    await sources.init();
+    expect(sources.scripts.map((script) => script.id), ['valid']);
+  });
+
+  test('移除音源时清除遗留播放失败状态', () async {
+    final temporary = await Directory.systemTemp.createTemp('yunyin-lx-remove');
+    addTearDown(() => temporary.delete(recursive: true));
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'), (call) async => temporary.path,
+    );
+    SharedPreferences.setMockInitialValues({'lx.scripts': '[{"id":"test","name":"测试","enabled":false}]'});
+    final sources = LxSources();
+    addTearDown(sources.dispose);
+    await sources.init();
+    sources.lastFailures['test'] = '旧错误';
+    await sources.remove('test');
+    expect(sources.lastFailures, isEmpty);
+  });
+
   test(
     '洛雪音源：从链接导入、失效音源自动跳过、为未登录的酷狗歌曲取得可播放的地址',
     () async {

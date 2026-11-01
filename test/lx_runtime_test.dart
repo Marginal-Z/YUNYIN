@@ -35,6 +35,39 @@ send(EVENT_NAMES.inited, { status: true, sources: { wy: { name: '网易云', typ
 final _skip = (Platform.environment['LIBQUICKJSC_TEST_PATH'] ?? '').isEmpty ? '需要 LIBQUICKJSC_TEST_PATH 指向 libquickjs_c_bridge_plugin.so' : null;
 
 void main() {
+  test('音源明确报告初始化失败时不能作为可用运行环境返回', () async {
+    await expectLater(
+      LxRuntime.start("lx.send('inited', {status:false, errorMessage:'初始化被拒绝', sources:{kw:{qualitys:['128k']}}})").then((runtime) {
+        runtime.dispose();
+        return runtime;
+      }),
+      throwsA(predicate((error) => '$error'.contains('初始化被拒绝'))),
+    );
+  }, skip: _skip);
+
+  test('取消 lx.request 会取消底层网络请求，而不仅丢弃回调', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    var requests = 0;
+    server.listen((request) async {
+      requests++;
+      request.response.write('unexpected request');
+      await request.response.close();
+    });
+    final runtime = await LxRuntime.start('''
+      lx.on('request', () => {
+        const cancel = lx.request('http://127.0.0.1:${server.port}/cancelled', {}, () => {});
+        cancel();
+        return 'https://audio.example/track.mp3';
+      });
+      lx.send('inited', {sources:{kw:{qualitys:['128k']}}});
+    ''');
+    addTearDown(runtime.dispose);
+    await runtime.musicUrl('kw', '128k', {});
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(requests, 0);
+  }, skip: _skip);
+
   test('洛雪音源运行环境：初始化、请求、工具函数与返回播放地址', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     Map<String, dynamic>? got;

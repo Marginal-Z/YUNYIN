@@ -104,6 +104,13 @@ class LxRuntime {
       final name = '${m['name']}';
       if (name == 'inited') {
         final data = m['data'];
+        // 脚本明确报告初始化失败（status: false）：不能当作可用的音源，把脚本给出的原因传出去。
+        // 没有 status 字段的旧脚本照常视为成功。
+        if (data is Map && data['status'] == false) {
+          final reason = '${data['errorMessage'] ?? data['message'] ?? ''}'.trim();
+          if (!_inited.isCompleted) _inited.completeError(Exception(reason.isEmpty ? '音源脚本报告初始化失败' : '音源脚本初始化失败：$reason'));
+          return 'ok';
+        }
         final srcs = data is Map ? data['sources'] : null;
         if (srcs is Map) {
           srcs.forEach((k, v) {
@@ -117,8 +124,15 @@ class LxRuntime {
     });
     _js.onMessage('lx_request', (args) {
       final m = (args as Map).cast<String, dynamic>();
-      unawaited(_request(m['id'] as int, '${m['url']}', (m['opts'] as Map?)?.cast<String, dynamic>() ?? const {}));
+      final id = m['id'] as int;
+      final token = _cancels[id] = CancelToken();
+      unawaited(_request(id, '${m['url']}', (m['opts'] as Map?)?.cast<String, dynamic>() ?? const {}, token));
       _keepPumping();
+      return 'ok';
+    });
+    // 脚本调用 lx.request 返回的取消函数：真正取消底层网络请求（尚未发出的请求不再发出）。
+    _js.onMessage('lx_cancel_request', (args) {
+      _cancels.remove((args as num).toInt())?.cancel('音源脚本取消了请求');
       return 'ok';
     });
     _js.onMessage('lx_result', (args) {
@@ -210,9 +224,18 @@ class LxRuntime {
     return out;
   }
 
-  Future<void> _request(int id, String url, Map<String, dynamic> opts) async {
+  /// 进行中的 lx.request，按请求编号取消。
+  final Map<int, CancelToken> _cancels = {};
+
+  Future<void> _request(int id, String url, Map<String, dynamic> opts, CancelToken token) async {
     Object? err;
     Map<String, dynamic>? resp;
+    // 让脚本同步调用的取消先生效，再真正发出请求。
+    await Future<void>.delayed(Duration.zero);
+    if (token.isCancelled || _disposed) {
+      _cancels.remove(id);
+      return;
+    }
     try {
       final headers = <String, dynamic>{...?(opts['headers'] as Map?)?.cast<String, dynamic>()};
       Object? body = opts['body'];
@@ -229,6 +252,7 @@ class LxRuntime {
       final res = await _dio.request<List<int>>(
         url,
         data: body,
+        cancelToken: token,
         options: Options(
           method: '${opts['method'] ?? 'GET'}'.toUpperCase(),
           headers: headers,
@@ -252,8 +276,13 @@ class LxRuntime {
         'raw': raw,
       };
     } catch (e) {
+      if (e is DioException && e.type == DioExceptionType.cancel) {
+        _cancels.remove(id);
+        return;
+      }
       err = e is DioException ? (e.message ?? e.type.name) : '$e';
     }
+    _cancels.remove(id);
     _eval('__lx_response($id, ${jsonEncode(err?.toString())}, ${jsonEncode(resp)})');
   }
 
@@ -285,6 +314,10 @@ class LxRuntime {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    for (final t in _cancels.values) {
+      t.cancel('音源已停止');
+    }
+    _cancels.clear();
     _dio.close(force: true);
     _pump?.cancel();
     for (final t in _timers.values) {
@@ -404,7 +437,12 @@ const _prelude = r'''
       var id = ++seq;
       callbacks[id] = callback;
       sendMessage('lx_request', JSON.stringify({ id: id, url: url, opts: options || {} }));
-      return function () { delete callbacks[id]; };
+      // 取消：丢弃回调并通知云音取消底层请求；重复调用或请求完成后调用都没有副作用。
+      return function () {
+        if (!callbacks[id]) return;
+        delete callbacks[id];
+        sendMessage('lx_cancel_request', JSON.stringify(id));
+      };
     },
   };
   // 定时器：flutter_js 自带的 setTimeout 不返回编号、不传额外参数，也没有 clearTimeout / setInterval，

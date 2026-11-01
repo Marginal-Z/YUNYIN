@@ -31,6 +31,9 @@ class LxScript {
 
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'description': description, 'version': version, 'author': author, 'url': url, 'enabled': enabled};
 
+  /// 音源标识会拼进脚本文件名：只接受字母、数字、下划线与连字符，防止“../”之类的路径。
+  static bool isSafeId(String id) => RegExp(r'^[A-Za-z0-9_-]{1,64}$').hasMatch(id);
+
   factory LxScript.fromJson(Map<String, dynamic> j) => LxScript(
     id: '${j['id']}',
     name: '${j['name']}',
@@ -96,8 +99,17 @@ class LxSources extends ChangeNotifier {
   Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      for (final j in jsonDecode(prefs.getString(_prefsKey) ?? '[]') as List) {
-        _scripts.add(LxScript.fromJson(Map<String, dynamic>.from(j as Map)));
+      // 重复调用不会追加重复记录；单条记录损坏或标识不安全时跳过它，不影响后面的有效音源。
+      _scripts.clear();
+      final saved = jsonDecode(prefs.getString(_prefsKey) ?? '[]');
+      for (final j in saved is List ? saved : const []) {
+        if (j is! Map) continue;
+        try {
+          final script = LxScript.fromJson(Map<String, dynamic>.from(j));
+          if (LxScript.isSafeId(script.id) && !_scripts.any((s) => s.id == script.id)) _scripts.add(script);
+        } catch (e) {
+          debugPrint('lx source record: $e');
+        }
       }
       // 旧版本只能启用一个音源：迁移为只启用当时选中的那个。
       final active = prefs.getString(_prefsActive);
@@ -204,9 +216,12 @@ class LxSources extends ChangeNotifier {
     _scripts.removeWhere((s) => s.id == id);
     _runtimes.remove(id)?.dispose();
     errors.remove(id);
-    try {
-      await File('${(await _dir()).path}/$id.js').delete();
-    } catch (_) {}
+    lastFailures.remove(id);
+    if (LxScript.isSafeId(id)) {
+      try {
+        await File('${(await _dir()).path}/$id.js').delete();
+      } catch (_) {}
+    }
     await _save();
     notifyListeners();
   }
