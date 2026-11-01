@@ -9,16 +9,18 @@ import '../local_library.dart';
 import 'cloud/cloud_source.dart';
 import 'local/local_source.dart';
 import 'music_source.dart';
+import '../lx/lx_sources.dart';
 import 'kugou/kugou_source.dart';
+import 'lx/lx_library_source.dart';
 import 'netease/netease_source.dart';
 import 'qq/qq_source.dart';
 
 /// 已注册的播放源。新增平台：实现 [MusicSource] 并加入 [SourceRegistry.create]。
 abstract final class SourceRegistry {
-  static List<MusicSource> create(LocalLibrary library, CloudDrives drives) {
+  static List<MusicSource> create(LocalLibrary library, CloudDrives drives, LxSources lx) {
     final netease = NeteaseSource();
-    // 三个平台彼此独立；网盘歌曲没有歌词文件时用网易云的歌词。
-    return [netease, QQMusicSource(), KugouSource(), LocalSource(library), CloudSource(drives, fallback: netease)];
+    // 四个平台模式彼此独立（网易云、QQ 音乐、酷狗、洛雪曲库）；网盘歌曲没有歌词文件时用网易云的歌词。
+    return [netease, QQMusicSource(), KugouSource(), LxLibrarySource(lx), LocalSource(library), CloudSource(drives, fallback: netease)];
   }
 }
 

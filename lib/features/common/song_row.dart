@@ -121,11 +121,18 @@ class SongRow extends StatelessWidget {
                     children: [
                       highlightText(song.name, keyword, ts(15, weight: w600, color: titleColor), p.accentText),
                       const SizedBox(height: 2),
-                      Text(
-                        subtitle ?? song.artistText,
-                        style: ts(13, color: p.text2),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          if (song.vip) const VipBadge(),
+                          Flexible(
+                            child: Text(
+                              subtitle ?? song.artistText,
+                              style: ts(13, color: p.text2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -162,6 +169,25 @@ class SongRow extends StatelessWidget {
 }
 
 enum SongTrailing { more, play, none, likeMore }
+
+/// 会员歌曲的 VIP 标志（未登录或没有会员时通常只能试听）。
+class VipBadge extends StatelessWidget {
+  const VipBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const gold = Color(0xFFE0A526);
+    return Container(
+      margin: const EdgeInsets.only(right: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: gold, width: 1),
+      ),
+      child: Text('VIP', style: ts(9.5, weight: w700, color: gold, height: 1.25)),
+    );
+  }
+}
 
 void _unavailable(BuildContext context) => Toast.show(context, '暂无播放版权', icon: YIcons.lock);
 
@@ -215,11 +241,18 @@ class DesktopSongRow extends StatelessWidget {
                     children: [
                       highlightText(song.name, keyword, ts(15, weight: w600, color: isCurrent ? p.accentText : p.text), p.accentText),
                       const SizedBox(height: 2),
-                      Text(
-                        song.artistText,
-                        style: ts(13, color: p.text2),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          if (song.vip) const VipBadge(),
+                          Flexible(
+                            child: Text(
+                              song.artistText,
+                              style: ts(13, color: p.text2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

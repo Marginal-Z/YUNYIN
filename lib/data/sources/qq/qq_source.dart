@@ -151,7 +151,8 @@ class QQMusicSource extends MusicSource {
       cover: _albumCover(albumMid),
       // 付费歌曲（数字专辑等）未购买时无法播放，但仍可换源播放，所以不标记为不可播放。
       playable: true,
-      alias: (pay['pay_play'] as num?)?.toInt() == 1 ? 'VIP' : null,
+      // 绿钻歌曲（pay_month）与付费数字专辑（pay_play）标记为 VIP。
+      vip: (pay['pay_month'] as num?)?.toInt() == 1 || (pay['pay_play'] as num?)?.toInt() == 1,
     );
   }
 
@@ -585,40 +586,38 @@ class QQMusicSource extends MusicSource {
 
   @override
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
-    if (_uin != null) {
-      try {
-        final direct = await _vkey(song, quality);
-        if (direct != null) return direct;
-      } catch (e) {
-        debugPrint('qq vkey: $e');
-      }
-    }
-    throw Exception(_uin == null ? '登录 QQ 音乐后才能播放（也可以在设置中导入洛雪音源）' : '这首歌需要 QQ 音乐会员或单独购买（也可以在设置中导入洛雪音源）');
+    // 未登录也向 QQ 音乐请求地址：免费歌曲给出完整文件；其余只有 60 秒的官方试听片段（RS02），标记为试听。
+    final info = await _vkey(song, quality);
+    if (info != null) return info;
+    throw Exception(_uin == null ? '这首歌需要登录 QQ 音乐后播放' : '这首歌需要 QQ 音乐会员或单独购买');
   }
 
-  /// 按音质从高到低一次请求多个文件名，取第一个有地址的。
+  /// 按音质从高到低一次请求多个文件名，取第一个有地址的；都没有时退回官方试听片段。
   Future<StreamInfo?> _vkey(Song song, AudioQuality quality) async {
     final ids = _ids(song);
     final wanted = [
       for (final f in _files)
-        if (f.$1.index <= quality.index) f,
+        if (f.$1.index <= quality.index || f.$1 == AudioQuality.standard) f,
     ];
+    final names = [for (final f in wanted) '${f.$2}${ids.media}.${f.$3}', 'RS02${ids.media}.mp3'];
     final guid = '${math.Random().nextInt(1 << 31)}';
     final d = await _one('vkey.GetVkeyServer', 'CgiGetVkey', {
       'guid': guid,
-      'songmid': [for (final _ in wanted) ids.mid],
-      'songtype': [for (final _ in wanted) 0],
-      'filename': [for (final f in wanted) '${f.$2}${ids.media}.${f.$3}'],
-      'uin': _uin,
+      'songmid': [for (final _ in names) ids.mid],
+      'songtype': [for (final _ in names) 0],
+      'filename': names,
+      'uin': _uin ?? '0',
       'loginflag': 1,
       'platform': '20',
     });
     final sips = [for (final s in (d['sip'] as List? ?? const [])) '$s'];
     final sip = sips.firstWhere((s) => s.startsWith('https'), orElse: () => sips.firstOrNull ?? 'https://isure.stream.qqmusic.qq.com/');
     final infos = (d['midurlinfo'] as List? ?? const []).cast<Map>();
-    for (var i = 0; i < infos.length && i < wanted.length; i++) {
+    for (var i = 0; i < infos.length && i < names.length; i++) {
       final purl = '${infos[i]['purl'] ?? ''}';
-      if (purl.isNotEmpty) return StreamInfo(url: '$sip$purl', quality: wanted[i].$1);
+      if (purl.isEmpty) continue;
+      if (i < wanted.length) return StreamInfo(url: '$sip$purl', quality: wanted[i].$1);
+      return StreamInfo(url: '$sip$purl', quality: AudioQuality.standard, trial: true);
     }
     return null;
   }

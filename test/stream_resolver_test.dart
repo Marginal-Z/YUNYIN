@@ -21,29 +21,17 @@ class _Fake extends MusicSource {
 
 void main() {
   const song = Song(id: '0039MnYb0qxYhV:003Qui1q2u1Zho', sourceId: 'qq', name: '晴天', artists: [ArtistRef('a', '周杰伦')], duration: Duration(seconds: 269));
-  tearDown(() => SourcePolicy.custom = null);
-
-  test('平台自己能播放时不使用洛雪音源', () async {
-    var called = false;
-    SourcePolicy.custom = (s, q) async {
-      called = true;
-      return const StreamInfo(url: 'https://lx/x');
-    };
-    final r = await resolveStream(_Fake(const StreamInfo(url: 'https://own/x')), song, AudioQuality.lossless);
-    expect(r.url, 'https://own/x');
-    expect(called, isFalse);
+  test('平台只用自己的接口：完整地址、官方试听片段都照常返回', () async {
+    expect((await resolveStream(_Fake(const StreamInfo(url: 'https://own/x')), song, AudioQuality.lossless)).url, 'https://own/x');
+    final trial = await resolveStream(_Fake(const StreamInfo(url: 'https://own/trial', trial: true)), song, AudioQuality.lossless);
+    expect(trial.trial, isTrue);
   });
 
-  test('平台需要登录或只有试听时用洛雪音源获取同一首歌', () async {
-    SourcePolicy.custom = (s, q) async => StreamInfo(url: 'https://lx/${s.id}');
-    expect((await resolveStream(_Fake(Exception('需要登录')), song, AudioQuality.lossless)).url, 'https://lx/${song.id}');
-    expect((await resolveStream(_Fake(const StreamInfo(url: 'https://own/trial', trial: true)), song, AudioQuality.lossless)).url, startsWith('https://lx/'));
-  });
-
-  test('洛雪音源也失败时：有试听片段播放试听，否则给出平台的原因', () async {
-    SourcePolicy.custom = (s, q) async => throw Exception('音源超时');
-    expect((await resolveStream(_Fake(const StreamInfo(url: 'https://own/trial', trial: true)), song, AudioQuality.lossless)).trial, isTrue);
+  test('取不到地址时给出平台的原因；会员歌曲提示需要会员', () async {
     await expectLater(resolveStream(_Fake(Exception('需要登录')), song, AudioQuality.lossless), throwsA(predicate((e) => '$e'.contains('需要登录'))));
+    await expectLater(resolveStream(_Fake(const StreamInfo()), song, AudioQuality.lossless), throwsA(predicate((e) => '$e'.contains('没有这首歌'))));
+    const vip = Song(id: 'x', sourceId: 'qq', name: 'v', vip: true);
+    await expectLater(resolveStream(_Fake(const StreamInfo()), vip, AudioQuality.lossless), throwsA(predicate((e) => '$e'.contains('会员'))));
   });
 
   test('洛雪 musicInfo：QQ 音乐与酷狗的歌曲 id 拆成各自的字段', () {

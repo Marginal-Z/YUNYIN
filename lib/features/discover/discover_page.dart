@@ -132,7 +132,7 @@ class _Recommend extends StatelessWidget {
             );
           },
         ),
-        if (desktop)
+        if (desktop && source.supports(SourceFeature.playlistCategories))
           AsyncView<List<PlaylistInfo>>(
             cacheKey: 'discover:${source.id}:recommend:12',
             load: () => source.recommendPlaylists(limit: 12),

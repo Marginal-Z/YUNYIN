@@ -218,6 +218,7 @@ class AppSettings extends ChangeNotifier {
     'netease': (AccentColor.red, PlayerStyle.cover),
     'qq': (AccentColor.teal, PlayerStyle.cardFlow),
     'kugou': (AccentColor.blue, PlayerStyle.coverFlow),
+    'lx': (AccentColor.orange, PlayerStyle.wall),
   };
 
   /// 桌面歌词（Android 为悬浮窗，桌面端为置顶的歌词条窗口）。

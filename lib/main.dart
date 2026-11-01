@@ -24,7 +24,6 @@ import 'data/downloads.dart';
 import 'data/cloud/cloud_drives.dart';
 import 'data/local_library.dart';
 import 'data/lx/lx_sources.dart';
-import 'data/sources/source_policy.dart';
 import 'data/sources/source_manager.dart';
 import 'features/desktop/window_controls.dart';
 import 'player/player_controller.dart';
@@ -90,18 +89,17 @@ Future<void> main() async {
   await local.init();
   final drives = CloudDrives();
   await drives.init();
-  final sources = SourceManager(SourceRegistry.create(local, drives));
+  // 洛雪音源：只用于洛雪曲库模式（三个平台只播放各自官方接口的歌曲）。
+  final lx = LxSources();
+  await lx.init();
+  final sources = SourceManager(SourceRegistry.create(local, drives, lx));
   // 本地歌曲联网补全封面与歌词：依次在网易云、QQ 音乐、酷狗中匹配。
   local.onlineSources = [
     for (final id in const ['netease', 'qq', 'kugou']) ...sources.sources.where((s) => s.id == id),
   ];
   await sources.init();
-  // 平台模式彼此独立：切换平台时一并切换该平台的界面样式；取不到完整播放地址时由洛雪音源兜底。
+  // 平台模式彼此独立：切换平台时一并切换该平台的界面样式与播放队列。
   settings.initPlatform(sources.current.id);
-  // 洛雪音源：当前平台取不到完整播放地址时使用。
-  final lx = LxSources();
-  await lx.init();
-  SourcePolicy.custom = lx.resolve;
   sources.addListener(() => settings.applyPlatform(sources.current.id));
   // 首页先显示上次的数据，随后在后台刷新。
   await DataCache.restoreHome(sources.current.id, sources.current.user?.id);

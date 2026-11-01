@@ -255,6 +255,8 @@ class NeteaseSource extends MusicSource {
       duration: Duration(milliseconds: ((s['dt'] ?? s['duration']) as num?)?.toInt() ?? 0),
       playable: st >= 0,
       alias: (alia != null && alia.isNotEmpty) ? '${alia.first}' : null,
+      // fee：1 为会员歌曲，4 为付费专辑（未购买时只能试听）。
+      vip: const {1, 4}.contains(((s['fee'] ?? priv?['fee']) as num?)?.toInt()),
     );
   }
 

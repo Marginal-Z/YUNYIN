@@ -38,6 +38,7 @@ class Song {
     this.alias,
     this.localPath,
     this.playCount,
+    this.vip = false,
   });
 
   final String id;
@@ -58,6 +59,9 @@ class Song {
   /// 热门歌曲的播放次数文案（例如“4.2 亿次”）。
   final String? playCount;
 
+  /// 平台标记为会员歌曲（列表中显示 VIP 标志；未登录或没有会员时通常只能试听）。
+  final bool vip;
+
   String get key => '$sourceId:$id';
   String get artistText => artists.isEmpty ? '未知歌手' : artists.map((a) => a.name).join(' / ');
   String get albumName => album?.name ?? '';
@@ -76,6 +80,7 @@ class Song {
     alias: alias,
     localPath: localPath ?? this.localPath,
     playCount: playCount,
+    vip: vip,
   );
 
   Map<String, dynamic> toJson() => {
@@ -89,6 +94,7 @@ class Song {
     'playable': playable,
     'alias': alias,
     'localPath': localPath,
+    if (vip) 'vip': true,
   };
 
   factory Song.fromJson(Map<String, dynamic> j) => Song(
@@ -102,6 +108,7 @@ class Song {
     playable: j['playable'] as bool? ?? true,
     alias: j['alias'] as String?,
     localPath: j['localPath'] as String?,
+    vip: j['vip'] == true,
   );
 
   @override

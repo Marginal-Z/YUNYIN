@@ -101,7 +101,7 @@ class _DesktopShellState extends State<DesktopShell> {
       _searchFocus.requestFocus();
       return KeyEventResult.handled;
     }
-    if (e.logicalKey == LogicalKeyboardKey.keyM) {
+    if (e.logicalKey == LogicalKeyboardKey.keyM && isDesktopPlatform) {
       _toggleMini();
       return KeyEventResult.handled;
     }
@@ -116,7 +116,8 @@ class _DesktopShellState extends State<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final nav = context.watch<AppNav>();
-    final lyrics = context.select<AppSettings, bool>((s) => s.desktopLyrics);
+    // 桌面歌词条窗口只在电脑上使用；平板使用桌面布局时，桌面歌词是系统悬浮窗，不替换界面。
+    final lyrics = isDesktopPlatform && context.select<AppSettings, bool>((s) => s.desktopLyrics);
     if (lyrics != _lyrics) WidgetsBinding.instance.addPostFrameCallback((_) => _setLyrics(lyrics));
     return Focus(
       autofocus: true,
@@ -285,8 +286,6 @@ class _Sidebar extends StatelessWidget {
     final sm = context.watch<SourceManager>();
     final source = sm.current;
     final active = nav.top.sideKey;
-    // 照片墙首页的封面会滚到侧边栏下面，这时才需要模糊背景，保证文字可读。
-    final overWall = active == 'home' && context.select<AppSettings, bool>((s) => s.homeLayout == HomeLayout.photoWall);
     void open(AppRoute r) {
       if (nav.top.sideKey == r.sideKey) return;
       nav.push(r);
@@ -300,14 +299,8 @@ class _Sidebar extends StatelessWidget {
       ),
     );
 
-    return YBox(
-      radius: BorderRadius.circular(26),
-      color: p.sidebar,
-      // 侧边栏通常只覆盖静态的光晕背景，模糊没有可见效果，省去每帧的背景截取。
-      blur: overWall,
-      border: p.glassBorder,
-      shadows: p.sidebarShadow,
-      insets: p.glassButtonInset,
+    // 侧边栏没有背景框，直接放在窗口背景上。
+    return Padding(
       padding: const EdgeInsets.fromLTRB(12, 18, 12, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

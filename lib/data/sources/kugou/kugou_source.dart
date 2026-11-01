@@ -181,6 +181,8 @@ class KugouSource extends MusicSource {
       album: albumName.isEmpty && cover == null ? null : AlbumRef(albumId, albumName, cover: cover),
       duration: Duration(seconds: seconds),
       cover: cover,
+      // privilege 为 10（或需要音乐包）的是会员歌曲。
+      vip: j['privilege'] == 10 || (j['trans_param'] is Map && j['trans_param']['musicpack_advance'] == 1),
     );
   }
 

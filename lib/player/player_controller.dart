@@ -92,6 +92,8 @@ class PlayerController extends ChangeNotifier {
     settings.addListener(_applyOutput);
     settings.addListener(_scheduleEq);
     sources.addListener(_refreshLikes);
+    sources.addListener(_onPlatformChanged);
+    _platform = sources.current.id;
     await _restore();
     _scheduleEq();
     _refreshLikes();
@@ -604,6 +606,9 @@ class PlayerController extends ChangeNotifier {
   /// 正在打开新歌曲（从开始加载到播放器打开媒体）：这期间上一首的“播放结束”事件不能触发切歌。
   bool _opening = false;
 
+  /// 正在获取或打开新歌曲（播放按钮显示加载中）。
+  bool get loading => _opening;
+
   /// 最近一次打开媒体的时间。
   DateTime _openedAt = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -693,6 +698,7 @@ class PlayerController extends ChangeNotifier {
     _openedAt = DateTime.now();
     if (token != _loadToken) return;
     _opening = false;
+    notifyListeners();
     if (resume > Duration.zero) await p.seek(resume);
     if (token != _loadToken) return;
     if (autoplay) {
@@ -791,12 +797,57 @@ class PlayerController extends ChangeNotifier {
     SharedPreferences.getInstance().then((p) => p.setString('player.history', jsonEncode([for (final h in history.take(200)) h.toJson()])));
   }
 
+  /// 当前平台模式：网易云、QQ 音乐、酷狗与洛雪曲库各自有独立的播放队列，互不干扰。
+  String _platform = '';
+
+  String _qKey(String platform) => 'player.queue.$platform';
+
   void _saveQueue() {
+    final platform = _platform;
+    final queue = [for (final s in _queue) s.toJson()];
+    final index = _index;
+    final title = queueTitle ?? '';
     SharedPreferences.getInstance().then((p) {
-      p.setString('player.queue', jsonEncode([for (final s in _queue) s.toJson()]));
-      p.setInt('player.index', _index);
-      p.setString('player.title', queueTitle ?? '');
+      p.setString(_qKey(platform), jsonEncode(queue));
+      p.setInt('${_qKey(platform)}.index', index);
+      p.setString('${_qKey(platform)}.title', title);
     });
+  }
+
+  /// 切换平台模式：停止当前播放，保存这个平台的队列，换成新平台上次的队列（不自动播放）。
+  Future<void> _onPlatformChanged() async {
+    final next = sources.current.id;
+    if (next == _platform) return;
+    _saveQueue();
+    _loadToken++;
+    _opening = false;
+    await _player?.stop();
+    _platform = next;
+    final p = await SharedPreferences.getInstance();
+    _loadQueue(p);
+    position.value = Duration.zero;
+    lyrics = Lyrics.empty;
+    notifyListeners();
+    if (current != null) _loadLyrics(sources.byId(current!.sourceId), current!, _loadToken);
+  }
+
+  void _loadQueue(SharedPreferences p) {
+    _queue = [];
+    _index = -1;
+    queueTitle = null;
+    try {
+      final q = p.getString(_qKey(_platform));
+      if (q == null) return;
+      _queue = [for (final j in jsonDecode(q) as List) Song.fromJson(Map<String, dynamic>.from(j as Map))];
+      _index = (p.getInt('${_qKey(_platform)}.index') ?? 0).clamp(-1, _queue.length - 1);
+      queueTitle = p.getString('${_qKey(_platform)}.title');
+      if (queueTitle?.isEmpty ?? false) queueTitle = null;
+    } catch (_) {
+      _queue = [];
+      _index = -1;
+    }
+    _rebuildOrder();
+    duration = current?.duration ?? Duration.zero;
   }
 
   Future<void> _restore() async {
@@ -814,19 +865,23 @@ class PlayerController extends ChangeNotifier {
       if (h != null) {
         history.addAll([for (final j in jsonDecode(h) as List) Song.fromJson(Map<String, dynamic>.from(j as Map))]);
       }
-      final q = p.getString('player.queue');
-      if (q != null) {
-        _queue = [for (final j in jsonDecode(q) as List) Song.fromJson(Map<String, dynamic>.from(j as Map))];
-        _index = (p.getInt('player.index') ?? 0).clamp(-1, _queue.length - 1);
-        queueTitle = p.getString('player.title');
-        if (queueTitle?.isEmpty ?? false) queueTitle = null;
-        _rebuildOrder();
-        if (current != null) {
-          duration = current!.duration;
-          final source = sources.byId(current!.sourceId);
-          _loadLyrics(source, current!, _loadToken);
+      // 旧版本只有一个共用的队列：迁移给它当前歌曲所属的平台。
+      final legacy = p.getString('player.queue');
+      if (legacy != null) {
+        final songs = [for (final j in jsonDecode(legacy) as List) Song.fromJson(Map<String, dynamic>.from(j as Map))];
+        final i = (p.getInt('player.index') ?? 0).clamp(-1, songs.length - 1);
+        final owner = i >= 0 && const {'netease', 'qq', 'kugou'}.contains(songs[i].sourceId) ? songs[i].sourceId : _platform;
+        if (p.getString(_qKey(owner)) == null) {
+          await p.setString(_qKey(owner), legacy);
+          await p.setInt('${_qKey(owner)}.index', i);
+          await p.setString('${_qKey(owner)}.title', p.getString('player.title') ?? '');
         }
+        await p.remove('player.queue');
+        await p.remove('player.index');
+        await p.remove('player.title');
       }
+      _loadQueue(p);
+      if (current != null) _loadLyrics(sources.byId(current!.sourceId), current!, _loadToken);
     } catch (_) {}
   }
 

@@ -109,8 +109,10 @@ class DesktopHomePage extends StatelessWidget {
                     ],
                   ],
                 ),
-                SectionHeader('歌单精选', top: 26, action: '全部', onAction: () => go(context, DiscoverRoute())),
-                PlaylistGrid(items: feed.playlists.take(6).toList()),
+                if (feed.playlists.isNotEmpty) ...[
+                  SectionHeader('歌单精选', top: 26, action: '全部', onAction: () => go(context, DiscoverRoute())),
+                  PlaylistGrid(items: feed.playlists.take(6).toList()),
+                ],
                 SectionHeader('最近播放', top: 24, action: '更多', onAction: () => go(context, CollectionRoute(PlaylistKind.recent))),
                 if (recent.isEmpty)
                   const EmptyRecent()

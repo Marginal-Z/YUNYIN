@@ -524,7 +524,8 @@ class PlayButton extends StatelessWidget {
         color: p.primaryButton,
         shadows: shadow ? const [Shadow2(0, 10, 22, Color.fromRGBO(29, 29, 31, 0.28))] : const [],
         alignment: Alignment.center,
-        child: player.buffering && !player.playing
+        // 正在取地址或打开新歌时显示加载中（上一首此时已静音，但仍处于“播放”状态）。
+        child: player.loading || (player.buffering && !player.playing)
             ? SizedBox(
                 width: iconSize * 0.8,
                 height: iconSize * 0.8,

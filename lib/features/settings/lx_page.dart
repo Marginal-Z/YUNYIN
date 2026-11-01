@@ -75,8 +75,8 @@ class _LxSourcesPageState extends State<LxSourcesPage> {
         PageTitle('洛雪音源', subtitle: '导入洛雪音乐格式的自定义音源', size: desktop ? 40 : 36),
         const SizedBox(height: 10),
         Text(
-          '网易云、QQ 音乐、酷狗是彼此独立的平台；未登录、没有会员或只有试听时，按顺序用启用的音源获取同一首歌的完整地址（可同时启用多个）。'
-          '支持网易云（wy）、QQ 音乐（tx）、酷狗（kg）。音源脚本由你自行导入，请只使用可信来源的脚本。',
+          '洛雪曲库是独立的平台模式（在个人中心切换）：曲库来自酷我，播放时按顺序用这里启用的音源获取地址（需要支持酷我 kw，可同时启用多个）。'
+          '网易云、QQ 音乐、酷狗只播放各自官方接口的歌曲，不使用洛雪音源。音源脚本由你自行导入，请只使用可信来源的脚本。',
           style: ts(13, height: 1.55, color: p.text2),
         ),
         const SizedBox(height: 16),

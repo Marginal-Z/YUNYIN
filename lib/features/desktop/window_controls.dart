@@ -7,10 +7,11 @@ bool get isDesktopPlatform =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.macOS);
 
-/// Windows 使用系统风格的标题栏按钮（右上角），其他桌面系统使用红黄绿三色按钮。
-bool get useWindowsCaption => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+/// Windows 与 Linux 使用系统风格的标题栏按钮（右上角的最小化 / 最大化 / 关闭）；macOS 使用红黄绿三色按钮。
+bool get useWindowsCaption => !kIsWeb && (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux);
 
-/// 设计稿中的红黄绿三色窗口按钮：关闭 / 最小化 / 最大化（Linux、macOS）。Windows 上不显示，改用 [WindowsCaptionButtons]。
+/// 红黄绿三色窗口按钮：关闭 / 最小化 / 最大化，只在 macOS 上显示。Windows、Linux 使用 [WindowsCaptionButtons]；
+/// 平板使用桌面布局时没有窗口，不显示。
 class WindowControls extends StatefulWidget {
   const WindowControls({super.key});
 
@@ -31,7 +32,7 @@ class _WindowControlsState extends State<WindowControls> {
 
   @override
   Widget build(BuildContext context) {
-    if (useWindowsCaption) return const SizedBox.shrink();
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.macOS) return const SizedBox.shrink();
     final enabled = isDesktopPlatform;
     Widget dot(Color c, IconData icon, String label, VoidCallback onTap) => Semantics(
       button: true,

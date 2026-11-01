@@ -180,25 +180,28 @@ class _HomeBody extends StatelessWidget {
           onOpen: () => openPlaylist(context, daily),
           onPlay: () => playAll(context, feed.daily, title: '每日推荐'),
         ),
-        SectionHeader('歌单精选', action: '全部', onAction: () => context.read<AppNav>().switchTab(1)),
-        _Bleed(
-          right: 20,
-          height: 132 + 9 + 20 + 2 + 17,
-          child: SizedBox(
+        // 洛雪曲库没有歌单推荐：没有歌单时不显示这一分区。
+        if (feed.playlists.isNotEmpty) ...[
+          SectionHeader('歌单精选', action: '全部', onAction: () => context.read<AppNav>().switchTab(1)),
+          _Bleed(
+            right: 20,
             height: 132 + 9 + 20 + 2 + 17,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              clipBehavior: Clip.none,
-              padding: const EdgeInsets.only(right: 20),
-              itemCount: feed.playlists.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 14),
-              itemBuilder: (context, i) {
-                final pl = feed.playlists[i];
-                return PlaylistTile(width: 132, cover: pl.cover, title: pl.name, subtitle: playlistSubtitle(pl), onTap: () => openPlaylist(context, pl));
-              },
+            child: SizedBox(
+              height: 132 + 9 + 20 + 2 + 17,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                padding: const EdgeInsets.only(right: 20),
+                itemCount: feed.playlists.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                itemBuilder: (context, i) {
+                  final pl = feed.playlists[i];
+                  return PlaylistTile(width: 132, cover: pl.cover, title: pl.name, subtitle: playlistSubtitle(pl), onTap: () => openPlaylist(context, pl));
+                },
+              ),
             ),
           ),
-        ),
+        ],
         SectionHeader('最近播放', action: '更多', onAction: () => go(context, CollectionRoute(PlaylistKind.recent))),
         if (recent.isEmpty)
           const EmptyRecent()

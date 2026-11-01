@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 /// 移动布局按设计稿宽度 390 排版；桌面布局在窗口小于设计尺寸时等比缩小。
@@ -21,11 +22,19 @@ class AdaptiveScale extends StatelessWidget {
   /// 是否使用桌面布局（按缩放前的宽度判断）。
   static bool? desktopOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ScaleScope>()?.desktop;
 
+  /// 是否使用桌面布局：Android / iOS 平板（短边不小于 600）横竖屏都使用桌面布局，手机始终使用移动布局；
+  /// 电脑按窗口宽度判断。
+  static bool isDesktopLayout(Size size, double desktopBreakpoint) {
+    final mobileOs = !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
+    if (mobileOs) return size.shortestSide >= 600;
+    return size.width >= desktopBreakpoint;
+  }
+
   static double scaleFor(Size size, double desktopBreakpoint) {
     if (size.isEmpty) return 1;
     // 比设计尺寸小时按比例缩小；比设计尺寸大时只放大一半（大屏既让卡片与文字变大，也多显示一些内容）。
     double damp(double raw, double min, double max) => (raw <= 1 ? raw : 1 + (raw - 1) * 0.5).clamp(min, max);
-    if (size.width >= desktopBreakpoint) {
+    if (isDesktopLayout(size, desktopBreakpoint)) {
       return damp(math.min(size.width / _desktopDesignSize.width, size.height / _desktopDesignSize.height), 0.8, 1.3);
     }
     // 按短边缩放：竖屏即宽度；横屏时不会因为宽度大而把高度压得过矮。平板竖屏最多放大 1.4 倍。
@@ -38,7 +47,7 @@ class AdaptiveScale extends StatelessWidget {
     final textScaler = mq.textScaler.clamp(minScaleFactor: 0.9, maxScaleFactor: 1.15);
     var s = scaleFor(mq.size, desktopBreakpoint);
     if ((s - 1).abs() < 0.01) s = 1;
-    final desktop = mq.size.width >= desktopBreakpoint;
+    final desktop = isDesktopLayout(mq.size, desktopBreakpoint);
     // 无论是否缩放都使用同一组件结构：调整窗口大小跨过设计尺寸时，整个应用不会被重新挂载。
     // 倍数为 1 时 FittedBox 的变换是单位矩阵，不会产生额外的图层。
     final logical = mq.size / s;

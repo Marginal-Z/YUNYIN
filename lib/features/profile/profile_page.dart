@@ -119,6 +119,7 @@ class ProfilePage extends StatelessWidget {
 (Color, Color) _platformColors(String id) => switch (id) {
   'qq' => (const Color(0xFF1FC27C), const Color(0xFF0A7F55)),
   'kugou' => (const Color(0xFF3A9BFF), const Color(0xFF1560C9)),
+  'lx' => (const Color(0xFFFF9F43), const Color(0xFFD9680A)),
   _ => (const Color(0xFF3A3A40), const Color(0xFF111114)),
 };
 

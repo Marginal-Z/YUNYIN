@@ -82,7 +82,8 @@ class LxSources extends ChangeNotifier {
   /// 已启动的音源声明支持的平台与音质。
   Map<String, List<String>> platformsOf(String id) => _runtimes[id]?.sources ?? const {};
 
-  static const platformKeys = {'netease': 'wy', 'qq': 'tx', 'kugou': 'kg'};
+  /// 云音的歌曲来源对应洛雪的平台代号；洛雪曲库（lx）的歌曲来自酷我（kw）。
+  static const platformKeys = {'netease': 'wy', 'qq': 'tx', 'kugou': 'kg', 'lx': 'kw'};
   static const platformNames = {'wy': '网易云', 'tx': 'QQ 音乐', 'kg': '酷狗', 'kw': '酷我', 'mg': '咪咕'};
 
   Future<Directory> _dir() async {

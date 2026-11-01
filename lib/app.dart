@@ -292,7 +292,9 @@ class _NoticeListenerState extends State<_NoticeListener> {
     if (nav == null) return;
     if (!n.blocking) {
       final overlay = nav.overlay;
-      if (overlay != null) Toast.showOn(overlay, n.title, icon: n.title.contains('喜欢') ? YIcons.heart : YIcons.info);
+      // 失败时把原因一并显示（例如需要登录、只有会员可播放），而不是只有“播放失败”四个字。
+      final text = (n.message ?? '').isEmpty ? n.title : '${n.title}：${n.message}';
+      if (overlay != null) Toast.showOn(overlay, text, icon: n.title.contains('喜欢') ? YIcons.heart : YIcons.info);
       return;
     }
     if (_dialogOpen) return;

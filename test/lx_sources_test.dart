@@ -5,8 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yunyin/data/lx/lx_sources.dart';
 import 'package:yunyin/data/models.dart';
-import 'package:yunyin/data/sources/kugou/kugou_source.dart';
-import 'package:yunyin/data/sources/source_policy.dart';
+import 'package:yunyin/data/sources/lx/lx_library_source.dart';
 
 /// 按真实洛雪音源的写法：读取 lx.version / env / currentScriptInfo，用 setTimeout 做请求超时，
 /// 以表单提交、返回 JSON（自动解析），推送更新提示，并为三个平台声明不同的音质。
@@ -32,7 +31,7 @@ const httpFetch = (url, options) => new Promise((resolve, reject) => {
 const sources = {
   wy: { name: '网易云', type: 'music', actions: ['musicUrl'], qualitys: ['128k', '320k', 'flac'] },
   tx: { name: 'QQ 音乐', type: 'music', actions: ['musicUrl'], qualitys: ['128k', '320k'] },
-  kg: { name: '酷狗', type: 'music', actions: ['musicUrl'], qualitys: ['128k', '320k', 'flac', 'flac24bit'] },
+  kw: { name: '酷我', type: 'music', actions: ['musicUrl'], qualitys: ['128k', '320k', 'flac', 'flac24bit'] },
 }
 on(EVENT_NAMES.request, async ({ source, action, info }) => {
   if (action !== 'musicUrl') throw new Error('action not support')
@@ -57,7 +56,7 @@ const _broken = '''
  */
 const { EVENT_NAMES, on, send } = globalThis.lx
 on(EVENT_NAMES.request, () => Promise.reject(new Error('接口已失效')))
-send(EVENT_NAMES.inited, { status: true, sources: { kg: { name: '酷狗', type: 'music', actions: ['musicUrl'], qualitys: ['128k'] } } })
+send(EVENT_NAMES.inited, { status: true, sources: { kw: { name: '酷我', type: 'music', actions: ['musicUrl'], qualitys: ['128k'] } } })
 ''';
 
 final _skip = (Platform.environment['LIBQUICKJSC_TEST_PATH'] ?? '').isEmpty ? '需要 LIBQUICKJSC_TEST_PATH 指向 libquickjs_c_bridge_plugin.so' : null;
@@ -107,19 +106,19 @@ void main() {
     expect(working.version, '2.1.0');
     expect(lx.enabled.map((s) => s.id), [broken.id, working.id]);
 
-    // 酷狗未登录时自己的接口取不到地址：由洛雪音源兜底，失效的音源被跳过。
-    SourcePolicy.custom = lx.resolve;
+    // 洛雪曲库的歌曲（酷我 kw）只通过洛雪音源播放：失效的音源被跳过，由下一个音源取得地址。
+    final library = LxLibrarySource(lx);
     final song = Song(
-      id: 'a1b2c3d4e5f60718293a4b5c6d7e8f90:123456:7890',
-      sourceId: KugouSource.sourceId,
+      id: '228908',
+      sourceId: LxLibrarySource.sourceId,
       name: '晴天',
-      artists: const [ArtistRef('kugou:周杰伦', '周杰伦')],
+      artists: const [ArtistRef('kw:周杰伦', '周杰伦')],
       duration: const Duration(minutes: 4, seconds: 29),
     );
-    final info = await resolveStream(_RefusingKugou(), song, AudioQuality.lossless);
-    expect(info.url, 'http://127.0.0.1:$port/audio/a1b2c3d4e5f60718293a4b5c6d7e8f90_flac.mp3');
+    final info = await library.stream(song, AudioQuality.lossless);
+    expect(info.url, 'http://127.0.0.1:$port/audio/228908_flac.mp3');
     expect(info.quality, AudioQuality.lossless);
-    expect(forms.last, containsPair('source', 'kg'));
+    expect(forms.last, containsPair('source', 'kw'));
     expect(forms.last, containsPair('v', '2.0.0'));
     expect(forms.last, containsPair('script', '本地测试音源'));
 
@@ -143,14 +142,7 @@ void main() {
     await lx.setEnabled(broken.id, false);
     expect(await lx.resolve(song, AudioQuality.standard), isNull);
 
-    SourcePolicy.custom = null;
     await server.close(force: true);
     await tmp.delete(recursive: true);
   }, skip: _skip, timeout: const Timeout(Duration(minutes: 1)));
-}
-
-/// 未登录的酷狗：自己的接口不给播放地址。
-class _RefusingKugou extends KugouSource {
-  @override
-  Future<StreamInfo> stream(Song song, AudioQuality quality) async => throw Exception('需要验证或会员');
 }

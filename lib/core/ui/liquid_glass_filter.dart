@@ -35,8 +35,8 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
   final double radius;
   final GlassMaterial material;
 
-  /// 承载文字的玻璃（导航栏、迷你播放条）：「清透」材质仍然不模糊，只加一层很淡的色调，压低背后内容的对比度；
-  /// 文字本身另有光晕（见 [legibleHalo]），保持清透的观感。
+  /// 承载文字的玻璃（导航栏、迷你播放条）：「清透」材质仍然不模糊，只加一层很淡的色调，压低背后内容的对比度，
+  /// 保持清透的观感。
   final bool legible;
 
   @override

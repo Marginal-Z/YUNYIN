@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Theme;
+import 'package:flutter/material.dart' show CircularProgressIndicator, Theme;
 import 'package:provider/provider.dart';
 
 import '../../core/settings.dart';
@@ -215,14 +215,14 @@ class MiniPlayer extends StatelessWidget {
                       children: [
                         Text(
                           song?.name ?? '',
-                          style: ts(14, weight: w600, color: p.text).copyWith(shadows: legibleHalo(p.text)),
+                          style: ts(14, weight: w600, color: p.text),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         Text(
                           song?.artistText ?? '',
-                          style: ts(12, weight: w500, color: p.text2).copyWith(shadows: legibleHalo(p.text2)),
+                          style: ts(12, weight: w500, color: p.text2),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -233,7 +233,14 @@ class MiniPlayer extends StatelessWidget {
               ),
             ),
           ),
-          YIconButton(player.playing ? YIcons.pause : YIcons.play, label: player.playing ? '暂停' : '播放', onTap: player.toggle),
+          if (player.loading)
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: p.text))),
+            )
+          else
+            YIconButton(player.playing ? YIcons.pause : YIcons.play, label: player.playing ? '暂停' : '播放', onTap: player.toggle),
           YIconButton(YIcons.next, label: '下一首', onTap: player.next),
         ],
       ),
