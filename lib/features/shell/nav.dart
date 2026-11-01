@@ -305,6 +305,21 @@ class AppNav extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 切换平台后，各标签里打开的页面属于原来的平台：只保留各标签的首页（当前标签保留正在看的页面，
+  /// 例如个人中心）。
+  void resetForPlatform() {
+    for (var i = 0; i < stacks.length; i++) {
+      final s = stacks[i];
+      if (s.length <= 1) continue;
+      final keep = i == tab ? [s.first, s.last] : [s.first];
+      s
+        ..clear()
+        ..addAll(keep);
+    }
+    _forward.clear();
+    notifyListeners();
+  }
+
   void switchTab(int i) {
     if (i == tab) {
       if (stack.length > 1) {

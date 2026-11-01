@@ -116,7 +116,9 @@ class ProfilePage extends StatelessWidget {
     final sm = context.read<SourceManager>();
     if (sm.current.id == s.id) return;
     await sm.select(s.id);
-    if (context.mounted) Toast.show(context, '已切换到${s.name}模式');
+    if (!context.mounted) return;
+    context.read<AppNav>().resetForPlatform();
+    Toast.show(context, '已切换到${s.name}模式');
   }
 }
 

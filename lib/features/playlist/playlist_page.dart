@@ -187,25 +187,6 @@ class _MobilePlaylist extends StatefulWidget {
     loading: true,
   );
 
-  static List<Widget> topButtons(BuildContext context, {VoidCallback? onMore}) => [
-    Positioned(
-      left: 16,
-      top: 20,
-      child: GlassButton(YIcons.back, label: '返回', shadows: _btnShadow(context), onTap: () => context.read<AppNav>().pop()),
-    ),
-    if (onMore != null)
-      Positioned(
-        right: 16,
-        top: 20,
-        child: GlassButton(YIcons.more, label: '更多', shadows: _btnShadow(context), onTap: onMore),
-      ),
-  ];
-
-  static List<Shadow2> _btnShadow(BuildContext context) {
-    final p = Palette.of(context);
-    return p.isDark ? p.glassButtonShadow : const [Shadow2(0, 6, 18, Color.fromRGBO(0, 0, 0, 0.12)), Shadow2(0, 1, 3, Color.fromRGBO(0, 0, 0, 0.08))];
-  }
-
   @override
   State<_MobilePlaylist> createState() => _MobilePlaylistState();
 }
@@ -311,7 +292,12 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
               top: pad.top,
               child: SizedBox(
                 height: 80,
-                child: Stack(children: _MobilePlaylist.topButtons(context, onMore: () => _showPlaylistMenu(context, playlist))),
+                child: Stack(
+                  children: [
+                    Positioned(left: 16, top: 20, child: _HeroButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop())),
+                    Positioned(right: 16, top: 20, child: _HeroButton(YIcons.more, label: '更多', onTap: () => _showPlaylistMenu(context, playlist))),
+                  ],
+                ),
               ),
             ),
           ],
@@ -490,6 +476,34 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
         ),
         YIconButton(YIcons.more, size: 36, iconSize: 20, color: Colors.white, label: '更多', onTap: () => _showPlaylistMenu(context, widget.playlist)),
       ],
+    );
+  }
+}
+
+/// 封面上方的圆形按钮：半透明深色底，任何封面上都清晰可见。
+class _HeroButton extends StatelessWidget {
+  const _HeroButton(this.icon, {required this.label, required this.onTap});
+
+  final YIconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      semanticLabel: label,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0x47000000),
+          border: Border.all(color: const Color(0x33FFFFFF)),
+        ),
+        alignment: Alignment.center,
+        child: YIcon(icon, size: 22, color: Colors.white),
+      ),
     );
   }
 }

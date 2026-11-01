@@ -329,6 +329,7 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   // QQ 音乐与酷狗模式：首页、发现、搜索、歌手、专辑、评论与本机喜欢。
   for (final (id, singer, album) in const [('qq', '0025NhlN2yWrP4', '000MkMni19ClKG'), ('kugou', '3520', '960399')]) {
     await sources.select(id);
+    nav.resetForPlatform();
     home();
     nav.push(ProfileRoute());
     await shot('mobile-profile-$id', settle: 2000);

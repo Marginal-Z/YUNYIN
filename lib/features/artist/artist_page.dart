@@ -291,12 +291,22 @@ class ArtistStrip extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Cover(
-            a.avatar,
-            size: 64,
-            circle: true,
-            shadows: [Shadow2(0, 8, 18, p.isDark ? const Color.fromRGBO(0, 0, 0, 0.4) : const Color.fromRGBO(28, 44, 92, 0.14))],
-          ),
+          // 没有头像（酷狗的歌手搜索不返回头像）时显示名字首字。
+          if ((a.avatar ?? '').isEmpty)
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: p.accentText.withValues(alpha: 0.14)),
+              alignment: Alignment.center,
+              child: Text(a.name.characters.firstOrNull ?? '?', style: ts(24, weight: w700, color: p.accentText)),
+            )
+          else
+            Cover(
+              a.avatar,
+              size: 64,
+              circle: true,
+              shadows: [Shadow2(0, 8, 18, p.isDark ? const Color.fromRGBO(0, 0, 0, 0.4) : const Color.fromRGBO(28, 44, 92, 0.14))],
+            ),
           const SizedBox(height: 8),
           Text(
             a.name,
