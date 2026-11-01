@@ -98,6 +98,7 @@ class HomePage extends StatelessWidget {
                         width: 52,
                         height: 52,
                         alignment: Alignment.center,
+                        legible: true,
                         child: user?.avatar != null ? Cover(user!.avatar, size: 40, circle: true) : YIcon(YIcons.user, size: 22, color: p.text),
                       ),
                     ),

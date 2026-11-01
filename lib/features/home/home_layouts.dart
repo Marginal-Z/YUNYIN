@@ -190,6 +190,7 @@ class PhotoWallHeader extends StatelessWidget {
     final p = Palette.of(context);
     return Glass(
       radius: 26,
+      legible: true,
       padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
       child: Row(
         mainAxisSize: MainAxisSize.min,
