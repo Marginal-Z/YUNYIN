@@ -22,11 +22,10 @@ class AdaptiveScale extends StatelessWidget {
   /// 是否使用桌面布局（按缩放前的宽度判断）。
   static bool? desktopOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_ScaleScope>()?.desktop;
 
-  /// 是否使用桌面布局：Android / iOS 平板（短边不小于 600）横竖屏都使用桌面布局，手机始终使用移动布局；
-  /// 电脑按窗口宽度判断。
+  /// 是否使用桌面布局：Android / iOS 的手机与平板始终使用移动布局（横屏时为横屏极简布局）；电脑按窗口宽度判断。
   static bool isDesktopLayout(Size size, double desktopBreakpoint) {
     final mobileOs = !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
-    if (mobileOs) return size.shortestSide >= 600;
+    if (mobileOs) return false;
     return size.width >= desktopBreakpoint;
   }
 

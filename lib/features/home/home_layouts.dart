@@ -179,11 +179,14 @@ class _PhotoWallState extends State<PhotoWall> with SingleTickerProviderStateMix
 
 /// 照片墙首页的悬浮标题：问候语 + 随机播放。
 class PhotoWallHeader extends StatelessWidget {
-  const PhotoWallHeader({super.key, required this.title, required this.subtitle, required this.feed});
+  const PhotoWallHeader({super.key, required this.title, required this.subtitle, required this.feed, this.trailing});
 
   final String title;
   final String subtitle;
   final HomeFeed feed;
+
+  /// 问候右侧的按钮；默认为随机播放每日推荐（手机竖屏照片墙传入个人中心头像）。
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -210,17 +213,19 @@ class PhotoWallHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(width: 14),
-          Pressable(
-            onTap: () => playAll(context, feed.daily, shuffle: true, title: '每日推荐'),
-            semanticLabel: '随机播放每日推荐',
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(color: p.accentText, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: const YIcon(YIcons.shuffle, size: 20, color: Colors.white),
+          ?trailing,
+          if (trailing == null)
+            Pressable(
+              onTap: () => playAll(context, feed.daily, shuffle: true, title: '每日推荐'),
+              semanticLabel: '随机播放每日推荐',
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(color: p.accentText, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: const YIcon(YIcons.shuffle, size: 20, color: Colors.white),
+              ),
             ),
-          ),
         ],
       ),
     );

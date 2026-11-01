@@ -23,6 +23,7 @@ import '../common/layout.dart';
 import '../common/song_row.dart';
 import '../shell/nav.dart';
 import 'home_layouts.dart';
+import 'landscape_home.dart';
 
 String todayText([DateTime? now]) {
   final d = now ?? DateTime.now();
@@ -61,15 +62,16 @@ class HomePage extends StatelessWidget {
     final source = sources.current;
     final user = source.user;
     final generation = sources.generation;
-    // 手机横屏（屏幕方向设为横屏，或自动旋转到横屏）时首页默认使用照片墙，竖屏时恢复所选的首页样式。
-    final landscape = MediaQuery.orientationOf(context) == Orientation.landscape;
-    final layout = landscape ? HomeLayout.photoWall : context.select<AppSettings, HomeLayout>((s) => s.homeLayout);
+    // 横屏使用横屏极简布局；照片墙只在竖屏使用。
+    final landscape = isPhoneLandscape(context);
+    final layout = landscape ? HomeLayout.standard : context.select<AppSettings, HomeLayout>((s) => s.homeLayout);
     Future<HomeFeed> load() async {
       final feed = await source.homeFeed();
       if (generation == sources.generation) DataCache.saveHome(source.id, user?.id, feed);
       return feed;
     }
 
+    if (landscape) return LandscapeHome(load: load);
     if (layout == HomeLayout.photoWall) {
       final safeTop = MediaQuery.paddingOf(context).top;
       return Stack(
@@ -87,22 +89,23 @@ class HomePage extends StatelessWidget {
                   Positioned(
                     left: 16,
                     top: safeTop + 14,
-                    child: PhotoWallHeader(title: greeting(), subtitle: todayText(), feed: feed),
-                  ),
-                  // 照片墙样式没有首页头部：右上角保留个人中心入口（在那里可以切换平台与首页样式）。
-                  Positioned(
-                    right: 16,
-                    top: safeTop + 20,
-                    child: Pressable(
-                      onTap: () => go(context, ProfileRoute()),
-                      semanticLabel: '个人中心',
-                      child: Glass(
-                        radius: 26,
-                        width: 52,
-                        height: 52,
-                        alignment: Alignment.center,
-                        legible: true,
-                        child: user?.avatar != null ? Cover(user!.avatar, size: 40, circle: true) : YIcon(YIcons.user, size: 22, color: p.text),
+                    // 照片墙没有首页头部：问候卡片右侧是个人中心入口（在那里可以切换平台与首页样式）。
+                    child: PhotoWallHeader(
+                      title: greeting(),
+                      subtitle: todayText(),
+                      feed: feed,
+                      trailing: Pressable(
+                        onTap: () => go(context, ProfileRoute()),
+                        semanticLabel: '个人中心',
+                        child: user?.avatar != null
+                            ? Cover(user!.avatar, size: 44, circle: true)
+                            : Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(color: p.accentText, shape: BoxShape.circle),
+                                alignment: Alignment.center,
+                                child: const YIcon(YIcons.user, size: 21, color: Colors.white),
+                              ),
                       ),
                     ),
                   ),

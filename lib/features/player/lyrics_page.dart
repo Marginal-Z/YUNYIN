@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -27,40 +26,23 @@ class LyricsPage extends StatefulWidget {
 
 class _LyricsPageState extends State<LyricsPage> {
   static final _immersive = Platform.isAndroid;
+
+  /// 上下的歌曲信息与播放控件是否显示：只有点按“全屏歌词”按钮才隐藏，不会自动隐藏。
   bool _controls = true;
-  Timer? _hide;
 
   @override
   void initState() {
     super.initState();
     if (_immersive) SystemBars.immersive(this, true);
-    _poke();
   }
 
   @override
   void dispose() {
-    _hide?.cancel();
     if (_immersive) SystemBars.immersive(this, false);
     super.dispose();
   }
 
-  /// 有操作时保持控件显示，并重新计时。
-  void _poke() {
-    _hide?.cancel();
-    if (!_controls) setState(() => _controls = true);
-    _hide = Timer(const Duration(seconds: 4), () {
-      if (mounted && context.read<PlayerController>().playing) setState(() => _controls = false);
-    });
-  }
-
-  void _toggle() {
-    if (_controls) {
-      _hide?.cancel();
-      setState(() => _controls = false);
-    } else {
-      _poke();
-    }
-  }
+  void _setFullscreen(bool on) => setState(() => _controls = !on);
 
   @override
   Widget build(BuildContext context) {
@@ -88,204 +70,220 @@ class _LyricsPageState extends State<LyricsPage> {
     return GlowBackground.player(
       context,
       flow: player.playing,
-      child: Listener(
-        onPointerDown: (_) {
-          if (_controls) _poke();
-        },
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _toggle),
-            ),
-            // 控件显示时歌词从顶部卡片下方开始，避免与卡片重叠；控件隐藏后歌词铺满全屏。
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 420),
-              curve: Curves.easeOutCubic,
-              left: 28,
-              right: land && _controls ? side + 40 : 28,
-              top: pad.top + (land ? 76 : (_controls ? 168 : 12)),
-              bottom: pad.bottom + (!land && _controls ? 172 : 0),
-              child: const LyricsView(desktop: false, anchor: 0.3),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              child: fade(
-                top: true,
-                SizedBox(
-                  height: pad.top + 160,
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        left: 16,
-                        top: pad.top + 20,
-                        child: YIconButton(
-                          YIcons.chevronDown,
-                          size: 44,
-                          iconSize: 26,
-                          color: p.text,
-                          label: '收起歌词',
-                          onTap: () => Navigator.of(context).maybePop(),
+      child: Stack(
+        children: [
+          // 控件显示时歌词从顶部卡片下方开始，避免与卡片重叠；控件隐藏后歌词铺满全屏。
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+            left: 28,
+            right: land && _controls ? side + 40 : 28,
+            top: pad.top + (land ? 76 : (_controls ? 168 : 12)),
+            bottom: pad.bottom + (!land && _controls ? 172 : 0),
+            child: const LyricsView(desktop: false, anchor: 0.3),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: fade(
+              top: true,
+              SizedBox(
+                height: pad.top + 160,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: 16,
+                      top: pad.top + 20,
+                      child: YIconButton(
+                        YIcons.chevronDown,
+                        size: 44,
+                        iconSize: 26,
+                        color: p.text,
+                        label: '收起歌词',
+                        onTap: () => Navigator.of(context).maybePop(),
+                      ),
+                    ),
+                    Positioned(
+                      left: 76,
+                      right: 76,
+                      top: pad.top + 20,
+                      height: 44,
+                      child: Center(
+                        child: Text(
+                          '歌词',
+                          style: ts(11, weight: w700, em: 0.14, color: p.playerText2),
                         ),
                       ),
-                      Positioned(
-                        left: 76,
-                        right: 76,
-                        top: pad.top + 20,
-                        height: 44,
-                        child: Center(
-                          child: Text(
-                            '歌词',
-                            style: ts(11, weight: w700, em: 0.14, color: p.playerText2),
-                          ),
-                        ),
+                    ),
+                    Positioned(
+                      right: 64,
+                      top: pad.top + 20,
+                      child: YIconButton(YIcons.fullscreen, size: 44, iconSize: 22, color: p.text, label: '全屏歌词', onTap: () => _setFullscreen(true)),
+                    ),
+                    Positioned(
+                      right: 16,
+                      top: pad.top + 20,
+                      child: YIconButton(
+                        YIcons.more,
+                        size: 44,
+                        iconSize: 24,
+                        color: p.text,
+                        label: '歌词选项',
+                        onTap: () async {
+                          final v = await showOptions<int>(
+                            context,
+                            title: '歌词选项',
+                            options: [(0, settings.showTranslation ? '隐藏翻译' : '显示翻译'), (1, '查看评论'), (2, '歌曲操作')],
+                          );
+                          if (!context.mounted) return;
+                          if (v == 0) settings.setFlag('showTranslation', !settings.showTranslation);
+                          if (v == 1) openComments(context, song);
+                          if (v == 2) showSongMenu(context, song);
+                        },
                       ),
-                      Positioned(
-                        right: 16,
-                        top: pad.top + 20,
-                        child: YIconButton(
-                          YIcons.more,
-                          size: 44,
-                          iconSize: 24,
-                          color: p.text,
-                          label: '歌词选项',
-                          onTap: () async {
-                            final v = await showOptions<int>(
-                              context,
-                              title: '歌词选项',
-                              options: [(0, settings.showTranslation ? '隐藏翻译' : '显示翻译'), (1, '查看评论'), (2, '歌曲操作')],
-                            );
-                            if (!context.mounted) return;
-                            if (v == 0) settings.setFlag('showTranslation', !settings.showTranslation);
-                            if (v == 1) openComments(context, song);
-                            if (v == 2) showSongMenu(context, song);
-                          },
-                        ),
-                      ),
-                      Positioned(
-                        left: land ? size.width - side - 20 : 20,
-                        right: 20,
-                        top: pad.top + 84,
-                        // 歌曲信息不加卡片背景。
-                        child: Container(
-                          height: 72,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Row(
-                            children: [
-                              Cover(song.coverUrl, size: 48, radius: 12),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      song.name,
-                                      style: ts(16, weight: w700, color: p.text),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      song.subtitle,
-                                      style: ts(13, color: p.playerText2),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Pressable(
-                                onTap: () => player.toggleLike(song),
-                                scale: 0.9,
-                                semanticLabel: liked ? '取消喜欢' : '喜欢',
-                                child: SizedBox(
-                                  width: 40,
-                                  height: 40,
-                                  child: Center(child: YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 24, color: p.playerAccent ?? p.accentText)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: land ? size.width - side - 20 : 20,
-              right: 20,
-              bottom: 22 + pad.bottom,
-              child: fade(
-                top: false,
-                // 控制区透明、无背景框；歌词区域在控件显示时止于其上方，两者不重叠。
-                Container(
-                  height: 150,
-                  padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
-                  child: Column(
-                    children: [
-                      ValueListenableBuilder<Duration>(
-                        valueListenable: player.position,
-                        builder: (context, pos, _) {
-                          final total = player.duration;
-                          final f = total.inMilliseconds == 0 ? 0.0 : pos.inMilliseconds / total.inMilliseconds;
-                          final remain = total - pos;
-                          return Column(
-                            children: [
-                              SeekBar(value: f, onSeek: player.seekFraction, style: settings.progressStyle, playing: player.playing, seed: player.current?.key.hashCode ?? 0),
-                              const SizedBox(height: 6),
-                              Row(
+                    ),
+                    Positioned(
+                      left: land ? size.width - side - 20 : 20,
+                      right: 20,
+                      top: pad.top + 84,
+                      // 歌曲信息不加卡片背景。
+                      child: Container(
+                        height: 72,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          children: [
+                            Cover(song.coverUrl, size: 48, radius: 12),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    formatDuration(pos),
-                                    style: ts(12, weight: w500, color: p.playerText2, tabular: true),
+                                    song.name,
+                                    style: ts(16, weight: w700, color: p.text),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  const Spacer(),
+                                  const SizedBox(height: 2),
                                   Text(
-                                    '-${formatDuration(remain.isNegative ? Duration.zero : remain)}',
-                                    style: ts(12, weight: w500, color: p.playerText2, tabular: true),
+                                    song.subtitle,
+                                    style: ts(13, color: p.playerText2),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
                               ),
-                            ],
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Pressable(
-                            onTap: () => settings.setFlag('showTranslation', !settings.showTranslation),
-                            scale: 0.9,
-                            semanticLabel: '歌词翻译',
-                            child: SizedBox(
-                              width: 44,
-                              height: 44,
-                              child: Center(
-                                child: Text(
-                                  '译',
-                                  style: ts(15, weight: w700, color: settings.showTranslation ? p.accentText : p.playerText2),
-                                ),
+                            ),
+                            Pressable(
+                              onTap: () => player.toggleLike(song),
+                              scale: 0.9,
+                              semanticLabel: liked ? '取消喜欢' : '喜欢',
+                              child: SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: Center(child: YIcon(liked ? YIcons.heart : YIcons.heartOutline, size: 24, color: p.playerAccent ?? p.accentText)),
                               ),
                             ),
-                          ),
-                          YIconButton(YIcons.prev, size: 52, iconSize: 30, label: '上一首', onTap: player.previous),
-                          const PlayButton(size: 64, iconSize: 28, shadow: true, largePause: false),
-                          YIconButton(YIcons.next, size: 52, iconSize: 30, label: '下一首', onTap: player.next),
-                          YIconButton(YIcons.queue, size: 44, iconSize: 24, color: p.playerText2, label: '播放队列', onTap: () => openQueue(context)),
-                        ],
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+          Positioned(
+            left: land ? size.width - side - 20 : 20,
+            right: 20,
+            bottom: 22 + pad.bottom,
+            child: fade(
+              top: false,
+              // 控制区透明、无背景框；歌词区域在控件显示时止于其上方，两者不重叠。
+              Container(
+                height: 150,
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 0),
+                child: Column(
+                  children: [
+                    ValueListenableBuilder<Duration>(
+                      valueListenable: player.position,
+                      builder: (context, pos, _) {
+                        final total = player.duration;
+                        final f = total.inMilliseconds == 0 ? 0.0 : pos.inMilliseconds / total.inMilliseconds;
+                        final remain = total - pos;
+                        return Column(
+                          children: [
+                            SeekBar(
+                              value: f,
+                              onSeek: player.seekFraction,
+                              style: settings.progressStyle,
+                              playing: player.playing,
+                              seed: player.current?.key.hashCode ?? 0,
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Text(
+                                  formatDuration(pos),
+                                  style: ts(12, weight: w500, color: p.playerText2, tabular: true),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '-${formatDuration(remain.isNegative ? Duration.zero : remain)}',
+                                  style: ts(12, weight: w500, color: p.playerText2, tabular: true),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Pressable(
+                          onTap: () => settings.setFlag('showTranslation', !settings.showTranslation),
+                          scale: 0.9,
+                          semanticLabel: '歌词翻译',
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Center(
+                              child: Text(
+                                '译',
+                                style: ts(15, weight: w700, color: settings.showTranslation ? p.accentText : p.playerText2),
+                              ),
+                            ),
+                          ),
+                        ),
+                        YIconButton(YIcons.prev, size: 52, iconSize: 30, label: '上一首', onTap: player.previous),
+                        const PlayButton(size: 64, iconSize: 28, shadow: true, largePause: false),
+                        YIconButton(YIcons.next, size: 52, iconSize: 30, label: '下一首', onTap: player.next),
+                        YIconButton(YIcons.queue, size: 44, iconSize: 24, color: p.playerText2, label: '播放队列', onTap: () => openQueue(context)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // 全屏歌词时右下角的退出按钮（只在全屏时显示）。
+          Positioned(
+            right: 20,
+            bottom: pad.bottom + 20,
+            child: IgnorePointer(
+              ignoring: _controls,
+              child: AnimatedOpacity(
+                opacity: _controls ? 0 : 1,
+                duration: const Duration(milliseconds: 300),
+                child: YIconButton(YIcons.exitFullscreen, size: 44, iconSize: 22, color: p.playerText2, label: '退出全屏歌词', onTap: () => _setFullscreen(false)),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

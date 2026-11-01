@@ -66,16 +66,6 @@ enum BackgroundMode {
   final String label;
 }
 
-/// 屏幕方向（手机与平板）。
-enum ScreenOrientation {
-  portrait('竖屏'),
-  auto('自动旋转'),
-  landscape('横屏');
-
-  const ScreenOrientation(this.label);
-  final String label;
-}
-
 /// 播放进度条的样式。
 enum ProgressStyle {
   /// 已播放部分是流动的正弦波。
@@ -143,6 +133,9 @@ class AppSettings extends ChangeNotifier {
   AudioQuality quality = AudioQuality.hires;
   AudioQuality downloadQuality = AudioQuality.higher;
   bool crossfade = true;
+
+  /// 一首歌播放完后自动播放下一首；关闭时停在这首歌的结尾。
+  bool autoNext = true;
   bool normalize = true;
 
   /// Android：使用 OpenSL ES 输出音频（个别设备上 AudioTrack 输出没有声音时的兼容选项）。
@@ -188,7 +181,6 @@ class AppSettings extends ChangeNotifier {
   HomeLayout homeLayout = HomeLayout.standard;
 
   /// 屏幕方向。
-  ScreenOrientation orientation = ScreenOrientation.auto;
 
   /// 播放进度条的波浪动画。
   ProgressStyle progressStyle = ProgressStyle.wave;
@@ -287,6 +279,7 @@ class AppSettings extends ChangeNotifier {
     quality = _enumValue('quality', AudioQuality.values, AudioQuality.hires);
     downloadQuality = _enumValue('downloadQuality', AudioQuality.values, AudioQuality.higher);
     crossfade = _read<bool>('crossfade') ?? true;
+    autoNext = _read<bool>('autoNext') ?? true;
     normalize = _read<bool>('normalize') ?? true;
     openSles = _read<bool>('openSles') ?? false;
     splashSeen = _read<bool>('splashSeen') ?? false;
@@ -303,7 +296,6 @@ class AppSettings extends ChangeNotifier {
     glassMaterial = GlassMaterial.values[(_read<int>('glassMaterial') ?? 0).clamp(0, GlassMaterial.values.length - 1)];
     playerStyle = PlayerStyle.values[(_read<int>('playerStyle') ?? 0).clamp(0, PlayerStyle.values.length - 1)];
     homeLayout = HomeLayout.values[(_read<int>('homeLayout') ?? 0).clamp(0, HomeLayout.values.length - 1)];
-    orientation = ScreenOrientation.values[(_read<int>('orientation') ?? ScreenOrientation.auto.index).clamp(0, ScreenOrientation.values.length - 1)];
     // 旧版本只有“波浪动画”开关：关闭时迁移为直线。
     final ps = _read<int>('progressStyle');
     progressStyle = ps != null
@@ -406,6 +398,8 @@ class AppSettings extends ChangeNotifier {
     switch (key) {
       case 'crossfade':
         crossfade = v;
+      case 'autoNext':
+        autoNext = v;
       case 'normalize':
         normalize = v;
       case 'openSles':
@@ -525,11 +519,6 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setOrientation(ScreenOrientation v) {
-    orientation = v;
-    _p.setInt('orientation', v.index);
-    notifyListeners();
-  }
 
   void setGlassMaterial(GlassMaterial m) {
     glassMaterial = m;

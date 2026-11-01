@@ -94,6 +94,13 @@ class PlaybackGroup extends StatelessWidget {
           title: '淡入淡出',
           trailing: YSwitch(value: s.crossfade, label: '淡入淡出', onChanged: (v) => s.setFlag('crossfade', v)),
         ),
+        SettingsRow(
+          icon: YIcons.next,
+          tile: TileColor.blue,
+          title: '自动切歌',
+          value: s.autoNext ? null : '播放完停止',
+          trailing: YSwitch(value: s.autoNext, label: '自动切歌', onChanged: (v) => s.setFlag('autoNext', v)),
+        ),
         if (!kIsWeb && Platform.isAndroid)
           SettingsRow(
             icon: YIcons.equalizer,

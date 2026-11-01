@@ -670,8 +670,12 @@ class PlayerController extends ChangeNotifier {
     }
     if (mode == PlayMode.repeatOne) {
       seek(Duration.zero).then((_) => _player?.play());
-    } else {
+    } else if (settings.autoNext) {
       next(auto: true);
+    } else {
+      // 关闭了自动切歌：停在这首歌的开头，等用户手动播放。
+      _playRequested = false;
+      seek(Duration.zero).then((_) => _player?.pause());
     }
   }
 

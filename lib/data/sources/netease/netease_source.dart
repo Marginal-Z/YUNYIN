@@ -246,7 +246,11 @@ class NeteaseSource extends MusicSource {
     if (url == null) return null;
     final s = url.toString();
     if (s.isEmpty) return null;
-    return s.replaceFirst('http://', 'https://');
+    // 歌单广场的封面地址带有一串图片处理参数，最后一步把图片缩成 140×140，放大显示时很模糊；
+    // 去掉这些参数，由 CoverImage 按实际显示尺寸请求（与打开歌单后看到的清晰封面相同）。
+    final https = s.replaceFirst('http://', 'https://');
+    final q = https.indexOf('?');
+    return q > 0 && https.contains('music.126.net') && https.contains('thumbnail=') ? https.substring(0, q) : https;
   }
 
   Song _song(Map<String, dynamic> s, {Map<String, dynamic>? privilege}) {

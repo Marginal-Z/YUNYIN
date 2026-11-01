@@ -72,8 +72,17 @@ class PlayerPage extends StatelessWidget {
             final h = c.maxHeight - pad.top - pad.bottom;
             final extra = h - 844;
             final double topGap = 28 + math.max(0.0, extra * 0.25);
-            // 封面以外的内容约占 500 高度；矮屏缩小封面（不小于 120），仍放不下（横屏）时整页可滚动。
-            const fixed = 500.0;
+            // 歌词预览与上下内容的间距按播放样式调整：3D 封面流下方有倒影，卡片流与照片墙占满整行，需要更多留白；
+            // 歌词与下方歌名之间至少留出 [titleGap]，不会挤在一起。
+            final lyricGap = switch (style) {
+              PlayerStyle.coverFlow => 34.0,
+              PlayerStyle.cardFlow || PlayerStyle.wall => 28.0,
+              _ => 24.0,
+            };
+            const titleGap = 26.0;
+            // 封面以外的内容约占 500 高度（加上歌词间距）；矮屏缩小封面（不小于 120），仍放不下（横屏）时整页可滚动。
+            // 卡片流、3D 封面流与照片墙的内容区比封面高 24（见 art）。
+            final fixed = 500.0 + (lyricGap - 22) + titleGap + (style.wide ? 24 : 0);
             final double coverSize = math.max(120.0, math.min(math.min(c.maxWidth - 80, 310.0), h - fixed - (topGap - 28)));
             final scroll = h < fixed + 120;
             final page = Padding(
@@ -84,9 +93,10 @@ class PlayerPage extends StatelessWidget {
                   header,
                   SizedBox(height: topGap),
                   art(song, coverSize, style),
-                  const SizedBox(height: 22),
+                  SizedBox(height: lyricGap),
                   // 封面下方两行歌词；歌名、进度与播放控件放在下方，靠近功能卡片。
                   const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
+                  const SizedBox(height: titleGap),
                   const Spacer(),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -285,7 +295,7 @@ class PlayerPage extends StatelessWidget {
               PaletteScope(palette: context.read<AppSettings>().palette(true), child: header),
               const Spacer(),
               const Padding(padding: EdgeInsets.symmetric(horizontal: 28), child: _LyricPreview()),
-              const SizedBox(height: 18),
+              const SizedBox(height: 28),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Column(

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -23,8 +22,6 @@ class AppearancePage extends StatelessWidget {
     final s = context.watch<AppSettings>();
     final desktop = LayoutScope.isDesktop(context);
     const scales = [0.85, 1.0, 1.15];
-    // 屏幕方向只对手机与平板有意义。
-    final showOrientation = !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
     return AdaptivePage(
       chrome: Chrome.navOnly,
       mobileTop: 78,
@@ -164,35 +161,12 @@ class AppearancePage extends StatelessWidget {
                     onChanged: (i) => s.setHomeLayout(HomeLayout.values[i]),
                   ),
                   const SizedBox(height: 8),
-                  Text('${s.homeLayout.description}${showOrientation ? '。手机横屏时首页自动使用照片墙' : ''}', style: ts(13, height: 1.45, color: p.text2)),
+                  Text('${s.homeLayout.description}。照片墙只在竖屏使用，横屏时首页为横屏极简布局', style: ts(13, height: 1.45, color: p.text2)),
                 ],
               ),
             ),
           ],
         ),
-        if (showOrientation) ...[
-          const GroupLabel('屏幕方向'),
-          CardList(
-            indent: 14,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Segmented(
-                      labels: [for (final o in ScreenOrientation.values) o.label],
-                      index: s.orientation.index,
-                      onChanged: (i) => s.setOrientation(ScreenOrientation.values[i]),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('横屏时界面切换为横屏布局：首页使用照片墙，播放页封面与歌词左右并排。', style: ts(13, height: 1.45, color: p.text2)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
         const GroupLabel('图标与播放页'),
         CardList(
           indent: 56,

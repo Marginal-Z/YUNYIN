@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
+import '../../core/ui/app_background.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
 import '../../core/ui/icons.dart';
@@ -16,6 +17,7 @@ import '../common/actions.dart';
 import '../common/layout.dart';
 import 'nav.dart';
 import 'routes.dart';
+import 'landscape_chrome.dart';
 import 'tab_bar.dart';
 import 'transitions.dart';
 
@@ -42,6 +44,10 @@ class _MobileShellState extends State<MobileShell> {
     // 横屏或平板上导航栏与迷你播放条不必铺满整行，限制在 560 宽并居中。
     final barInset = math.max(0.0, (MediaQuery.sizeOf(context).width - 560) / 2);
     final land = isPhoneLandscape(context);
+    // 横屏极简布局：左侧竖向导航（全屏页面除外），内容区让出导航栏的宽度。
+    final rail = land && (chrome != Chrome.none || nav.top is SearchRoute);
+    final mq = MediaQuery.of(context);
+    final railSpace = mq.padding.left + 12 + kLandscapeRailWidth + 8;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -49,51 +55,62 @@ class _MobileShellState extends State<MobileShell> {
       },
       child: Stack(
         children: [
+          if (land) const Positioned.fill(child: AppBackground()),
           Positioned.fill(
-            child: TabStack(
-              index: nav.tab,
-              children: [
-                for (var i = 0; i < 3; i++)
-                  Navigator(
-                    key: _keys[i],
-                    // 每个页面单独一组背景截取：转场时上下两个页面都在绘制，各自的玻璃读取各自的背景。
-                    pages: [
-                      for (final r in nav.stacks[i])
-                        CupertinoPage<void>(
-                          key: ValueKey(r.uid),
-                          child: BackdropGroup(child: buildMobileRoute(r)),
-                        ),
-                    ],
-                    onDidRemovePage: (page) {
-                      final key = page.key;
-                      if (key is ValueKey<int>) {
-                        final r = nav.stacks[i].where((x) => x.uid == key.value).firstOrNull;
-                        if (r != null) nav.removed(i, r);
-                      }
-                    },
-                  ),
-              ],
+            left: rail ? railSpace : 0,
+            child: MediaQuery(
+              // 页面按让出导航栏后的实际宽度排版。
+              data: rail ? mq.copyWith(size: Size(mq.size.width - railSpace, mq.size.height), padding: mq.padding.copyWith(left: 0)) : mq,
+              child: TabStack(
+                index: nav.tab,
+                children: [
+                  for (var i = 0; i < 3; i++)
+                    Navigator(
+                      key: _keys[i],
+                      // 每个页面单独一组背景截取：转场时上下两个页面都在绘制，各自的玻璃读取各自的背景。
+                      pages: [
+                        for (final r in nav.stacks[i])
+                          CupertinoPage<void>(
+                            key: ValueKey(r.uid),
+                            child: BackdropGroup(child: buildMobileRoute(r)),
+                          ),
+                      ],
+                      onDidRemovePage: (page) {
+                        final key = page.key;
+                        if (key is ValueKey<int>) {
+                          final r = nav.stacks[i].where((x) => x.uid == key.value).firstOrNull;
+                          if (r != null) nav.removed(i, r);
+                        }
+                      },
+                    ),
+                ],
+              ),
             ),
           ),
           if (land) ...[
-            // 横屏：导航栏（含搜索）在左，迷你播放条在右，同一行。
+            // 横屏：左侧竖向导航，底部整行播放控制条。
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
               curve: Curves.easeOutCubic,
-              left: 16,
-              width: 340,
-              bottom: showNav ? bottom : -100,
-              child: const _OverPage(child: _BottomBar()),
+              left: rail ? mq.padding.left + 12 : -kLandscapeRailWidth - 20,
+              top: mq.padding.top + 12,
+              bottom: bottom,
+              width: kLandscapeRailWidth,
+              child: const Align(alignment: Alignment.topCenter, child: LandscapeNavRail()),
             ),
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
               curve: Curves.easeOutCubic,
-              left: showNav ? 16 + 340 + 12 : 16,
-              right: 16,
-              bottom: bottom + 3,
+              left: rail ? railSpace : 16,
+              right: 16 + mq.padding.right,
+              bottom: showMini ? bottom : -kLandscapeBarHeight - 40,
               child: IgnorePointer(
                 ignoring: !showMini,
-                child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const _OverPage(child: MiniPlayer())),
+                child: AnimatedOpacity(
+                  opacity: showMini ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const _OverPage(child: LandscapePlayerBar()),
+                ),
               ),
             ),
           ] else ...[
@@ -105,7 +122,11 @@ class _MobileShellState extends State<MobileShell> {
               bottom: chrome == Chrome.miniOnly ? bottom + 2 : bottom + 74,
               child: IgnorePointer(
                 ignoring: !showMini,
-                child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const _OverPage(child: MiniPlayer())),
+                child: AnimatedOpacity(
+                  opacity: showMini ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const _OverPage(child: MiniPlayer()),
+                ),
               ),
             ),
             AnimatedPositioned(
@@ -237,7 +258,9 @@ class MiniPlayer extends StatelessWidget {
             SizedBox(
               width: 44,
               height: 44,
-              child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: p.text))),
+              child: Center(
+                child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: p.text)),
+              ),
             )
           else
             YIconButton(player.playing ? YIcons.pause : YIcons.play, label: player.playing ? '暂停' : '播放', onTap: player.toggle),

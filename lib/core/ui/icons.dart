@@ -103,6 +103,8 @@ abstract final class YIcons {
   );
   static const folder = YIconData('<path d="M4 7a1 1 0 0 1 1-1h5l2 2h7a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/>');
   static const cloud = YIconData('<path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.8 8.6 4.7 4.7 0 0 1 17 18z"/>');
+  static const fullscreen = YIconData('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>');
+  static const exitFullscreen = YIconData('<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/>');
   static const miniMode = YIconData('<rect x="4" y="6" width="16" height="12" rx="2"/><rect x="11" y="12" width="7" height="4" rx="1"/>');
 }
 

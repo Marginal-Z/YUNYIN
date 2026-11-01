@@ -22,23 +22,32 @@ class LayoutScope extends InheritedWidget {
 /// 桌面布局断点。
 const double kDesktopBreakpoint = 860;
 
-/// 悬浮控件距离底部的距离（设计稿 22，叠加系统手势区）。
+/// 悬浮控件距离底部的距离（设计稿 22，叠加系统手势区；横屏时更紧凑）。
 double chromeBottom(BuildContext context) {
   final inset = MediaQuery.viewPaddingOf(context).bottom;
-  return 22 + math.max(0, inset - 10);
+  return (isPhoneLandscape(context) ? 12 : 22) + math.max(0, inset - 10);
 }
 
-/// 手机横屏：导航栏与迷你播放条并排在同一行，内容居中限宽。
+/// 手机与平板横屏：使用横屏极简布局（左侧竖向导航、底部播放控制条）。
 bool isPhoneLandscape(BuildContext context) {
+  if (LayoutScope.isDesktop(context)) return false;
   final size = MediaQuery.sizeOf(context);
-  return size.width > size.height * 1.2 && size.height < 600;
+  return size.width > size.height;
 }
+
+/// 横屏极简布局左侧导航栏的宽度。
+const double kLandscapeRailWidth = 76;
+
+/// 横屏底部播放控制条的高度。
+const double kLandscapeBarHeight = 64;
 
 /// 内容需要为悬浮控件留出的底部空间。
 double chromeClearance(BuildContext context, Chrome chrome) {
   final b = chromeBottom(context);
   return switch (chrome) {
-    Chrome.full => isPhoneLandscape(context) ? b + 64 + 24 : b + 64 + 10 + 58 + 24,
+    Chrome.full || Chrome.miniOnly when isPhoneLandscape(context) => b + kLandscapeBarHeight + 16,
+    Chrome.navOnly when isPhoneLandscape(context) => b + 12,
+    Chrome.full => b + 64 + 10 + 58 + 24,
     Chrome.navOnly => b + 64 + 24,
     Chrome.miniOnly => b + 58 + 24,
     Chrome.none => b + 12,

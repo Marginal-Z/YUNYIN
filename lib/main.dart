@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -70,21 +69,6 @@ Future<void> main() async {
   });
   final settings = AppSettings();
   await settings.init();
-  // 屏幕方向（手机与平板）：竖屏、自动旋转或横屏。
-  void applyOrientation() => SystemChrome.setPreferredOrientations(switch (settings.orientation) {
-    ScreenOrientation.portrait => const [DeviceOrientation.portraitUp],
-    ScreenOrientation.landscape => const [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
-    ScreenOrientation.auto => const [],
-  });
-  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-    var last = settings.orientation;
-    applyOrientation();
-    settings.addListener(() {
-      if (settings.orientation == last) return;
-      last = settings.orientation;
-      applyOrientation();
-    });
-  }
   final local = LocalLibrary();
   await local.init();
   final drives = CloudDrives();

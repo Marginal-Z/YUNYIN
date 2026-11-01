@@ -64,7 +64,9 @@ class CoverImage extends StatelessWidget {
     }
     // 网易云图片服务按 param 返回对应尺寸的缩略图；取 50 的倍数以提高缓存命中率。
     final px = ((imageSize / 50).ceil() * 50).clamp(50, 1200);
-    final sized = u.contains('music.126.net') && !u.contains('?') ? '$u?param=${px}y$px' : u;
+    // 早先缓存的网易云地址可能带有缩成 140×140 的处理参数：去掉后按显示尺寸请求。
+    final base = u.contains('music.126.net') && u.contains('thumbnail=') ? u.substring(0, u.indexOf('?')) : u;
+    final sized = base.contains('music.126.net') && !base.contains('?') ? '$base?param=${px}y$px' : base;
     return CachedNetworkImage(
       imageUrl: sized,
       fit: BoxFit.cover,
