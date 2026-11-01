@@ -181,7 +181,7 @@ class _QueueRow extends StatelessWidget {
       height: 58,
       margin: const EdgeInsets.only(bottom: 2),
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(color: current ? const Color.fromRGBO(220, 16, 49, 0.07) : Colors.transparent, borderRadius: BorderRadius.circular(18)),
+      decoration: BoxDecoration(color: current ? p.accentText.withValues(alpha: 0.09) : Colors.transparent, borderRadius: BorderRadius.circular(18)),
       child: Row(
         children: [
           Cover(song.coverUrl, size: 42, radius: 10),

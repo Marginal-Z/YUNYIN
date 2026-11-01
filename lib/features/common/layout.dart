@@ -88,27 +88,29 @@ class MobilePage extends StatelessWidget {
       children: [
         Positioned.fill(child: bg),
         Positioned.fill(
-          child: slivers == null
-              ? ListView(
-                  controller: controller,
-                  padding: EdgeInsets.fromLTRB(horizontal, safeTop + top, horizontal, chromeClearance(context, chrome)),
-                  children: children,
-                )
-              : CustomScrollView(
-                  controller: controller,
-                  slivers: [
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(horizontal, safeTop + top, horizontal, 0),
-                      sliver: SliverList.list(children: children),
-                    ),
-                    for (final s in slivers!)
+          child: _StatusBarScrim(
+            child: slivers == null
+                ? ListView(
+                    controller: controller,
+                    padding: EdgeInsets.fromLTRB(horizontal, safeTop + top, horizontal, chromeClearance(context, chrome)),
+                    children: children,
+                  )
+                : CustomScrollView(
+                    controller: controller,
+                    slivers: [
                       SliverPadding(
-                        padding: EdgeInsets.symmetric(horizontal: horizontal),
-                        sliver: s,
+                        padding: EdgeInsets.fromLTRB(horizontal, safeTop + top, horizontal, 0),
+                        sliver: SliverList.list(children: children),
                       ),
-                    SliverToBoxAdapter(child: SizedBox(height: chromeClearance(context, chrome))),
-                  ],
-                ),
+                      for (final s in slivers!)
+                        SliverPadding(
+                          padding: EdgeInsets.symmetric(horizontal: horizontal),
+                          sliver: s,
+                        ),
+                      SliverToBoxAdapter(child: SizedBox(height: chromeClearance(context, chrome))),
+                    ],
+                  ),
+          ),
         ),
         if (overlay.isNotEmpty)
           Positioned(
@@ -118,6 +120,71 @@ class MobilePage extends StatelessWidget {
             child: SizedBox(
               height: 80,
               child: Stack(clipBehavior: Clip.none, children: overlay),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 页面向上滚动后，在系统状态栏下方加一层与页面背景同色的渐隐，状态栏的时间与图标不会直接压在封面图片上。
+class _StatusBarScrim extends StatefulWidget {
+  const _StatusBarScrim({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_StatusBarScrim> createState() => _StatusBarScrimState();
+}
+
+class _StatusBarScrimState extends State<_StatusBarScrim> {
+  final _scrolled = ValueNotifier(false);
+
+  @override
+  void dispose() {
+    _scrolled.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    final bg = Palette.of(context).bg;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n.depth == 0 && n.metrics.axis == Axis.vertical) _scrolled.value = n.metrics.pixels > 8;
+              return false;
+            },
+            child: widget.child,
+          ),
+        ),
+        if (top > 0)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: top + 10,
+            child: IgnorePointer(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _scrolled,
+                builder: (context, on, _) => AnimatedOpacity(
+                  opacity: on ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [bg.withValues(alpha: 0.92), bg.withValues(alpha: 0.75), bg.withValues(alpha: 0)],
+                        stops: const [0, 0.65, 1],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
       ],

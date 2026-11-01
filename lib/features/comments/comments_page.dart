@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -155,81 +157,96 @@ class _CommentsPageState extends State<CommentsPage> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: ListView(
-                    controller: _scroll,
-                    padding: EdgeInsets.fromLTRB(20, pad.top + 84, 20, pad.bottom + 22 + 60 + 24 + bottomInset),
-                    children: [
-                      Pressable(
-                        onTap: () => Navigator.of(context).maybePop(),
-                        child: YCard(
-                          radius: 22,
-                          child: SizedBox(
-                            height: 64,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 14),
-                              child: Row(
-                                children: [
-                                  Cover(song.coverUrl, size: 44, radius: 11),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          song.name,
-                                          style: ts(15, weight: w600, color: p.text),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          song.subtitle,
-                                          style: ts(13, color: p.text2),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
+                  // 顶部的标题与按钮固定不动：滚上去的评论在标题下方渐隐，文字不会叠在一起。
+                  child: ShaderMask(
+                    blendMode: BlendMode.dstIn,
+                    shaderCallback: (r) {
+                      final h = math.max(1.0, r.height);
+                      return LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: const [Color(0x00000000), Color(0x00000000), Color(0xFF000000), Color(0xFF000000)],
+                        stops: [0, ((pad.top + 52) / h).clamp(0.0, 1.0), ((pad.top + 82) / h).clamp(0.0, 1.0), 1],
+                      ).createShader(r);
+                    },
+                    child: ListView(
+                      controller: _scroll,
+                      padding: EdgeInsets.fromLTRB(20, pad.top + 84, 20, pad.bottom + 22 + 60 + 24 + bottomInset),
+                      children: [
+                        Pressable(
+                          onTap: () => Navigator.of(context).maybePop(),
+                          child: YCard(
+                            radius: 22,
+                            child: SizedBox(
+                              height: 64,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                child: Row(
+                                  children: [
+                                    Cover(song.coverUrl, size: 44, radius: 11),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            song.name,
+                                            style: ts(15, weight: w600, color: p.text),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            song.subtitle,
+                                            style: ts(13, color: p.text2),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
-                                ],
+                                    const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Segmented(
-                        labels: const ['推荐', '最热', '最新'],
-                        index: _sort.index,
-                        onChanged: (i) {
-                          setState(() => _sort = CommentSort.values[i]);
-                          _load(reset: true);
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      if (_error != null && _items.isEmpty)
-                        YCard(
-                          child: StateView.network(onRetry: () => _load(reset: true), message: errorText(_error)),
-                        )
-                      else if (_items.isEmpty && _loading)
-                        const SkeletonComments()
-                      else if (_items.isEmpty)
-                        YCard(
-                          child: StateView.empty(title: '还没有评论', message: '来抢沙发吧。', icon: YIcons.comment, tile: TileColor.red),
-                        )
-                      else
-                        CardList(
-                          indent: 66,
-                          children: [for (final c in _items) _CommentRow(comment: c, liked: _likedIds.contains(c.id), onLike: canPost ? () => _like(c) : null)],
+                        const SizedBox(height: 16),
+                        Segmented(
+                          labels: const ['推荐', '最热', '最新'],
+                          index: _sort.index,
+                          onChanged: (i) {
+                            setState(() => _sort = CommentSort.values[i]);
+                            _load(reset: true);
+                          },
                         ),
-                      if (_loading && _items.isNotEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                        ),
-                    ],
+                        const SizedBox(height: 14),
+                        if (_error != null && _items.isEmpty)
+                          YCard(
+                            child: StateView.network(onRetry: () => _load(reset: true), message: errorText(_error)),
+                          )
+                        else if (_items.isEmpty && _loading)
+                          const SkeletonComments()
+                        else if (_items.isEmpty)
+                          YCard(
+                            child: StateView.empty(title: '还没有评论', message: '来抢沙发吧。', icon: YIcons.comment, tile: TileColor.red),
+                          )
+                        else
+                          CardList(
+                            indent: 66,
+                            children: [
+                              for (final c in _items) _CommentRow(comment: c, liked: _likedIds.contains(c.id), onLike: canPost ? () => _like(c) : null),
+                            ],
+                          ),
+                        if (_loading && _items.isNotEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 Positioned(

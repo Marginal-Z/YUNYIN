@@ -70,6 +70,9 @@ class LxSources extends ChangeNotifier {
   /// 各音源最近一次启动失败的原因。
   final Map<String, String> errors = {};
 
+  /// 各音源最近一次取地址失败的原因（成功后清除），在音源列表中提示，便于发现失效的音源。
+  final Map<String, String> lastFailures = {};
+
   List<LxScript> get scripts => List.unmodifiable(_scripts);
   List<LxScript> get enabled => [
     for (final s in _scripts)
@@ -223,6 +226,7 @@ class LxSources extends ChangeNotifier {
         final start = _qualities.indexOf(_wanted(quality));
         final type = _qualities.skip(start).firstWhere(declared.contains, orElse: () => declared.isEmpty ? '128k' : declared.last);
         final url = await rt.musicUrl(key, type, musicInfo(song, key), timeout: const Duration(seconds: 15));
+        if (lastFailures.remove(s.id) != null) notifyListeners();
         return StreamInfo(
           url: url,
           quality: switch (type) {
@@ -234,6 +238,8 @@ class LxSources extends ChangeNotifier {
         );
       } catch (e) {
         debugPrint('lx ${s.name}: $e');
+        lastFailures[s.id] = e.toString().replaceFirst('Exception: ', '');
+        notifyListeners();
         lastError = Exception('${s.name}：${e.toString().replaceFirst('Exception: ', '')}');
       }
     }

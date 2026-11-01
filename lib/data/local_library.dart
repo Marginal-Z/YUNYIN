@@ -426,6 +426,8 @@ class LocalLibrary extends ChangeNotifier {
 
   /// 修复早先导入时乱码的歌名、歌手与专辑名。
   static Song _repaired(Song s) {
+    final fixed = _reparsedName(s);
+    if (fixed != null) return fixed;
     final name = repairMojibake(s.name);
     final artists = [for (final a in s.artists) ArtistRef(a.id, repairMojibake(a.name))];
     final album = s.album == null ? null : AlbumRef(s.album!.id, repairMojibake(s.album!.name), cover: s.album!.cover);
@@ -436,6 +438,33 @@ class LocalLibrary extends ChangeNotifier {
       name: name,
       artists: artists,
       album: album,
+      duration: s.duration,
+      cover: s.cover,
+      playable: s.playable,
+      alias: s.alias,
+      localPath: s.localPath,
+      playCount: s.playCount,
+    );
+  }
+
+  /// 早先按“歌手 - 歌名”解析的“歌名 - 歌手[专辑]”文件名：歌名与歌手是反的，按新的规则重新解析。
+  static Song? _reparsedName(Song s) {
+    final path = s.localPath;
+    if (path == null) return null;
+    final base = path.split(RegExp(r'[/\\]')).last.replaceFirst(RegExp(r'\.[^.]+$'), '');
+    final parsed = parseFileName(base);
+    if (parsed.album == null || parsed.artist == null) return null;
+    // 只修正与旧规则结果一致的歌曲（旧规则：第一段是歌手、其余是歌名）。
+    final clean = base.replaceFirst(RegExp(r'^\d{1,3}[\s.\-_、]+'), '').trim();
+    final parts = clean.split(RegExp(r'\s+-\s+'));
+    if (parts.length != 2 || s.name != parts.last.trim() || s.artistText != parts.first.trim()) return null;
+    final cover = s.album?.cover ?? s.cover;
+    return Song(
+      id: s.id,
+      sourceId: s.sourceId,
+      name: parsed.title,
+      artists: [ArtistRef('local:${parsed.artist}', parsed.artist!)],
+      album: AlbumRef('local:${parsed.album}', parsed.album!, cover: cover),
       duration: s.duration,
       cover: s.cover,
       playable: s.playable,
@@ -524,17 +553,13 @@ LocalTags? readLocalTags(String path, int? minMs) {
   } catch (e) {
     debugPrint('metadata $path: $e');
   }
-  // 没有标签时按“歌手 - 歌名”解析文件名（也去掉开头的音轨号）。
+  // 没有标签时按文件名解析歌名、歌手与专辑（见 [parseFileName]）。
   final base = file.uri.pathSegments.last.replaceFirst(RegExp(r'\.[^.]+$'), '');
   if ((title ?? '').trim().isEmpty) {
-    final clean = base.replaceFirst(RegExp(r'^\d{1,3}[\s.\-_、]+'), '');
-    final parts = clean.split(RegExp(r'\s+-\s+'));
-    if (parts.length >= 2) {
-      artist ??= parts.first.trim();
-      title = parts.sublist(1).join(' - ').trim();
-    } else {
-      title = clean;
-    }
+    final parsed = parseFileName(base);
+    title = parsed.title;
+    artist ??= parsed.artist;
+    album ??= parsed.album;
   }
   String? folderCover;
   if (picture == null) {
@@ -560,3 +585,23 @@ LocalTags? readLocalTags(String path, int? minMs) {
     folderCover: folderCover,
   );
 }
+
+/// 从没有标签的音乐文件名中取歌名、歌手与专辑（不含扩展名）。
+///
+/// 先去掉开头的音轨号，再按“ - ”分成两段：常见的是“歌手 - 歌名”；
+/// 下载站常用“歌名 - 歌手[专辑]”，带方括号（或【】）后缀的那一段是“歌手[专辑]”，另一段就是歌名。
+/// 文件名中被替换成下划线的非法字符（如“…_”结尾）一并去掉。
+({String title, String? artist, String? album}) parseFileName(String base) {
+  final clean = base.replaceFirst(RegExp(r'^\d{1,3}[\s.\-_、]+'), '').trim();
+  final parts = clean.split(RegExp(r'\s+-\s+'));
+  if (parts.length < 2) return (title: clean, artist: null, album: null);
+  final bracket = RegExp(r'^(.+?)\s*[\[【]([^\]】]*)[\]】]$');
+  String tidy(String v) => v.replaceAll(RegExp(r'_+$'), '').trim();
+  final last = bracket.firstMatch(parts.last.trim());
+  if (parts.length == 2 && last != null) {
+    final album = tidy(last.group(2)!);
+    return (title: parts.first.trim(), artist: tidy(last.group(1)!), album: album.isEmpty ? null : album);
+  }
+  return (title: parts.sublist(1).join(' - ').trim(), artist: parts.first.trim(), album: null);
+}
+

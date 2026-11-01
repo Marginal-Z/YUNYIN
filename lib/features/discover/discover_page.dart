@@ -414,8 +414,9 @@ class _PlaylistPlazaState extends State<PlaylistPlaza> {
             Row(
               children: [
                 Expanded(
-                  // 横向滚动的分类不能盖住右侧的“全部分类”。
+                  // 横向滚动的分类不能盖住右侧的“全部分类”：只裁掉右侧，标签的阴影在其他方向保持完整。
                   child: ClipRect(
+                    clipper: const _RightEdgeClip(),
                     child: ChipBar(
                       labels: [for (final c in quick) c.name],
                       index: quick.indexWhere((c) => c.id == current.id),
@@ -641,4 +642,15 @@ class CoverGrid extends StatelessWidget {
       },
     );
   }
+}
+
+/// 只在右边缘裁剪，上下左三个方向留出阴影的空间。
+class _RightEdgeClip extends CustomClipper<Rect> {
+  const _RightEdgeClip();
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(-24, -24, size.width, size.height + 24);
+
+  @override
+  bool shouldReclip(_RightEdgeClip old) => false;
 }

@@ -204,9 +204,18 @@ class KugouSource extends MusicSource {
     }
 
     Future<List<Song>> songs() async => [for (final x in await list('song', limit)) _song(x)];
-    Future<List<ArtistInfo>> artists(int size) async => [
-      for (final a in await list('singer', size, flat: true)) ArtistInfo(id: '${a['singerid']}', sourceId: sourceId, name: '${a['singername']}'),
-    ];
+    // 歌手搜索不返回头像：并行查询每位歌手的资料补上头像（取不到时界面显示名字首字）。
+    Future<List<ArtistInfo>> artists(int size) async {
+      final found = await list('singer', size, flat: true);
+      return Future.wait([
+        for (final a in found)
+          _get('$_api/singer/info?singerid=${a['singerid']}&plat=0')
+              .then((j) => _cover((j['data'] as Map?)?['imgurl'] as String?, 240))
+              .timeout(const Duration(seconds: 4))
+              .catchError((Object _) => null)
+              .then((avatar) => ArtistInfo(id: '${a['singerid']}', sourceId: sourceId, name: '${a['singername']}', avatar: avatar)),
+      ]);
+    }
     Future<List<AlbumInfo>> albums(int size) async => [for (final a in await list('album', size)) _album(a)];
     Future<List<PlaylistInfo>> playlists(int size) async => [for (final p in await list('special', size)) _special(p)];
     switch (type) {

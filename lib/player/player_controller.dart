@@ -121,6 +121,8 @@ class PlayerController extends ChangeNotifier {
         notifyListeners();
       }),
       p.stream.position.listen((v) {
+        // 正在打开新歌时上一首仍在报告进度，不能覆盖新歌的进度（界面与系统媒体控制会先跳到上一首的位置）。
+        if (_opening) return;
         // 界面上的进度每 250ms 刷新一次即可，避免每帧重绘（玻璃模糊开销很大）。
         if ((v - position.value).abs() >= const Duration(milliseconds: 250) || v < position.value) position.value = v;
       }),
@@ -638,6 +640,8 @@ class PlayerController extends ChangeNotifier {
 
     final source = sources.byId(song.sourceId);
     _loadLyrics(source, song, token);
+    // 切歌后上一首立即静音：取新歌地址可能要等洛雪音源十几秒，期间不应继续听到上一首（淡入淡出时由下方渐隐处理）。
+    if (!keepPosition && !settings.crossfade) await _setFade(0);
 
     StreamInfo info;
     try {
@@ -651,8 +655,10 @@ class PlayerController extends ChangeNotifier {
       if (token != _loadToken) return;
       _opening = false;
       buffering = false;
+      // 新歌取不到地址时停止上一首，否则界面显示的是新歌，听到的却还是上一首。
+      await _player?.stop();
       notifyListeners();
-      _notices.add(PlayerNotice('播放失败', message: e.toString()));
+      _notices.add(PlayerNotice('播放失败', message: e.toString().replaceFirst('Exception: ', '')));
       return;
     }
     if (token != _loadToken) return;
@@ -666,6 +672,7 @@ class PlayerController extends ChangeNotifier {
     }
     if (info.url == null) {
       buffering = false;
+      await _player?.stop();
       notifyListeners();
       _notices.add(const PlayerNotice('暂无播放版权', message: '该歌曲暂时无法播放，已为你切到下一首。', blocking: true));
       if (_queue.length > 1) {

@@ -272,6 +272,8 @@ class NeteaseSource extends MusicSource {
       playCount: (p['playCount'] as num?)?.toInt() ?? 0,
       subscribed: p['subscribed'] == true,
       isLikedList: p['specialType'] == 5,
+      // 排行榜也是歌单：官方榜带有榜单类型，其余榜单按排行榜列表中的 id 判断。
+      kind: p['ToplistType'] != null || _toplistIds.contains('${p['id']}') ? PlaylistKind.chart : PlaylistKind.playlist,
       ownedByMe: _user != null && '${creator?['userId']}' == _user!.id,
     );
   }
@@ -508,6 +510,9 @@ class NeteaseSource extends MusicSource {
     return [for (final p in (j['result'] as List? ?? const [])) _playlist(Map<String, dynamic>.from(p as Map))];
   }
 
+  /// 排行榜列表中的歌单 id（打开时显示名次）。
+  final _toplistIds = <String>{};
+
   @override
   Future<List<ChartInfo>> charts() async {
     // 按网易云的分组（官方榜、精选榜、曲风榜、全球榜、语种榜、特色榜）列出全部榜单；
@@ -529,7 +534,10 @@ class NeteaseSource extends MusicSource {
                   preview: [for (final x in (t['tracks'] as List? ?? const [])) '${x['first']} - ${x['second']}'],
                 ),
       ];
-      if (out.isNotEmpty) return out;
+      if (out.isNotEmpty) {
+        _toplistIds.addAll(out.map((c) => c.id));
+        return out;
+      }
     } catch (e) {
       debugPrint('netease toplist v2: $e');
     }
@@ -616,6 +624,7 @@ class NeteaseSource extends MusicSource {
 
   @override
   Future<PlaylistInfo> playlist(String id) async {
+    if (_toplistIds.isEmpty) await charts().catchError((Object _) => <ChartInfo>[]);
     final j = await _weapi('/v6/playlist/detail', {'id': id, 'n': 100000, 's': 8});
     final p = Map<String, dynamic>.from(j['playlist'] as Map);
     final info = _playlist(p);
@@ -694,7 +703,11 @@ class NeteaseSource extends MusicSource {
       () => _weapi('/search/get', data),
     ]) {
       try {
-        j = await attempt();
+        final r = await attempt();
+        // 部分账号的某个接口返回的 result 不是对象（例如加密后的字符串）：当作失败，换下一个接口。
+        final result = r['result'];
+        if (result != null && result is! Map) throw FormatException('搜索接口返回了无法解析的结果（${result.runtimeType}）');
+        j = r;
         break;
       } catch (e) {
         error = e;

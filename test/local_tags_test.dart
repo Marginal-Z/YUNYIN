@@ -42,4 +42,16 @@ void main() {
     expect(t.folderCover, '${dir.path}/cover.jpg');
     expect(readLocalTags(song.path, 30000), isNull, reason: '短于 30 秒的音频不导入');
   });
+
+  test('没有标签时解析文件名：歌手 - 歌名，以及下载站的“歌名 - 歌手[专辑]”', () {
+    final a = parseFileName('03. 周杰伦 - 晴天');
+    expect((a.title, a.artist, a.album), ('晴天', '周杰伦', null));
+    final b = parseFileName("富士山下 - 陈奕迅[What's Going On…_]");
+    expect((b.title, b.artist, b.album), ('富士山下', '陈奕迅', "What's Going On…"));
+    final c = parseFileName('海阔天空 - Beyond【华纳廿三周年纪念精选系列】');
+    expect((c.title, c.artist, c.album), ('海阔天空', 'Beyond', '华纳廿三周年纪念精选系列'));
+    final d = parseFileName('小姐免惊Live');
+    expect((d.title, d.artist), ('小姐免惊Live', null));
+  });
 }
+

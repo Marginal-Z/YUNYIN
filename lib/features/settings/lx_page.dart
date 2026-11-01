@@ -150,8 +150,11 @@ class _ScriptRow extends StatelessWidget {
     final p = Palette.of(context);
     final platforms = lx.platformsOf(script.id);
     final error = lx.errors[script.id];
+    final failure = lx.lastFailures[script.id];
     final detail = error != null
         ? '启动失败：${error.replaceFirst('Exception: ', '')}'
+        : failure != null
+        ? '最近一次取地址失败：$failure（音源的服务器可能无法访问）'
         : platforms.isEmpty
         ? (script.enabled ? '第一次需要时启动' : '未启用')
         : platforms.entries.map((e) => '${LxSources.platformNames[e.key] ?? e.key}（${e.value.join('/')}）').join('、');
@@ -171,7 +174,8 @@ class _ScriptRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${script.name}${script.version.isEmpty ? '' : '  v${script.version}'}',
+                  // 版本号本身可能已经带有 v。
+                  '${script.name}${script.version.isEmpty ? '' : '  v${script.version.replaceFirst(RegExp('^[vV]'), '')}'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: ts(16, weight: w600, color: p.text),
@@ -181,7 +185,7 @@ class _ScriptRow extends StatelessWidget {
                   detail,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: ts(12, color: error != null ? p.danger : p.text2),
+                  style: ts(12, color: error != null || failure != null ? p.danger : p.text2),
                 ),
               ],
             ),

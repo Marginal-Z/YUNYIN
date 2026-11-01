@@ -554,8 +554,10 @@ class _LyricPreview extends StatelessWidget {
           valueListenable: player.position,
           builder: (context, pos, _) {
             final i = lyrics.indexAt(pos);
-            final line = i >= 0 ? lyrics.lines[i].text : (lyrics.lines.isEmpty ? '暂无歌词' : lyrics.lines.first.text);
-            final next = i + 1 < lyrics.lines.length ? lyrics.lines[i + 1].text : '';
+            // 第一句开始之前（前奏）先显示第一句，下一句是第二句（不能再显示一遍第一句）。
+            final shown = i >= 0 ? i : 0;
+            final line = lyrics.lines.isEmpty ? '暂无歌词' : lyrics.lines[shown].text;
+            final next = shown + 1 < lyrics.lines.length ? lyrics.lines[shown + 1].text : '';
             // 换行时新歌词自下而上滑入。
             return AnimatedSwitcher(
               duration: const Duration(milliseconds: 380),

@@ -278,6 +278,9 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
                       itemCount: songs.length,
                       itemBuilder: (context, i) => SongRow(
                         song: songs[i],
+                        // 榜单显示名次。
+                        lead: playlist.kind == PlaylistKind.chart ? SongLead.rank : SongLead.cover,
+                        number: i + 1,
                         height: 62,
                         trailing: SongTrailing.likeMore,
                         onTap: () => playAll(context, songs, start: i, title: playlist.name),

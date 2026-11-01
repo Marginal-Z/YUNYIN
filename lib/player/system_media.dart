@@ -13,7 +13,23 @@ bool get supportsSystemMedia =>
 class SystemMediaHandler extends BaseAudioHandler with SeekHandler {
   SystemMediaHandler(this.player) {
     player.addListener(_sync);
+    player.position.addListener(_onPosition);
     _sync();
+  }
+
+  /// 系统按“上次同步的位置 + 经过的时间”推算进度；应用内拖动进度条、点歌词跳转时位置会突变，
+  /// 这时重新同步，否则通知栏、锁屏与负一屏的进度会停在旧的位置。
+  void _onPosition() {
+    final state = playbackState.value;
+    final elapsed = state.playing ? DateTime.now().difference(state.updateTime) : Duration.zero;
+    final expected = state.updatePosition + elapsed;
+    if ((player.position.value - expected).abs() > const Duration(milliseconds: 1500)) _sync();
+  }
+
+  /// 网易云的图片地址可以指定尺寸，其他平台的地址原样使用。
+  static Uri? _art(String? cover) {
+    if (cover == null || !cover.startsWith('http')) return null;
+    return Uri.parse(cover.contains('music.126.net') && !cover.contains('?') ? '$cover?param=500y500' : cover);
   }
 
   final PlayerController player;
@@ -50,7 +66,7 @@ class SystemMediaHandler extends BaseAudioHandler with SeekHandler {
           artist: s.artistText,
           album: s.albumName,
           duration: player.duration,
-          artUri: cover != null && cover.startsWith('http') ? Uri.parse('$cover?param=500y500') : null,
+          artUri: _art(cover),
         ),
       );
     }
