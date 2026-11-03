@@ -233,6 +233,11 @@ class PlayerController extends ChangeNotifier {
     if (reload && current != null) await _load(autoplay: playing, keepPosition: true);
   }
 
+  /// 重新获取当前歌曲的播放地址并播放（例如完成平台的官方验证后）。
+  Future<void> retryCurrent() async {
+    if (current != null) await _load(autoplay: true, keepPosition: true);
+  }
+
   /// 已经尝试过的音频输出兜底次数。
   int _audioFallback = 0;
 

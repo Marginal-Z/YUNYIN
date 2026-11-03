@@ -136,10 +136,12 @@ void main() {
 
   test('酷狗只使用成功响应中的合法播放地址', () async {
     var success = true;
+    var requests = 0;
     final dio = Dio();
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
+          requests++;
           handler.resolve(
             Response<String>(
               requestOptions: options,
@@ -160,7 +162,11 @@ void main() {
     final source = KugouSource(dio: dio);
     expect((await source.stream(song, AudioQuality.standard)).url, 'https://audio.example/valid.mp3');
     success = false;
-    await expectLater(source.stream(song, AudioQuality.standard), throwsA(predicate((error) => '$error'.contains('12345'))));
+    // 同一首歌在 20 分钟内使用已取到的地址，不再请求播放接口。
+    expect((await source.stream(song, AudioQuality.standard)).url, 'https://audio.example/valid.mp3');
+    expect(requests, 1);
+    final other = Song(id: 'def456:2:3', sourceId: song.sourceId, name: '另一首');
+    await expectLater(source.stream(other, AudioQuality.standard), throwsA(predicate((error) => '$error'.contains('12345'))));
     dio.close();
   });
 }

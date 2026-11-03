@@ -45,19 +45,17 @@ class DesktopLyricsWindow with WindowListener {
     overlay.addListener(w._push);
     player.addListener(w._push);
     settings.addListener(w._sync);
-    windowManager.addListener(w);
-    windowManager.setPreventClose(true);
     w._sync();
     return w;
   }
 
+  /// 只在创建过歌词窗口后才接管主窗口的关闭：先通知歌词窗口关闭（最多等半秒），再关闭主窗口。
+  /// 没有打开过桌面歌词时不改变关闭行为。
   @override
   void onWindowClose() async {
-    if (_window != null) {
-      try {
-        await _channel.invokeMethod<void>('quit').timeout(const Duration(milliseconds: 800));
-      } catch (_) {}
-    }
+    try {
+      await _channel.invokeMethod<void>('quit').timeout(const Duration(milliseconds: 500));
+    } catch (_) {}
     await windowManager.destroy();
   }
 
@@ -107,7 +105,11 @@ class DesktopLyricsWindow with WindowListener {
       final prefs = await SharedPreferences.getInstance();
       _creating ??= WindowController.create(
         WindowConfiguration(arguments: jsonEncode({'type': kLyricsWindowArgument, 'position': prefs.getString(_positionKey)})),
-      ).then((w) => _window = w);
+      ).then((w) {
+        _window = w;
+        windowManager.addListener(this);
+        return windowManager.setPreventClose(true);
+      });
       await _creating;
       // 新窗口准备好后会发来 ready，自己显示出来。
       return;

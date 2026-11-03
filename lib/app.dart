@@ -26,6 +26,7 @@ import 'debug/screenshots.dart';
 import 'features/settings/update_dialog.dart';
 import 'features/splash/splash.dart';
 import 'features/shell/nav.dart';
+import 'features/login/kugou_login.dart';
 import 'player/player_controller.dart';
 import 'core/update/updater.dart';
 import 'core/lyrics_overlay.dart';
@@ -324,6 +325,13 @@ class _NoticeListenerState extends State<_NoticeListener> {
                 onAction: () async {
                   Navigator.of(ctx).pop();
                   if (n.actionUrl == null) return;
+                  // 有系统 WebView 时在应用内打开官方验证页，完成后自动重新播放。
+                  if (kugouWebLoginSupported && n.actionUrl!.host.endsWith('kugou.com')) {
+                    final player = nav.context.read<PlayerController>();
+                    final done = await nav.push<bool>(MaterialPageRoute(builder: (_) => KugouVerifyPage(url: n.actionUrl!)));
+                    if (done == true) await player.retryCurrent();
+                    return;
+                  }
                   try {
                     final opened = await launchUrl(n.actionUrl!, mode: LaunchMode.externalApplication);
                     if (!opened) throw StateError('无法打开浏览器');

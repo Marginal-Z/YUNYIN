@@ -81,6 +81,8 @@ class KugouSource extends MusicSource {
       throw const FormatException('酷狗账号信息不完整，请重新登录');
     }
     _account = a;
+    // 换了账号：之前按旧账号权限取到的地址不再使用。
+    _streams.clear();
     _user = a == null
         ? null
         : UserProfile(
@@ -166,45 +168,86 @@ class KugouSource extends MusicSource {
     return m.modPow(BigInt.from(65537), _rsaModulus).toRadixString(16).padLeft(256, '0').toUpperCase();
   }
 
+  /// 账号接口先按网页版（与网页登录得到的 token 相同的 appid，网页签名）请求，不通过时再按客户端请求；
+  /// 记住能用的方式，下次先用它。
+  static const _webKey = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt';
+  bool _androidFirst = false;
+
   Future<Map<String, dynamic>> _account2(String path, {String base = 'https://gateway.kugou.com', Map<String, Object?> query = const {}, Object? body, String? router}) async {
     final a = _account;
     if (a == null) throw const SourceUnsupported('请先登录酷狗账号');
+    final failures = <String>[];
+    for (final android in _androidFirst ? const [true, false] : const [false, true]) {
+      try {
+        final d = await _accountRequest(a, android: android, path: path, base: base, query: query, body: body, router: router);
+        _androidFirst = android;
+        return d;
+      } on _KugouRefusal catch (e) {
+        failures.add('${android ? '客户端' : '网页'}${e.code == null ? '' : ' 错误码 ${e.code}'}${e.message.isEmpty ? '' : '：${e.message}'}');
+      }
+    }
+    // 20018 / 34175 / 51002 等：token 已失效。
+    throw Exception('酷狗账号接口没有返回数据（${failures.join('；')}），如果持续失败请重新登录酷狗');
+  }
+
+  Future<Map<String, dynamic>> _accountRequest(
+    Map<String, String> a, {
+    required bool android,
+    required String path,
+    required String base,
+    required Map<String, Object?> query,
+    required Object? body,
+    required String? router,
+  }) async {
     final mid = a['_mid'] ?? _deviceId;
     final dfid = a['_dfid'] ?? '-';
     final params = <String, String>{
       'dfid': dfid,
       'mid': mid,
-      'uuid': '-',
-      'appid': '1005',
-      'clientver': '20489',
+      'uuid': android ? '-' : mid,
+      'appid': android ? '1005' : (a['a_id'] ?? '').ifEmpty('1014')!,
+      'clientver': android ? '20489' : '20000',
+      if (!android) 'srcappid': '2919',
       'clienttime': '${DateTime.now().millisecondsSinceEpoch ~/ 1000}',
       'token': a['t'] ?? '',
       'userid': a['KugooID'] ?? '0',
       for (final e in query.entries) e.key: '${e.value}',
     };
     final data = body == null ? '' : jsonEncode(body);
+    final key = android ? _appKey : _webKey;
     final keys = params.keys.toList()..sort();
-    params['signature'] = md5.convert(utf8.encode('$_appKey${keys.map((k) => '$k=${params[k]}').join()}$data$_appKey')).toString();
+    params['signature'] = md5.convert(utf8.encode('$key${keys.map((k) => '$k=${params[k]}').join()}$data$key')).toString();
     final res = await _dio.request<String>(
       '$base$path',
       queryParameters: params,
       data: body == null ? null : data,
       options: Options(
         method: body == null ? 'GET' : 'POST',
+        // 401 / 403 等也读出酷狗返回的原因。
+        validateStatus: (_) => true,
         headers: {
           'dfid': dfid,
           'mid': mid,
           'clienttime': params['clienttime'],
           'x-router': ?router,
           if (body != null) 'Content-Type': 'application/json',
+          if (!android) ...{
+            'User-Agent': 'Mozilla/5.0',
+            'Referer': 'https://www.kugou.com/',
+            'Cookie': 'kg_mid=$mid; kg_dfid=$dfid; KuGoo=${a['_raw'] ?? ''}',
+          },
         },
       ),
     );
-    final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    Map<String, dynamic> j;
+    try {
+      j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    } catch (_) {
+      throw _KugouRefusal('HTTP ${res.statusCode}', '');
+    }
     if ('${j['status']}' != '1') {
       final code = j['error_code'] ?? j['errcode'] ?? j['err_code'];
-      // 20018 / 34175 / 51002 等：token 已失效。
-      throw Exception('酷狗账号接口没有返回数据${code == null ? '' : '（错误码 $code）'}，如果持续失败请重新登录酷狗');
+      throw _KugouRefusal(code == null ? null : '$code', '${j['error_msg'] ?? j['error'] ?? j['msg'] ?? ''}'.trim());
     }
     return (j['data'] as Map?)?.cast<String, dynamic>() ?? const {};
   }
@@ -232,7 +275,11 @@ class KugouSource extends MusicSource {
       return const Membership(platform: '酷狗音乐', title: '未开通 VIP', benefits: ['免费歌曲可完整播放', '会员歌曲为试听片段']);
     } catch (e) {
       debugPrint('kugou vip: $e');
-      return const Membership(platform: '酷狗音乐', title: '已登录', benefits: ['暂时查询不到会员信息', '会员歌曲按账号权限播放']);
+      return Membership(
+        platform: '酷狗音乐',
+        title: '已登录',
+        benefits: ['暂时查询不到会员信息：${'$e'.replaceFirst('Exception: ', '')}', '会员歌曲按账号权限播放'],
+      );
     }
   }
 
@@ -749,9 +796,19 @@ class KugouSource extends MusicSource {
 
   // ── 播放 ──────────────────────────────────────────
 
+  /// 取到的播放地址保留 20 分钟：重新播放、拖动进度或重新载入同一首歌时不再请求播放接口，
+  /// 减少触发酷狗人机验证的请求次数。
+  final _streams = <String, (StreamInfo, DateTime)>{};
+
   @override
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
-    return _webPlayInfo(song);
+    final cached = _streams[song.id];
+    if (cached != null && DateTime.now().difference(cached.$2) < const Duration(minutes: 20)) return cached.$1;
+    final info = await _webPlayInfo(song);
+    _streams.remove(song.id);
+    _streams[song.id] = (info, DateTime.now());
+    if (_streams.length > 200) _streams.remove(_streams.keys.first);
+    return info;
   }
 
   Future<StreamInfo> _webPlayInfo(Song song) async {
@@ -864,4 +921,12 @@ class KugouSource extends MusicSource {
 
 extension on String {
   String? ifEmpty(String? other) => isEmpty ? other : this;
+}
+
+/// 酷狗账号接口拒绝了请求（错误码与原因）。
+class _KugouRefusal implements Exception {
+  const _KugouRefusal(this.code, this.message);
+
+  final String? code;
+  final String message;
 }

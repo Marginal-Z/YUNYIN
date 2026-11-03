@@ -137,4 +137,47 @@ void main() {
     expect(vip?.expires, DateTime(2027, 1, 2));
     dio.close();
   });
+
+  test('酷狗账号接口先按网页版请求（与网页登录的 token 一致），被拒时改用客户端方式并记住；都被拒时显示两种方式的错误码', () async {
+    SharedPreferences.setMockInitialValues({});
+    final appids = <String>[];
+    var webWorks = false;
+    var androidWorks = true;
+    final dio = Dio()
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (o, h) {
+            final appid = '${o.queryParameters['appid']}';
+            appids.add(appid);
+            final ok = appid == '1005' ? androidWorks : webWorks;
+            final body = ok
+                ? {
+                    'status': 1,
+                    'data': {
+                      'busi_vip': [
+                        {'is_vip': 1, 'product_type': 'tvip', 'vip_end_time': '2027-05-06 00:00:00'},
+                      ],
+                    },
+                  }
+                : {'status': 0, 'error_code': appid == '1005' ? 51002 : 20018, 'error_msg': 'token invalid'};
+            h.resolve(Response(requestOptions: o, statusCode: ok ? 200 : 401, data: jsonEncode(body)));
+          },
+        ),
+      );
+    final kg = KugouSource(dio: dio);
+    await kg.loginWithCookie(cookie);
+
+    final vip = await kg.membership();
+    expect(vip?.title, '畅听 VIP');
+    expect(appids, ['1014', '1005'], reason: 'Cookie 中 a_id 为 1014：先按网页版，再按客户端');
+    appids.clear();
+    await kg.membership();
+    expect(appids, ['1005'], reason: '记住能用的方式');
+
+    androidWorks = false;
+    appids.clear();
+    await expectLater(kg.userPlaylists(), throwsA(predicate((e) => '$e'.contains('51002') && '$e'.contains('20018'))));
+    expect(appids, ['1005', '1014']);
+    dio.close();
+  });
 }

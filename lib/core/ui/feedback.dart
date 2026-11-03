@@ -72,7 +72,7 @@ class _ToastView extends StatelessWidget {
               // 提示需要在任何背景上都能读清：使用实色卡片，而不是透明的液态玻璃。
               child: YBox(
                 radius: BorderRadius.circular(22),
-                color: p.card.withValues(alpha: 0.97),
+                color: p.sheet,
                 shadows: [Shadow2(0, 8, 24, Color.fromRGBO(0, 0, 0, p.isDark ? 0.4 : 0.14))],
                 padding: const EdgeInsets.fromLTRB(14, 11, 18, 11),
                 child: Row(

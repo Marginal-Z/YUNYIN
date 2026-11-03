@@ -211,3 +211,56 @@ class _KugouWebLoginState extends State<KugouWebLogin> {
     );
   }
 }
+
+/// 酷狗的官方人机验证页（应用内网页）。完成验证后点“完成”返回 true，重新播放当前歌曲。
+class KugouVerifyPage extends StatefulWidget {
+  const KugouVerifyPage({super.key, required this.url});
+
+  final Uri url;
+
+  @override
+  State<KugouVerifyPage> createState() => _KugouVerifyPageState();
+}
+
+class _KugouVerifyPageState extends State<KugouVerifyPage> {
+  late final WebViewController _web = WebViewController()
+    ..setJavaScriptMode(JavaScriptMode.unrestricted)
+    ..loadRequest(widget.url);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    return Scaffold(
+      backgroundColor: p.bg,
+      appBar: AppBar(
+        backgroundColor: p.bg,
+        foregroundColor: p.text,
+        title: Text(
+          '酷狗官方验证',
+          style: ts(17, weight: w600, color: p.text),
+        ),
+        actions: [
+          IconButton(onPressed: () => _web.reload(), icon: const Icon(Icons.refresh), tooltip: '刷新'),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              '完成',
+              style: ts(16, weight: w600, color: p.accentText),
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            color: p.field,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: Text('这是酷狗的官方验证页。完成验证后点按右上角“完成”，云音会重新播放这首歌。', style: ts(13, height: 1.4, color: p.text2)),
+          ),
+          Expanded(child: WebViewWidget(controller: _web)),
+        ],
+      ),
+    );
+  }
+}
