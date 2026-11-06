@@ -158,4 +158,53 @@ void main() {
     expect(await native.getProperty('af'), isNot(contains('equalizer')));
     player.dispose();
   });
+
+  testWidgets('音量增强经过限幅器：打开 +6 dB 后仍正常输出音频，不靠提升播放器音量', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final path = await _writeTone();
+    final settings = AppSettings();
+    await settings.init();
+    expect(settings.hifiEngine, isTrue);
+    settings.setVolumeBoost(6);
+
+    final sources = SourceManager([_ToneSource(path)]);
+    await sources.init();
+    final player = PlayerController(sources, settings);
+    await player.init();
+    final native = player.engine!.platform as NativePlayer;
+    if (_ao.isNotEmpty) await native.setProperty('ao', _ao);
+
+    await player.playSongs([const Song(id: '3', sourceId: 'tone', name: '测试音', duration: Duration(seconds: 6))]);
+    final sw = Stopwatch()..start();
+    while (player.position.value < const Duration(milliseconds: 2500) && sw.elapsed < const Duration(seconds: 30)) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    final af = await native.getProperty('af');
+    final volume = double.tryParse(await native.getProperty('volume')) ?? 0;
+    final rate = await native.getProperty('audio-params/samplerate');
+    final filterSize = await native.getProperty('audio-resample-filter-size');
+    final session = Platform.isAndroid ? await native.getProperty('audiotrack-session-id') : '';
+    // ignore: avoid_print
+    print('boost position=${player.position.value} samplerate=$rate volume=$volume af=$af limiterUnsupported=${player.limiterUnsupported} session=$session filterSize=$filterSize mayClip=${player.boostMayClip}');
+
+    expect(player.position.value, greaterThan(const Duration(milliseconds: 2500)), reason: '打开音量增强后播放进度没有推进');
+    expect(int.tryParse(rate) ?? 0, greaterThan(0), reason: '打开音量增强后没有解码出音频');
+    expect(filterSize, '32', reason: '高保真引擎使用 32 抽头重采样滤镜');
+    if (Platform.isAndroid) {
+      // 增强交给系统音效链（DynamicsProcessing / LoudnessEnhancer），播放器挂在单独申请的音频会话上。
+      expect(int.tryParse(session) ?? 0, greaterThan(0), reason: '没有使用独立的音频会话');
+      expect(af, isNot(contains('alimiter')));
+    } else if (player.limiterUnsupported) {
+      // 精简版引擎没有限幅滤镜：自动去掉限幅器继续播放，音效页提示可能失真。
+      expect(af, isNot(contains('alimiter')));
+      expect(player.boostMayClip, isTrue);
+    } else {
+      expect(af, contains('alimiter'));
+      expect(af, contains('volume=6dB'));
+      expect(player.boostMayClip, isFalse);
+      // 增益在滤镜中完成，播放器音量不再额外提升（音量均衡与峰值余量只会让它低于 100）。
+      expect(volume, lessThanOrEqualTo(100));
+    }
+    player.dispose();
+  });
 }
