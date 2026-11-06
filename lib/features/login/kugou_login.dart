@@ -20,11 +20,15 @@ import '../../data/sources/source_manager.dart';
 /// 应用内网页登录只在有系统 WebView 的平台上提供（Android、iOS、macOS）。
 bool get kugouWebLoginSupported => !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
 
-/// 酷狗登录方式：官方登录页（应用内网页）或粘贴浏览器中的 Cookie。登录成功返回 true。
+/// 酷狗登录方式：酷狗 App 扫码（推荐，得到客户端凭据，歌单、收藏、会员与播放接口都认可），
+/// 或者官方登录页（应用内网页）/ 粘贴浏览器中的 Cookie（网页凭据，只有网页接口认可）。
 class KugouLoginCard extends StatelessWidget {
-  const KugouLoginCard({super.key, required this.onDone});
+  const KugouLoginCard({super.key, required this.onDone, required this.onQr});
 
   final VoidCallback onDone;
+
+  /// 打开扫码登录。
+  final VoidCallback onQr;
 
   Future<void> _paste(BuildContext context) async {
     final source = context.read<SourceManager>().current;
@@ -95,34 +99,37 @@ class KugouLoginCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          kugouWebLoginSupported ? '在酷狗官方登录页中登录（支持酷狗 App 扫码与账号密码），登录后自动返回云音。' : '在浏览器中登录 kugou.com 后，把登录信息（Cookie）粘贴到云音。',
-          style: ts(14, height: 1.5, color: p.text2),
-        ),
+        Text('打开手机上的酷狗音乐 App 扫码，确认后即可登录。登录后可以查看歌单、收藏与会员，并按账号会员权限播放。', style: ts(14, height: 1.5, color: p.text2)),
         const SizedBox(height: 16),
-        if (kugouWebLoginSupported)
-          PrimaryButton(
-            label: '打开酷狗官方登录页',
-            icon: YIcons.user,
-            height: 52,
-            fontSize: 17,
-            expand: true,
-            onTap: () async {
-              final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const KugouWebLogin()));
-              if (ok == true && context.mounted) onDone();
-            },
-          )
-        else
-          PrimaryButton(
-            label: '在浏览器中打开 kugou.com',
-            icon: YIcons.share,
-            height: 52,
-            fontSize: 17,
-            expand: true,
-            onTap: () => launchUrl(Uri.parse('https://www.kugou.com/'), mode: LaunchMode.externalApplication),
-          ),
+        PrimaryButton(label: '酷狗 App 扫码登录', icon: YIcons.qr, height: 52, fontSize: 17, expand: true, onTap: onQr),
         const SizedBox(height: 10),
-        SecondaryButton(label: '粘贴 Cookie 登录', icon: YIcons.key, iconSize: 18, height: 46, fontSize: 15, onTap: () => _paste(context)),
+        Row(
+          children: [
+            Expanded(
+              child: SecondaryButton(
+                label: kugouWebLoginSupported ? '网页登录' : '打开官网',
+                icon: YIcons.user,
+                iconSize: 18,
+                height: 44,
+                fontSize: 14,
+                onTap: () async {
+                  if (!kugouWebLoginSupported) {
+                    await launchUrl(Uri.parse('https://www.kugou.com/'), mode: LaunchMode.externalApplication);
+                    return;
+                  }
+                  final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const KugouWebLogin()));
+                  if (ok == true && context.mounted) onDone();
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SecondaryButton(label: '粘贴 Cookie', icon: YIcons.key, iconSize: 18, height: 44, fontSize: 14, onTap: () => _paste(context)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text('网页登录与 Cookie 只被酷狗网页接口认可，歌单、会员信息可能取不到，建议使用扫码登录。', style: ts(12, height: 1.4, color: p.text3)),
       ],
     );
   }

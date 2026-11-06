@@ -30,7 +30,7 @@ void main() {
   test('取不到地址时给出平台的原因；会员歌曲提示需要会员', () async {
     await expectLater(resolveStream(_Fake(Exception('需要登录')), song, AudioQuality.lossless), throwsA(predicate((e) => '$e'.contains('需要登录'))));
     await expectLater(resolveStream(_Fake(const StreamInfo()), song, AudioQuality.lossless), throwsA(predicate((e) => '$e'.contains('没有这首歌'))));
-    const vip = Song(id: 'x', sourceId: 'qq', name: 'v', vip: true);
+    const vip = Song(id: 'x', sourceId: 'qq', name: 'v', fee: SongFee.vip);
     await expectLater(resolveStream(_Fake(const StreamInfo()), vip, AudioQuality.lossless), throwsA(predicate((e) => '$e'.contains('会员'))));
   });
 

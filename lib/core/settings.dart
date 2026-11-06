@@ -117,11 +117,19 @@ enum EqPreset {
   vocal('人声', [-2, -2, -1, 1, 3, 4, 3, 1, 0, -1]),
   bass('低音增强', [6, 5, 4, 2, 0, 0, 0, 0, 0, 0]),
   treble('高音增强', [0, 0, 0, 0, 0, 1, 2, 4, 5, 6]),
-  custom('自定义', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  custom('自定义', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+  // 以下为后加入的音效（按序号保存，只能加在末尾）。
+  hifi('Hi-Fi 臻品', [2, 2, 1, 0, 0, 0, 1, 1, 2, 3]),
+  live('现场', [2, 1, 0, 1, 2, 3, 2, 1, 1, 2]),
+  warm('温暖', [3, 3, 2, 1, 0, -1, -1, -2, -2, -3]),
+  dj('DJ 劲爆', [6, 5, 3, 0, -1, 0, 1, 2, 3, 4]);
 
   const EqPreset(this.label, this.gains);
   final String label;
   final List<int> gains;
+
+  /// 音效页中的显示顺序（自定义放在最后）。
+  static const ordered = [flat, hifi, pop, vocal, live, rock, classical, jazz, electronic, dj, warm, bass, treble, custom];
 }
 
 /// 用户设置，持久化在 SharedPreferences。
@@ -185,8 +193,18 @@ class AppSettings extends ChangeNotifier {
   /// 播放进度条的波浪动画。
   ProgressStyle progressStyle = ProgressStyle.wave;
 
-  /// 音量增强（dB）：0–6。
+  /// 音量增强（dB）：0–10。增益之后经过限幅器，响亮的歌曲也不会削波破音。
   int volumeBoost = 0;
+  static const maxVolumeBoost = 10;
+
+  /// 高保真引擎：高质量重采样（更长的 sinc 滤镜）与三角高通抖动，转换为 16 位输出时保留更多细节。
+  bool hifiEngine = true;
+
+  /// Android：空间音效（系统虚拟环绕）强度 0–1，0 为关闭。
+  double spatial = 0;
+
+  /// Android：低频增强强度 0–1，0 为关闭。
+  double bassEnhance = 0;
 
   /// 均衡器。
   bool eqEnabled = false;
@@ -301,7 +319,10 @@ class AppSettings extends ChangeNotifier {
     progressStyle = ps != null
         ? ProgressStyle.values[ps.clamp(0, ProgressStyle.values.length - 1)]
         : (_read<bool>('waveProgress') ?? true ? ProgressStyle.wave : ProgressStyle.line);
-    volumeBoost = (_read<int>('volumeBoost') ?? 0).clamp(0, 6);
+    volumeBoost = (_read<int>('volumeBoost') ?? 0).clamp(0, maxVolumeBoost);
+    hifiEngine = _read<bool>('hifiEngine') ?? true;
+    spatial = _number('spatial', 0, 0, 1);
+    bassEnhance = _number('bassEnhance', 0, 0, 1);
     eqEnabled = _read<bool>('eqEnabled') ?? false;
     eqPreset = EqPreset.values[(_read<int>('eqPreset') ?? 0).clamp(0, EqPreset.values.length - 1)];
     final gains = _read<List<String>>('eqGains');
@@ -432,6 +453,8 @@ class AppSettings extends ChangeNotifier {
         hiResOutput = v;
       case 'exclusiveAudio':
         exclusiveAudio = v;
+      case 'hifiEngine':
+        hifiEngine = v;
       case 'desktopLyrics':
         desktopLyrics = v;
       case 'statusBarLyrics':
@@ -502,8 +525,22 @@ class AppSettings extends ChangeNotifier {
   Color get lyricsDisplayColor => lyricsColor == 0 ? accent.base : Color(lyricsColor);
 
   void setVolumeBoost(int db) {
-    volumeBoost = db.clamp(0, 6);
+    volumeBoost = db.clamp(0, maxVolumeBoost);
     _p.setInt('volumeBoost', volumeBoost);
+    notifyListeners();
+  }
+
+  void setSpatial(double v) {
+    if (!v.isFinite) return;
+    spatial = v.clamp(0, 1).toDouble();
+    _p.setDouble('spatial', spatial);
+    notifyListeners();
+  }
+
+  void setBassEnhance(double v) {
+    if (!v.isFinite) return;
+    bassEnhance = v.clamp(0, 1).toDouble();
+    _p.setDouble('bassEnhance', bassEnhance);
     notifyListeners();
   }
 

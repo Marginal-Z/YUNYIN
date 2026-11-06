@@ -15,6 +15,7 @@ import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
 import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
+import '../common/song_cover.dart';
 
 String formatCount(int n) {
   if (n >= 100000000) return '${(n / 100000000).toStringAsFixed(1)}亿';
@@ -65,6 +66,12 @@ class _CommentsPageState extends State<CommentsPage> {
   int _total = 0;
   bool _loading = false;
   bool _hasMore = true;
+
+  /// 下一页的平台分页位置（由上一页给出，见 [CommentPage.next]）。
+  int _offset = 0;
+
+  /// 连续几页没有新评论（被过滤或重复）：自动向后翻，但最多翻这么多页，避免一直请求。
+  int _emptyPages = 0;
   int _request = 0;
   Object? _error;
   final _input = TextEditingController();
@@ -96,23 +103,34 @@ class _CommentsPageState extends State<CommentsPage> {
         _items.clear();
         _likedIds.clear();
         _hasMore = true;
+        _offset = 0;
+        _emptyPages = 0;
       }
     });
+    var more = false;
     try {
       final src = context.read<SourceManager>().byId(widget.song.sourceId);
-      final page = await src.comments(widget.song, sort: _sort, offset: _items.length);
+      final offset = _offset;
+      final page = await src.comments(widget.song, sort: _sort, offset: offset);
       if (!mounted || request != _request) return;
+      final before = _items.length;
       setState(() {
         _total = page.total;
         _items.addAll(page.comments.where((c) => !_items.any((x) => x.id == c.id)));
-        _hasMore = page.hasMore && page.comments.isNotEmpty;
+        _offset = page.next ?? offset + page.comments.length;
+        // 只有平台说还有更多、并且分页位置前进了才继续，避免一直请求同一页。
+        _hasMore = page.hasMore && _offset > offset;
         _likedIds.addAll(page.comments.where((c) => c.liked).map((c) => c.id));
       });
+      _emptyPages = _items.length > before ? 0 : _emptyPages + 1;
+      // 这一页的评论都被过滤掉了（例如全是语音评论）：列表没有变长，滚动不会再触发加载，主动翻下一页。
+      more = _hasMore && _items.length == before && _emptyPages < 5;
     } catch (e) {
       if (mounted && request == _request) setState(() => _error = e);
     } finally {
       if (mounted && request == _request) setState(() => _loading = false);
     }
+    if (more && mounted && request == _request) await _load();
   }
 
   Future<void> _send() async {
@@ -186,7 +204,7 @@ class _CommentsPageState extends State<CommentsPage> {
                                 padding: const EdgeInsets.symmetric(horizontal: 14),
                                 child: Row(
                                   children: [
-                                    Cover(song.coverUrl, size: 44, radius: 11),
+                                    SongCover(song, size: 44, radius: 11),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
@@ -228,7 +246,7 @@ class _CommentsPageState extends State<CommentsPage> {
                         const SizedBox(height: 14),
                         if (_error != null && _items.isEmpty)
                           YCard(
-                            child: StateView.network(onRetry: () => _load(reset: true), message: errorText(_error)),
+                            child: StateView.failure(_error, onRetry: () => _load(reset: true)),
                           )
                         else if (_items.isEmpty && _loading)
                           const SkeletonComments()

@@ -77,6 +77,9 @@ abstract final class YIcons {
   static const check = YIconData('<path d="m5 12.5 4.5 4.5L19 7"/>', strokeWidth: 2);
   static const bookmark = YIconData('<path d="M6 4h12v16l-6-4-6 4z"/>');
   static const equalizer = YIconData('<path d="M4 12h2M8 8v8M12 5v14M16 8v8M20 12h-2"/>');
+  static const note = YIconData('<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>');
+  static const image = YIconData('<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M20.5 15.5l-5-5-9 9"/>');
+  static const stats = YIconData('<path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/>');
   static const crossfade = YIconData('<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>');
   static const target = YIconData('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/>');
   static const wifi = YIconData('<path d="M4 10a12 12 0 0 1 16 0M7 13.5a8 8 0 0 1 10 0M10 17a4 4 0 0 1 4 0"/>');

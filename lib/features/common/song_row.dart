@@ -11,6 +11,7 @@ import '../../data/models.dart';
 import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
 import 'actions.dart';
+import 'song_cover.dart';
 
 /// 歌名中高亮搜索关键字（红色）。
 Widget highlightText(String text, String? keyword, TextStyle style, Color accent) {
@@ -77,7 +78,7 @@ class SongRow extends StatelessWidget {
     Widget? leading;
     switch (lead) {
       case SongLead.cover:
-        leading = Cover(song.coverUrl, size: 46, radius: 10);
+        leading = SongCover(song, size: 46, radius: 10);
       case SongLead.number:
         leading = SizedBox(
           width: 28,
@@ -114,7 +115,7 @@ class SongRow extends StatelessWidget {
             child: Row(
               children: [
                 if (leading != null) ...[leading, SizedBox(width: gap)],
-                if (lead == SongLead.rank) ...[Cover(song.coverUrl, size: 46, radius: 10), const SizedBox(width: 10)],
+                if (lead == SongLead.rank) ...[SongCover(song, size: 46, radius: 10), const SizedBox(width: 10)],
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -124,7 +125,7 @@ class SongRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          if (song.vip) const VipBadge(),
+                          SongBadges(song),
                           Flexible(
                             child: Text(
                               subtitle ?? song.artistText,
@@ -171,32 +172,88 @@ class SongRow extends StatelessWidget {
 
 enum SongTrailing { more, play, none, likeMore }
 
-/// 会员歌曲的 VIP 标志（未登录或没有会员时通常只能试听）。
-class VipBadge extends StatelessWidget {
-  const VipBadge({super.key});
+/// 歌曲的标签，按各平台自己的规则与配色显示：
+/// - 会员歌曲：网易云红色、QQ 音乐绿色、酷狗蓝色、酷我金色的“VIP”；
+/// - 需要单独购买的付费歌曲（数字专辑、付费单曲）：“付费”；
+/// - 平台提供的最高音质：无损“SQ”、Hi-Res（网易云“Hi-Res”，QQ 音乐与酷狗“HR”）。
+class SongBadges extends StatelessWidget {
+  const SongBadges(this.song, {super.key});
+
+  final Song song;
+
+  /// 歌曲实际所属的平台（洛雪曲库的歌曲 id 带有平台前缀，例如“kg/…”）。
+  static String platformOf(Song song) {
+    if (song.sourceId != 'lx') return song.sourceId;
+    final i = song.id.indexOf('/');
+    return switch (i > 0 ? song.id.substring(0, i) : 'kw') {
+      'kg' => 'kugou',
+      'tx' => 'qq',
+      'wy' => 'netease',
+      _ => 'kuwo',
+    };
+  }
+
+  static Color colorOf(String platform) => switch (platform) {
+    'qq' => const Color(0xFF1DB954),
+    'kugou' => const Color(0xFF2CA2F9),
+    'kuwo' => const Color(0xFFF2A100),
+    _ => const Color(0xFFFF3A3A),
+  };
 
   @override
   Widget build(BuildContext context) {
-    const gold = Color(0xFFE0A526);
-    return Container(
-      margin: const EdgeInsets.only(right: 5),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: gold, width: 1),
-      ),
-      child: Text('VIP', style: ts(9.5, weight: w700, color: gold, height: 1.25)),
+    final platform = platformOf(song);
+    final color = colorOf(platform);
+    final quality = switch (song.maxQuality) {
+      AudioQuality.hires => platform == 'netease' ? 'Hi-Res' : 'HR',
+      AudioQuality.lossless => 'SQ',
+      _ => null,
+    };
+    if (song.fee == SongFee.free && quality == null) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (song.fee == SongFee.vip) _Badge('VIP', color: color, filled: platform == 'qq' || platform == 'kugou'),
+        if (song.fee == SongFee.paid) _Badge('付费', color: platform == 'qq' ? const Color(0xFFFF8A00) : color),
+        if (quality != null) _Badge(quality, color: color.withValues(alpha: 0.85)),
+      ],
     );
   }
 }
 
-/// 无法播放的歌曲：会员歌曲提示需要会员（未登录时先登录），其余为没有版权。
+class _Badge extends StatelessWidget {
+  const _Badge(this.text, {required this.color, this.filled = false});
+
+  final String text;
+  final Color color;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 3.5, vertical: 0.5),
+      decoration: BoxDecoration(
+        color: filled ? color : null,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color, width: 1),
+      ),
+      child: Text(text, style: ts(9.5, weight: w700, color: filled ? const Color(0xFFFFFFFF) : color, height: 1.25)),
+    );
+  }
+}
+
+/// 无法播放的歌曲：没有版权，或者是需要会员 / 购买的歌曲（按平台规则提示）。
 void _unavailable(BuildContext context, Song song) {
   if (!song.vip) {
     Toast.show(context, '暂无播放版权', icon: YIcons.lock);
     return;
   }
   final source = context.read<SourceManager>().byId(song.sourceId);
+  if (song.fee == SongFee.paid) {
+    Toast.show(context, '付费歌曲，需要在${source.name}单独购买后播放', icon: YIcons.lock);
+    return;
+  }
   Toast.show(context, source.loggedIn ? '会员歌曲，开通${source.name}会员后可以播放' : '会员歌曲，登录有会员的${source.name}账号后播放', icon: YIcons.lock);
 }
 
@@ -231,7 +288,7 @@ class DesktopSongRow extends StatelessWidget {
             child: Row(
               children: [
                 if (cover)
-                  Cover(song.coverUrl, size: 40, radius: 8)
+                  SongCover(song, size: 40, radius: 8)
                 else
                   SizedBox(
                     width: 28,
@@ -252,7 +309,7 @@ class DesktopSongRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          if (song.vip) const VipBadge(),
+                          SongBadges(song),
                           Flexible(
                             child: Text(
                               song.artistText,

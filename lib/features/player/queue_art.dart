@@ -13,6 +13,7 @@ import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
 import '../../player/player_controller.dart';
 import '../common/actions.dart';
+import '../common/song_cover.dart';
 
 /// 卡片流与 3D 封面流：播放队列的封面横向排开，当前歌曲居中。
 ///
@@ -601,7 +602,7 @@ class MinimalArt extends StatelessWidget {
               ),
             ],
           ),
-          child: Cover(song.coverUrl, size: size, circle: true, imageSize: 600),
+          child: SongCover(song, size: size, circle: true, imageSize: 600),
         ),
       ),
     );

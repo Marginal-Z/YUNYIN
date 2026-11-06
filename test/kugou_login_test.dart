@@ -19,12 +19,12 @@ void main() {
         child: PaletteScope(
           palette: Palette.light(AccentColor.red),
           child: MaterialApp(
-            home: Scaffold(body: KugouLoginCard(onDone: () => completed = true)),
+            home: Scaffold(body: KugouLoginCard(onDone: () => completed = true, onQr: () {})),
           ),
         ),
       ),
     );
-    await tester.tap(find.text('粘贴 Cookie 登录'));
+    await tester.tap(find.text('粘贴 Cookie'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'kg_mid=test-mid; kg_dfid=test-dfid; KuGoo=KugooID=123&t=test-token');
     await tester.tap(find.widgetWithText(TextButton, '登录'));

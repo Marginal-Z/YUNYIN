@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/ui/motion.dart';
+
 /// 从底部弹出的全屏页面（正在播放）。
 ///
 /// 打开时页面从下方略微升起、由 88% 放大到全屏并淡入，圆角随之收起，下方页面逐渐变暗，
@@ -45,28 +47,28 @@ class SheetRoute<T> extends PageRoute<T> {
       builder: (context, child) {
         final v = animation.value;
         final gesture = _dragging || navigator?.userGestureInProgress == true;
+        // 三种状态共用同一组件结构（只改参数），拖动开始时页面不会被重建、状态不会丢失。
+        double opacity, dy, scale, radius;
         if (gesture || animation.status == AnimationStatus.reverse) {
           // 拖动时页面跟随手指；收起时整页滑回下方。
           final t = gesture ? v : Curves.easeInCubic.transform(v);
-          final radius = (1 - v).clamp(0.0, 1.0) * 120;
-          return FractionalTranslation(
-            translation: Offset(0, 1 - t),
-            child: ClipRRect(
-              clipBehavior: v < 1 ? Clip.antiAlias : Clip.none,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(math.min(radius, 28))),
-              child: child,
-            ),
-          );
+          opacity = 1;
+          dy = 1 - t;
+          scale = 1;
+          radius = math.min((1 - v).clamp(0.0, 1.0) * 120, 28);
+        } else {
+          // 弹出：升起 + 放大 + 淡入，圆角从 36 收到 0。
+          final t = const _OpenCurve().transform(v);
+          opacity = (v * 3).clamp(0.0, 1.0);
+          // 位移不越过终点（回弹只体现在缩放上），页面底部不会露出缝隙。
+          dy = (1 - math.min(t, 1.0)) * 0.3;
+          scale = 0.88 + 0.12 * math.min(t, 1.006);
+          radius = (1 - t).clamp(0.0, 1.0) * 36;
         }
-        // 弹出：升起 + 放大 + 淡入，圆角从 36 收到 0。
-        final t = const _OpenCurve().transform(v);
-        final scale = 0.88 + 0.12 * math.min(t, 1.006);
-        final radius = (1 - t).clamp(0.0, 1.0) * 36;
         return Opacity(
-          opacity: (v * 3).clamp(0.0, 1.0),
+          opacity: opacity,
           child: FractionalTranslation(
-            // 位移不越过终点（回弹只体现在缩放上），页面底部不会露出缝隙。
-            translation: Offset(0, (1 - math.min(t, 1.0)) * 0.3),
+            translation: Offset(0, dy),
             child: Transform.scale(
               scale: scale,
               alignment: Alignment.bottomCenter,
@@ -96,7 +98,8 @@ class SheetRoute<T> extends PageRoute<T> {
   void _dragEnd(double velocity) {
     final c = controller!;
     final close = velocity > 1.2 || (velocity > -0.6 && c.value < 0.72);
-    const curve = Curves.easeOutCubic;
+    // 弹回时用接近临界阻尼的弹簧，收起时干脆利落。
+    final Curve curve = close ? Curves.easeOutCubic : Motion.gentle;
     if (close) {
       navigator?.pop();
       if (c.isAnimating) {

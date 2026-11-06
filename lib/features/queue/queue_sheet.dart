@@ -11,6 +11,7 @@ import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
 import '../../player/player_controller.dart';
+import '../common/song_cover.dart';
 
 /// 移动端播放队列：背景是模糊的播放页，上方滑出白色面板。
 class QueueSheet extends StatelessWidget {
@@ -38,7 +39,7 @@ class QueueSheet extends StatelessWidget {
                     Positioned(
                       left: (width - 220) / 2,
                       top: pad.top + 52,
-                      child: Cover(song?.coverUrl, size: 220, radius: 30, shadows: [Shadow2(0, 28, 56, CoverArt.tint(song?.coverUrl).withValues(alpha: 0.35))]),
+                      child: SongCover(song, size: 220, radius: 30, shadows: [Shadow2(0, 28, 56, CoverArt.tint(song?.coverUrl).withValues(alpha: 0.35))]),
                     ),
                     Positioned.fill(child: ColoredBox(color: p.scrim)),
                     Positioned(
@@ -184,7 +185,7 @@ class _QueueRow extends StatelessWidget {
       decoration: BoxDecoration(color: current ? p.accentText.withValues(alpha: 0.09) : Colors.transparent, borderRadius: BorderRadius.circular(18)),
       child: Row(
         children: [
-          Cover(song.coverUrl, size: 42, radius: 10),
+          SongCover(song, size: 42, radius: 10),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

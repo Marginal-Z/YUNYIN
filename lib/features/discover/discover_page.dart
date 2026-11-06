@@ -487,7 +487,7 @@ class _PlaylistPlazaState extends State<PlaylistPlaza> {
             if (_items.isNotEmpty) PlaylistGrid(items: _items),
             if (_items.isEmpty && _loading) const SkeletonList(),
             if (_error != null)
-              StateView.network(onRetry: _more, message: errorText(_error))
+              StateView.failure(_error, onRetry: _more)
             else if (_items.isNotEmpty && !_done)
               Padding(
                 padding: const EdgeInsets.only(top: 22),

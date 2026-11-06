@@ -32,6 +32,12 @@ class ListenStats extends ChangeNotifier {
   final Map<String, int> _days = {};
   final Map<String, SongListen> _songs = {};
 
+  /// 一天中各小时（0–23）的累计收听毫秒数。
+  final List<int> _hours = List.filled(24, 0);
+
+  /// 各平台（歌曲的 sourceId）的累计收听毫秒数。
+  final Map<String, int> _sources = {};
+
   PlayerController? _player;
   String? _songKey;
   Duration _last = Duration.zero;
@@ -56,6 +62,11 @@ class ListenStats extends ChangeNotifier {
       if (!await f.exists()) return;
       final j = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
       (j['days'] as Map? ?? const {}).forEach((k, v) => _days['$k'] = (v as num).toInt());
+      final hours = j['hours'] as List? ?? const [];
+      for (var i = 0; i < hours.length && i < 24; i++) {
+        _hours[i] = (hours[i] as num?)?.toInt() ?? 0;
+      }
+      (j['sources'] as Map? ?? const {}).forEach((k, v) => _sources['$k'] = (v as num).toInt());
       for (final s in (j['songs'] as List? ?? const [])) {
         final e = SongListen.fromJson(Map<String, dynamic>.from(s as Map));
         _songs[_key(e.song)] = e;
@@ -111,8 +122,11 @@ class ListenStats extends ChangeNotifier {
 
   void _add(Song song, int ms) {
     if (ms <= 0) return;
-    final day = dayKey(DateTime.now());
+    final now = DateTime.now();
+    final day = dayKey(now);
     _days[day] = (_days[day] ?? 0) + ms;
+    _hours[now.hour] += ms;
+    _sources[song.sourceId] = (_sources[song.sourceId] ?? 0) + ms;
     final e = _songs.putIfAbsent(_key(song), () => SongListen(song));
     e.ms += ms;
     _session += ms;
@@ -135,6 +149,8 @@ class ListenStats extends ChangeNotifier {
       await f.writeAsString(
         jsonEncode({
           'days': _days,
+          'hours': _hours,
+          'sources': _sources,
           'songs': [for (final e in _songs.values) e.toJson()],
         }),
       );
@@ -195,6 +211,69 @@ class ListenStats extends ChangeNotifier {
   }
 
   bool get isEmpty => _days.isEmpty;
+
+  /// 最近 [days] 天（含今天）的总时长；[days] 为 null 时为全部。
+  Duration since(int? days) {
+    if (days == null) return total;
+    return lastDays(days).fold(Duration.zero, (a, d) => a + d.$2);
+  }
+
+  /// 最近 [days] 天里有收听的天数；[days] 为 null 时为全部。
+  int activeIn(int? days) => days == null ? activeDays : lastDays(days).where((d) => d.$2 > Duration.zero).length;
+
+  /// 一天中各小时的累计时长。
+  List<Duration> get hourly => [for (final ms in _hours) Duration(milliseconds: ms)];
+
+  /// 最常听歌的时段（小时）；没有记录时为 null。
+  int? get favoriteHour {
+    var best = -1, ms = 0;
+    for (var i = 0; i < 24; i++) {
+      if (_hours[i] > ms) {
+        ms = _hours[i];
+        best = i;
+      }
+    }
+    return best < 0 ? null : best;
+  }
+
+  /// 各平台的累计时长（多到少）。
+  List<(String, Duration)> get bySource =>
+      [for (final e in _sources.entries) (e.key, Duration(milliseconds: e.value))]..sort((a, b) => b.$2.compareTo(a.$2));
+
+  /// 听过的歌曲数（不重复）。
+  int get songCount => _songs.length;
+
+  /// 完整收听次数（单次连续收听超过 30 秒计一次）。
+  int get playCount => _songs.values.fold(0, (a, e) => a + e.plays);
+
+  /// 连续听歌的天数：到今天（今天还没听时到昨天）为止。
+  int get streak {
+    final now = DateTime.now();
+    var d = DateTime(now.year, now.month, now.day);
+    if (day(d) == Duration.zero) d = d.subtract(const Duration(days: 1));
+    var n = 0;
+    while (day(d) > Duration.zero) {
+      n++;
+      d = d.subtract(const Duration(days: 1));
+    }
+    return n;
+  }
+
+  /// 最长连续听歌天数。
+  int get longestStreak {
+    final days = [
+      for (final e in _days.entries)
+        if (e.value > 0) DateTime.tryParse(e.key),
+    ].nonNulls.toList()..sort();
+    var best = 0, run = 0;
+    DateTime? prev;
+    for (final d in days) {
+      run = prev != null && d.difference(prev).inHours.round() == 24 ? run + 1 : 1;
+      best = run > best ? run : best;
+      prev = d;
+    }
+    return best;
+  }
 
   @override
   void dispose() {

@@ -24,6 +24,8 @@ import '../search/search_page.dart';
 import 'nav.dart';
 import 'routes.dart';
 import 'transitions.dart';
+import '../common/song_cover.dart';
+import '../../core/ui/motion.dart';
 
 /// 桌面端外壳：玻璃侧边栏 + 顶栏 + 内容区 + 底部播放条。
 class DesktopShell extends StatefulWidget {
@@ -107,7 +109,7 @@ class _DesktopShellState extends State<DesktopShell> {
     final user = context.select<SourceManager, UserProfile?>((s) => s.current.user);
     final left = wall ? 20.0 : 262.0;
     const slide = Duration(milliseconds: 420);
-    const curve = Curves.easeOutCubic;
+    const curve = Motion.gentle;
     return AppBackground(
       scale: 2.4,
       child: Stack(
@@ -490,7 +492,7 @@ class _MiniWindow extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
             child: Row(
               children: [
-                Cover(song?.coverUrl, size: 52, circle: true),
+                SongCover(song, size: 52, circle: true),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

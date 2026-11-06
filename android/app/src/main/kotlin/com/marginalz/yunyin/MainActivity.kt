@@ -147,6 +147,32 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/audio_fx").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "session" -> result.success(AudioFx.session(applicationContext))
+                "configure" -> result.success(
+                    AudioFx.configure(
+                        applicationContext,
+                        call.argument<Number>("boostDb")?.toFloat() ?: 0f,
+                        call.argument<Boolean>("limiter") ?: true,
+                        call.argument<Number>("spatial")?.toFloat() ?: 0f,
+                        call.argument<Number>("bass")?.toFloat() ?: 0f,
+                    ),
+                )
+                "release" -> {
+                    AudioFx.releaseAll()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/share").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "shareImage" -> result.success(shareImage(File(call.argument<String>("path")!!), call.argument<String>("text") ?: ""))
+                "saveImage" -> result.success(saveImage(File(call.argument<String>("path")!!), call.argument<String>("name") ?: "yunyin.png"))
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/update").setMethodCallHandler { call, result ->
             when (call.method) {
                 "installApk" -> result.success(installApk(File(call.argument<String>("path")!!)))
@@ -210,6 +236,46 @@ class MainActivity : AudioServiceActivity() {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
         return "ok"
+    }
+
+    /** 通过系统分享面板分享图片（听歌海报）。图片需位于缓存目录的 yunyin-share 中。 */
+    private fun shareImage(image: File, text: String): Boolean {
+        return try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.update", image)
+            val send = Intent(Intent.ACTION_SEND)
+                .setType("image/png")
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .putExtra(Intent.EXTRA_TEXT, text)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(Intent.createChooser(send, "分享听歌海报").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 把图片保存到系统相册的 Pictures/云音 中（Android 10 起不需要存储权限）。 */
+    private fun saveImage(image: File, name: String): Boolean {
+        return try {
+            val values = android.content.ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, name)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/云音")
+                } else {
+                    @Suppress("DEPRECATION")
+                    val dir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), "云音")
+                    dir.mkdirs()
+                    @Suppress("DEPRECATION")
+                    put(MediaStore.Images.Media.DATA, File(dir, name).absolutePath)
+                }
+            }
+            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+            contentResolver.openOutputStream(uri)?.use { out -> image.inputStream().use { it.copyTo(out) } }
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /** 启用对应主题色的桌面入口并停用其他入口；DONT_KILL_APP 保证当前界面不被关闭。 */

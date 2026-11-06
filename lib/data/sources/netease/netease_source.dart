@@ -268,9 +268,29 @@ class NeteaseSource extends MusicSource {
       duration: Duration(milliseconds: ((s['dt'] ?? s['duration']) as num?)?.toInt() ?? 0),
       playable: st >= 0,
       alias: (alia != null && alia.isNotEmpty) ? '${alia.first}' : null,
-      // fee：1 为会员歌曲，4 为付费专辑（未购买时只能试听）。
-      vip: const {1, 4}.contains(((s['fee'] ?? priv?['fee']) as num?)?.toInt()),
+      fee: neteaseFee(((s['fee'] ?? priv?['fee']) as num?)?.toInt()),
+      maxQuality: _maxQuality(s, priv),
     );
+  }
+
+  /// 网易云的 fee：1 为黑胶 VIP 歌曲；4 为付费专辑（需要购买，VIP 也只能试听）；
+  /// 0 与 8 为免费歌曲（8 表示免费播放标准音质，VIP 可听更高音质）。
+  @visibleForTesting
+  static SongFee neteaseFee(int? fee) => switch (fee) {
+    1 => SongFee.vip,
+    4 => SongFee.paid,
+    _ => SongFee.free,
+  };
+
+  /// 歌曲提供的最高音质：权限信息中的 maxBrLevel，或者歌曲信息里的 hr（Hi-Res）/ sq（无损）文件。
+  static AudioQuality? _maxQuality(Map<String, dynamic> s, Map<String, dynamic>? priv) {
+    final level = '${priv?['maxBrLevel'] ?? ''}';
+    if (level == 'hires' || level == 'jymaster' || level == 'sky' || level == 'jyeffect' || s['hr'] is Map) return AudioQuality.hires;
+    if (level == 'lossless' || s['sq'] is Map) return AudioQuality.lossless;
+    final maxbr = (priv?['maxbr'] as num?)?.toInt() ?? 0;
+    if (maxbr >= 999000) return AudioQuality.lossless;
+    if (level == 'exhigh' || maxbr >= 320000 || s['h'] is Map) return AudioQuality.exhigh;
+    return null;
   }
 
   PlaylistInfo _playlist(Map<String, dynamic> p) {
@@ -648,6 +668,10 @@ class NeteaseSource extends MusicSource {
     return info.withTracks(songs);
   }
 
+  /// 列表里没有封面的歌曲（例如部分电台节目、最近播放）：按歌曲详情补上专辑封面。
+  @override
+  Future<String?> songCover(Song song) async => (await _songDetails([song.id])).firstOrNull?.coverUrl;
+
   Future<List<Song>> _songDetails(List<String> ids) async {
     final out = <Song>[];
     for (var i = 0; i < ids.length; i += 500) {
@@ -861,13 +885,14 @@ class NeteaseSource extends MusicSource {
     if (sort == CommentSort.hot) {
       final j = await _weapi('/v1/resource/hotcomments/$rid', {'rid': song.id, 'limit': 20, 'offset': offset, 'beforeTime': 0});
       final list = [for (final c in (j['hotComments'] as List? ?? const [])) _comment(Map<String, dynamic>.from(c as Map))];
-      return CommentPage(total: (j['total'] as num?)?.toInt() ?? list.length, comments: list, hasMore: j['hasMore'] == true);
+      return CommentPage(total: (j['total'] as num?)?.toInt() ?? list.length, comments: list, hasMore: j['hasMore'] == true, next: offset + 20);
     }
     final j = await _weapi('/v1/resource/comments/$rid', {'rid': song.id, 'limit': 20, 'offset': offset, 'beforeTime': 0});
     final latest = [for (final c in (j['comments'] as List? ?? const [])) _comment(Map<String, dynamic>.from(c as Map))];
     final hot = [for (final c in (j['hotComments'] as List? ?? const [])) _comment(Map<String, dynamic>.from(c as Map))];
     final list = sort == CommentSort.recommend && offset == 0 ? [...hot, ...latest.where((c) => !hot.any((h) => h.id == c.id))] : latest;
-    return CommentPage(total: (j['total'] as num?)?.toInt() ?? list.length, comments: list, hasMore: j['more'] == true);
+    // 第一页混排了热门评论：下一页按最新评论的位置继续，不能按已显示的条数（会跳过热门评论条数那么多的评论）。
+    return CommentPage(total: (j['total'] as num?)?.toInt() ?? list.length, comments: list, hasMore: j['more'] == true, next: offset + 20);
   }
 
   @override

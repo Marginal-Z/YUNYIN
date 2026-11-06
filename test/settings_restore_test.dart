@@ -40,7 +40,7 @@ void main() {
     expect(settings.lyricsOpacity, 1);
     expect(settings.statusLyricsOffset, -0.4);
     expect(settings.lyricScale, 1);
-    expect(settings.volumeBoost, 6);
+    expect(settings.volumeBoost, AppSettings.maxVolumeBoost);
     expect(settings.eqGains, everyElement(inInclusiveRange(-12, 12)));
   });
 
@@ -67,6 +67,6 @@ void main() {
     expect(settings.volume, 0.65);
     expect(settings.normalizeStrength, 1);
     expect(settings.eqGains.first, 0);
-    expect(settings.volumeBoost, 6);
+    expect(settings.volumeBoost, AppSettings.maxVolumeBoost);
   });
 }

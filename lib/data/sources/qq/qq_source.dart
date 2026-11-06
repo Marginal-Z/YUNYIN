@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -44,6 +45,16 @@ class QQMusicSource extends MusicSource {
   String? _key;
   UserProfile? _user;
 
+  /// 登录返回的完整凭据（openid、access_token、refresh_token、refresh_key、musickey 的创建时间与有效期等），
+  /// musickey 过期前用它续期。
+  Map<String, dynamic> _cred = const {};
+
+  /// 1 为微信登录，2 为 QQ 登录（musickey 需要与之匹配才会被认可）。
+  int _loginType = 2;
+
+  /// 本机的客户端标识（安卓客户端方式的请求需要）。
+  String _guid = '';
+
   /// 扫码登录过程中各个域名下发的 Cookie（只在登录流程中使用）。
   final Map<String, String> _loginCookies = {};
   int _loginGeneration = 0;
@@ -83,30 +94,138 @@ class QQMusicSource extends MusicSource {
   Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      _guid = prefs.getString('qq.guid') ?? '';
+      if (_guid.length != 32) {
+        final r = math.Random.secure();
+        _guid = [for (var i = 0; i < 16; i++) r.nextInt(256).toRadixString(16).padLeft(2, '0')].join();
+        await prefs.setString('qq.guid', _guid);
+      }
       final raw = prefs.getString(_prefsKey);
       if (raw == null) return;
       final j = jsonDecode(raw) as Map<String, dynamic>;
       _uin = j['uin'] as String?;
       _key = j['key'] as String?;
       _euin = j['euin'] as String?;
+      _cred = (j['cred'] as Map?)?.cast<String, dynamic>() ?? const {};
+      _loginType = (j['loginType'] as num?)?.toInt() ?? _inferLoginType(_key);
       if (_uin != null) {
         _user = UserProfile(id: _uin!, nickname: '${j['nickname'] ?? 'QQ 用户'}', avatar: j['avatar'] as String?, vip: j['vip'] == true);
+        // musickey 只有几天有效期：快到期时在后台续期，避免某天突然只能播放试听片段。
+        if (_keyExpiresSoon) unawaited(_refreshCredential());
       }
     } catch (e) {
       debugPrint('qq account: $e');
     }
   }
 
+  static int _inferLoginType(String? key) => (key ?? '').startsWith('W_X') ? 1 : 2;
+
   Future<void> _saveAccount() async {
     final prefs = await SharedPreferences.getInstance();
     if (_uin == null) {
       await prefs.remove(_prefsKey);
     } else {
-      await prefs.setString(_prefsKey, jsonEncode({'uin': _uin, 'key': _key, 'euin': _euin, 'nickname': _user?.nickname, 'avatar': _user?.avatar, 'vip': _user?.vip}));
+      await prefs.setString(
+        _prefsKey,
+        jsonEncode({
+          'uin': _uin,
+          'key': _key,
+          'euin': _euin,
+          'cred': _cred,
+          'loginType': _loginType,
+          'nickname': _user?.nickname,
+          'avatar': _user?.avatar,
+          'vip': _user?.vip,
+        }),
+      );
     }
   }
 
-  String get _cookie => _uin == null ? '' : 'uin=$_uin; qqmusic_key=$_key; qm_keyst=$_key; login_type=1';
+  String get _cookie => _uin == null ? '' : 'uin=$_uin; qqmusic_uin=$_uin; qqmusic_key=$_key; qm_keyst=$_key; tmeLoginType=$_loginType';
+
+  /// musickey 的过期时间（登录返回创建时间与有效期）；旧版本保存的账号没有这些信息时为 null。
+  DateTime? get _keyExpiry {
+    final created = int.tryParse('${_cred['musickeyCreateTime'] ?? ''}') ?? 0;
+    final ttl = int.tryParse('${_cred['keyExpiresIn'] ?? ''}') ?? 0;
+    if (created <= 0 || ttl <= 0) return null;
+    return DateTime.fromMillisecondsSinceEpoch((created + ttl) * 1000);
+  }
+
+  /// 不到一天就过期，或者不知道什么时候过期（旧版本登录的账号）。
+  bool get _keyExpiresSoon {
+    final expiry = _keyExpiry;
+    return expiry == null || expiry.difference(DateTime.now()) < const Duration(days: 1);
+  }
+
+  /// 正在进行的续期（同时只续期一次）。
+  Future<bool>? _refreshing;
+  DateTime _lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// 用 refresh_key / refresh_token 续期 musickey，成功返回 true。
+  Future<bool> _refreshCredential() {
+    if (_uin == null || _key == null) return Future.value(false);
+    // 失败后 10 分钟内不再重试，避免每次播放都请求一次。
+    if (_refreshing == null && DateTime.now().difference(_lastRefresh) < const Duration(minutes: 10)) return Future.value(false);
+    return _refreshing ??= () async {
+      _lastRefresh = DateTime.now();
+      final uin = _uin;
+      try {
+        final d = await _android('music.login.LoginServer', 'Login', {
+          'openid': '${_cred['openid'] ?? ''}',
+          'access_token': '${_cred['access_token'] ?? ''}',
+          'refresh_token': '${_cred['refresh_token'] ?? ''}',
+          'expired_in': int.tryParse('${_cred['expired_at'] ?? 0}') ?? 0,
+          'musicid': int.tryParse(_uin ?? '') ?? 0,
+          'str_musicid': _uin ?? '',
+          'musickey': _key ?? '',
+          'unionid': '${_cred['unionid'] ?? ''}',
+          'refresh_key': '${_cred['refresh_key'] ?? ''}',
+          'loginMode': 2,
+        });
+        final key = '${d['musickey'] ?? ''}';
+        if (key.isEmpty || _uin != uin) return false;
+        _key = key;
+        _cred = {..._cred, ...d};
+        _loginType = (d['loginType'] as num?)?.toInt() ?? _loginType;
+        _euin = '${d['encryptUin'] ?? ''}'.ifEmpty(_euin);
+        await _saveAccount();
+        return true;
+      } catch (e) {
+        debugPrint('qq credential refresh: $e');
+        return false;
+      } finally {
+        _refreshing = null;
+      }
+    }();
+  }
+
+  /// QQ 音乐安卓客户端的请求方式：凭据放在 comm 中（qq / authst / tmeLoginType），不带 Cookie。
+  Future<Map<String, dynamic>> _android(String module, String method, Map<String, dynamic> param) async {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final res = await _dio.post<String>(
+      _api,
+      data: jsonEncode({
+        'comm': {
+          'ct': '11',
+          'cv': '20090008',
+          'v': '20090008',
+          'chid': '10003505',
+          'tmeAppID': 'qqmusic',
+          'format': 'json',
+          'OpenUDID': _guid,
+          'udid': _guid,
+          'traceid': '10002_${_uin ?? _guid}_$now',
+          if (_key != null) ...{'qq': _uin, 'authst': _key, 'tmeLoginType': '$_loginType'},
+        },
+        'req_0': {'module': module, 'method': method, 'param': param},
+      }),
+      options: Options(headers: {'User-Agent': 'QQMusic 20090008(android 14)'}),
+    );
+    final r = (jsonDecode(res.data ?? '{}') as Map)['req_0'] as Map? ?? const {};
+    final code = (r['code'] as num?)?.toInt() ?? -1;
+    if (code != 0) throw QQApiException(code);
+    return (r['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+  }
 
   /// musicu.fcg 统一接口：一次请求可以带多个模块调用（[reqs] 的键为调用名）。
   Future<Map<String, dynamic>> _call(Map<String, Map<String, dynamic>> reqs) async {
@@ -116,7 +235,7 @@ class QQMusicSource extends MusicSource {
         'ct': '19',
         'cv': '1859',
         'uin': _uin ?? '0',
-        if (_key != null) ...{'authst': _key, 'qq': _uin, 'tmeLoginType': '2'},
+        if (_key != null) ...{'authst': _key, 'qq': _uin, 'tmeLoginType': '$_loginType'},
         'format': 'json',
       },
       ...reqs,
@@ -135,8 +254,16 @@ class QQMusicSource extends MusicSource {
     });
     final r = j['req'] as Map<String, dynamic>? ?? const {};
     final code = (r['code'] as num?)?.toInt() ?? -1;
-    if (code != 0) throw QQApiException(code);
-    return (r['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+    if (code == 0) return (r['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+    // 已登录时电脑客户端方式被拒绝（凭据不被认可等）：改用安卓客户端方式再请求一次。
+    if (_key != null) {
+      try {
+        return await _android(module, method, param);
+      } catch (e) {
+        debugPrint('qq $module.$method (android): $e');
+      }
+    }
+    throw QQApiException(code);
   }
 
   static String _https(String? url) => (url ?? '').replaceFirst('http://', 'https://');
@@ -154,22 +281,60 @@ class QQMusicSource extends MusicSource {
     final albumMid = '${album['mid'] ?? j['albummid'] ?? ''}';
     final albumName = '${album['name'] ?? album['title'] ?? j['albumname'] ?? ''}';
     final singers = (j['singer'] as List? ?? const []).cast<Map>();
-    final pay = j['pay'] as Map? ?? const {};
     // 评论接口需要数字 id，一并编码在歌曲 id 中：“songmid:media_mid:数字 id”。
     final numeric = '${j['id'] ?? j['songid'] ?? ''}';
+    // 没有专辑的单曲用第一位歌手的照片作封面。
+    final singerMid = '${singers.firstOrNull?['mid'] ?? ''}';
+    final cover = _albumCover(albumMid) ?? (singerMid.isEmpty ? null : 'https://y.gtimg.cn/music/photo_new/T001R500x500M000$singerMid.jpg');
     return Song(
       id: numeric.isEmpty || numeric == '0' ? '$mid:$media' : '$mid:$media:$numeric',
       sourceId: sourceId,
       name: '${j['name'] ?? j['title'] ?? j['songname'] ?? ''}',
       artists: [for (final s in singers) ArtistRef('${s['mid'] ?? s['id'] ?? ''}', '${s['name'] ?? s['title'] ?? ''}')],
-      album: AlbumRef(albumMid, albumName, cover: _albumCover(albumMid)),
+      album: AlbumRef(albumMid, albumName, cover: cover),
       duration: Duration(seconds: (j['interval'] as num?)?.toInt() ?? 0),
-      cover: _albumCover(albumMid),
-      // 付费歌曲（数字专辑等）未购买时无法播放，但仍可换源播放，所以不标记为不可播放。
+      cover: cover,
+      // 付费歌曲（数字专辑等）未购买时只能试听，仍然可以点播。
       playable: true,
-      // 绿钻歌曲（pay_month）与付费数字专辑（pay_play）标记为 VIP。
-      vip: (pay['pay_month'] as num?)?.toInt() == 1 || (pay['pay_play'] as num?)?.toInt() == 1,
+      fee: qqFee(j),
+      maxQuality: _qqMaxQuality(j),
     );
+  }
+
+  /// QQ 音乐的付费规则（新版字段 pay.pay_month / pay_play / price_*，旧版字段 payplay / paytrackmouth / payalbumprice）：
+  /// - 绿钻歌曲（pay_month 为 1）：绿钻会员可以完整播放；
+  /// - 其余需要付费播放的（pay_play 为 1，或单曲 / 专辑有售价）：数字专辑与付费单曲，需要单独购买，绿钻也只能试听。
+  @visibleForTesting
+  static SongFee qqFee(Map j) {
+    final pay = j['pay'] as Map? ?? const {};
+    int v(List<String> keys) {
+      for (final k in keys) {
+        final x = int.tryParse('${pay[k] ?? j[k] ?? ''}');
+        if (x != null) return x;
+      }
+      return 0;
+    }
+
+    if (v(const ['pay_month', 'paytrackmouth', 'paymonth']) == 1) return SongFee.vip;
+    if (v(const ['pay_play', 'payplay']) == 1 || v(const ['price_track', 'paytrackprice']) > 0 || v(const ['price_album', 'payalbumprice']) > 0) return SongFee.paid;
+    return SongFee.free;
+  }
+
+  /// 按文件大小判断最高音质（新版 file.size_*，旧版 size*）。
+  static AudioQuality? _qqMaxQuality(Map j) {
+    final file = j['file'] as Map? ?? const {};
+    int size(List<String> keys) {
+      for (final k in keys) {
+        final x = int.tryParse('${file[k] ?? j[k] ?? ''}') ?? 0;
+        if (x > 0) return x;
+      }
+      return 0;
+    }
+
+    if (size(const ['size_hires', 'sizehires']) > 0) return AudioQuality.hires;
+    if (size(const ['size_flac', 'sizeflac', 'size_ape', 'sizeape']) > 0) return AudioQuality.lossless;
+    if (size(const ['size_320mp3', 'size320', 'size_320']) > 0) return AudioQuality.exhigh;
+    return null;
   }
 
   ({String mid, String media, String numeric}) _ids(Song s) {
@@ -589,6 +754,8 @@ class QQMusicSource extends MusicSource {
       total: (list['Total'] as num?)?.toInt() ?? comments.length,
       comments: comments,
       hasMore: list['HasMore'] == 1 || list['HasMore'] == true,
+      // 只有语音、图片的评论被跳过：按页码翻页，不能按显示的条数（否则会重复请求同一页）。
+      next: (offset ~/ size + 1) * size,
     );
   }
 
@@ -734,11 +901,29 @@ class QQMusicSource extends MusicSource {
 
   @override
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
-    // 未登录也向 QQ 音乐请求地址：免费歌曲给出完整文件；其余只有 60 秒的官方试听片段（RS02），标记为试听。
-    final info = await _vkey(song, quality);
+    // 未登录也向 QQ 音乐请求地址：QQ 音乐现在只给未登录用户 60 秒的官方试听片段（RS02），标记为试听。
+    var info = await _vkey(song, quality);
+    // 已登录却只拿到试听：多半是 musickey 过期了，续期后再取一次。
+    if (_uin != null && (info == null || info.trial) && await _refreshCredential()) {
+      info = await _vkey(song, quality) ?? info;
+    }
     if (info != null) return info;
-    throw Exception(_uin == null ? '这首歌需要登录 QQ 音乐后播放' : '这首歌需要 QQ 音乐会员或单独购买');
+    throw Exception(
+      _uin == null
+          ? '这首歌需要登录 QQ 音乐后播放'
+          : song.fee == SongFee.paid
+          ? '这首歌是付费歌曲（数字专辑或单曲购买），需要在 QQ 音乐购买后播放'
+          : '没有取到这首歌的播放地址：可能需要 QQ 音乐绿钻，或者登录已过期（请在“我的”中重新扫码登录 QQ 音乐）',
+    );
   }
+
+  /// 取地址的三种客户端请求方式。已登录时依次尝试，记住第一种给出完整文件的方式，之后先用它。
+  ///
+  /// QQ 音乐按客户端类型校验登录凭据：安卓客户端只认 comm 中的 authst，电脑客户端与网页只认 Cookie 中的
+  /// qqmusic_key（并校验 g_tk）。此前所有请求都用电脑客户端的 ct 搭配 comm 中的凭据，会员账号在部分情况下
+  /// 不被认可，只能拿到试听片段或者完全取不到地址。
+  static const _vkeyStyles = ['android', 'desktop', 'web'];
+  String _vkeyStyle = 'android';
 
   /// 按音质从高到低一次请求多个文件名，取第一个有地址的；都没有时退回官方试听片段。
   Future<StreamInfo?> _vkey(Song song, AudioQuality quality) async {
@@ -748,24 +933,148 @@ class QQMusicSource extends MusicSource {
         if (f.$1.index <= quality.index || f.$1 == AudioQuality.standard) f,
     ];
     final names = [for (final f in wanted) '${f.$2}${ids.media}.${f.$3}', 'RS02${ids.media}.mp3'];
-    final guid = '${math.Random().nextInt(1 << 31)}';
-    final d = await _one('vkey.GetVkeyServer', 'CgiGetVkey', {
-      'guid': guid,
-      'songmid': [for (final _ in names) ids.mid],
-      'songtype': [for (final _ in names) 0],
-      'filename': names,
-      'uin': _uin ?? '0',
-      'loginflag': 1,
-      'platform': '20',
-    });
+    final styles = _uin == null ? const ['android', 'web'] : [_vkeyStyle, ..._vkeyStyles.where((s) => s != _vkeyStyle)];
+    StreamInfo? trial;
+    Object? lastError;
+    for (final style in styles) {
+      try {
+        final d = await _vkeyRequest(style, ids.mid, names);
+        final infos = (d['midurlinfo'] as List? ?? const []).cast<Map>();
+        Future<String?> url(int i) async {
+          final purl = '${infos[i]['purl'] ?? ''}';
+          if (purl.isEmpty) return null;
+          return purl.startsWith('http') ? purl : _reachable(purl, d);
+        }
+
+        for (var i = 0; i < infos.length && i < wanted.length; i++) {
+          final u = await url(i);
+          if (u == null) continue;
+          _vkeyStyle = style;
+          return StreamInfo(url: u, quality: wanted[i].$1);
+        }
+        if (trial == null && infos.length > wanted.length) {
+          final u = await url(wanted.length);
+          if (u != null) trial = StreamInfo(url: u, quality: AudioQuality.standard, trial: true);
+        }
+      } catch (e) {
+        lastError = e;
+        debugPrint('qq vkey ($style): $e');
+      }
+      // 未登录时任何方式都只有试听片段，拿到就不再尝试。
+      if (_uin == null && trial != null) break;
+    }
+    if (trial == null && lastError != null) throw lastError;
+    return trial;
+  }
+
+  Future<Map<String, dynamic>> _vkeyRequest(String style, String mid, List<String> names) async {
+    final guid = _guid.isEmpty ? '${math.Random().nextInt(1 << 31)}' : _guid;
+    if (style == 'android') {
+      final d = await _android('music.vkey.GetVkey', 'UrlGetVkey', {
+        'uin': _uin ?? '0',
+        'filename': names,
+        'guid': guid,
+        'songmid': [for (final _ in names) mid],
+        'songtype': [for (final _ in names) 0],
+        'ctx': 0,
+      });
+      // 安卓客户端的结果不带服务器地址：从 CDN 分发接口取。
+      if ((d['sip'] as List? ?? const []).isEmpty) return {...d, 'sip': await _dispatch()};
+      return d;
+    }
+    final gtk = _key == null ? 5381 : _hash33(_key!, 5381);
+    final comm = style == 'desktop'
+        ? {'ct': '19', 'cv': '2201', 'chid': '0', 'uin': _uin ?? '0', 'g_tk': '$gtk', 'guid': guid.toUpperCase(), 'format': 'json'}
+        : {
+            'ct': '24',
+            'cv': '4747474',
+            'platform': 'yqq.json',
+            'chid': '0',
+            'uin': _uin ?? '0',
+            'g_tk': '$gtk',
+            'g_tk_new_20200303': '$gtk',
+            'format': 'json',
+            'inCharset': 'utf-8',
+            'outCharset': 'utf-8',
+            'notice': '0',
+            'need_new_code': '1',
+          };
+    final res = await _dio.post<String>(
+      _api,
+      data: jsonEncode({
+        'comm': comm,
+        'req_0': {
+          'module': 'vkey.GetVkeyServer',
+          'method': 'CgiGetVkey',
+          'param': {
+            'guid': guid,
+            'songmid': [for (final _ in names) mid],
+            'songtype': [for (final _ in names) 0],
+            'filename': names,
+            'uin': _uin ?? '0',
+            'loginflag': 1,
+            'platform': '20',
+          },
+        },
+      }),
+      options: Options(headers: {if (_uin != null) 'Cookie': _cookie}),
+    );
+    final r = (jsonDecode(res.data ?? '{}') as Map)['req_0'] as Map? ?? const {};
+    final code = (r['code'] as num?)?.toInt() ?? -1;
+    if (code != 0) throw QQApiException(code);
+    return (r['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+  }
+
+  /// 播放服务器地址（CDN 分发接口给出，保留 30 分钟）。
+  List<String>? _sipCache;
+  DateTime _sipAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  Future<List<String>> _dispatch() async {
+    if (_sipCache != null && DateTime.now().difference(_sipAt) < const Duration(minutes: 30)) return _sipCache!;
+    final d = await _android('music.audioCdnDispatch.cdnDispatch', 'GetCdnDispatch', {'guid': _guid, 'uid': '0', 'use_new_domain': 1, 'use_ipv6': 1});
     final sips = [for (final s in (d['sip'] as List? ?? const [])) '$s'];
-    final sip = sips.firstWhere((s) => s.startsWith('https'), orElse: () => sips.firstOrNull ?? 'https://isure.stream.qqmusic.qq.com/');
-    final infos = (d['midurlinfo'] as List? ?? const []).cast<Map>();
-    for (var i = 0; i < infos.length && i < names.length; i++) {
-      final purl = '${infos[i]['purl'] ?? ''}';
-      if (purl.isEmpty) continue;
-      if (i < wanted.length) return StreamInfo(url: '$sip$purl', quality: wanted[i].$1);
-      return StreamInfo(url: '$sip$purl', quality: AudioQuality.standard, trial: true);
+    if (sips.isNotEmpty) {
+      _sipCache = sips;
+      _sipAt = DateTime.now();
+    }
+    return sips;
+  }
+
+  /// 上次验证可用的播放服务器（先试它）。
+  String? _goodSip;
+
+  /// 选一个真正能下载这个文件的服务器。
+  ///
+  /// 不同客户端方式给出的播放凭证只在部分服务器上有效：安卓客户端的新版凭证在 aqqmusic、isure、ws 上返回 403，
+  /// 只有 sjy6 等新域名可以下载；此前直接使用列表中的第一个服务器，地址打不开，播放没有声音。
+  /// 这里按顺序（上次可用的、https、其余）各请求 2 个字节，取第一个返回 200 / 206 的。
+  Future<String?> _reachable(String purl, Map d) async {
+    final listed = [for (final s in (d['sip'] as List? ?? const [])) '$s', ...?_sipCache, 'https://sjy6.stream.qqmusic.qq.com/', 'https://isure.stream.qqmusic.qq.com/'];
+    final hosts = <String>{
+      ?_goodSip,
+      ...listed.where((s) => s.startsWith('https://')),
+      ...listed.map((s) => s.replaceFirst('http://', 'https://')),
+      ...listed,
+    }.where((s) => s.startsWith('http')).toList();
+    for (final host in hosts.take(8)) {
+      try {
+        final res = await _dio.get<List<int>>(
+          '$host$purl',
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: {'Range': 'bytes=0-1'},
+            validateStatus: (_) => true,
+            receiveTimeout: const Duration(seconds: 4),
+            sendTimeout: const Duration(seconds: 4),
+          ),
+        );
+        if (res.statusCode == 200 || res.statusCode == 206) {
+          _goodSip = host;
+          return '$host$purl';
+        }
+      } catch (e) {
+        debugPrint('qq sip $host: $e');
+      }
     }
     return null;
   }
@@ -1103,6 +1412,10 @@ class QQMusicSource extends MusicSource {
     if (uin.isEmpty || key.isEmpty) throw Exception('登录 QQ 音乐失败（${(j['req'] as Map?)?['code'] ?? j['code']}）');
     _uin = uin;
     _key = key;
+    // 续期需要的 refresh_key、refresh_token 与过期时间一并保存。
+    _cred = Map<String, dynamic>.from(data);
+    _loginType = (data['loginType'] as num?)?.toInt() ?? _inferLoginType(key);
+    _lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
     // 加密的 uin：收藏歌单、收藏专辑、关注歌手、我喜欢等接口按它查询。
     _euin = '${data['encryptUin'] ?? ''}'.ifEmpty(null);
     _loginCookies.clear();
@@ -1145,6 +1458,7 @@ class QQMusicSource extends MusicSource {
     cancelQrLogin();
     _uin = null;
     _key = null;
+    _cred = const {};
     _user = null;
     await _saveAccount();
     notifyListeners();
@@ -1153,6 +1467,7 @@ class QQMusicSource extends MusicSource {
   @override
   Future<Membership?> membership() async {
     if (_uin == null) return null;
+    if (_keyExpiresSoon) await _refreshCredential();
     // 会员详情（豪华绿钻 / 绿钻、等级与到期日），取不到时用下面的旧接口。
     try {
       final d = await _one('VipLogin.VipLoginInter', 'vip_login_base', {});

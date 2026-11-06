@@ -83,12 +83,30 @@ class CoverImage extends StatelessWidget {
   }
 }
 
+/// 没有封面（或封面加载失败）时的占位图：柔和的渐变底色上一个音符图标，而不是一块空白。
 class _Placeholder extends StatelessWidget {
   const _Placeholder();
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(color: Palette.of(context).skeleton, child: const SizedBox.expand());
+    final p = Palette.of(context);
+    return LayoutBuilder(
+      builder: (context, c) {
+        final side = c.biggest.shortestSide.isFinite ? c.biggest.shortestSide : 48.0;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [p.skeleton, Color.alphaBlend(p.accentText.withValues(alpha: 0.10), p.skeleton)],
+            ),
+          ),
+          child: SizedBox.expand(
+            child: side < 18 ? null : Center(child: YIcon(YIcons.note, size: (side * 0.38).clamp(10, 96).toDouble(), color: p.text2.withValues(alpha: 0.55))),
+          ),
+        );
+      },
+    );
   }
 }
 

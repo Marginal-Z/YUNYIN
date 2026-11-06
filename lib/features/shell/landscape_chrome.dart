@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
-import '../../core/ui/cover.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
@@ -14,6 +13,7 @@ import '../common/layout.dart';
 import '../player/player_page.dart';
 import 'nav.dart';
 import 'tab_bar.dart';
+import '../common/song_cover.dart';
 
 /// 横屏极简布局的左侧竖向导航：首页、发现、乐库与搜索。
 class LandscapeNavRail extends StatelessWidget {
@@ -113,7 +113,7 @@ class LandscapePlayerBar extends StatelessWidget {
               scale: 1,
               child: Row(
                 children: [
-                  Cover(song?.coverUrl, size: 48, radius: 12),
+                  SongCover(song, size: 48, radius: 12),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(

@@ -218,6 +218,19 @@ class StateView extends StatelessWidget {
     onAction: onRetry,
   );
 
+  /// 加载失败：网络问题显示“网络开小差了”；平台拒绝、需要登录等其他原因直接显示原因，不误报成网络问题。
+  factory StateView.failure(Object? error, {VoidCallback? onRetry}) => isNetworkError(error)
+      ? StateView.network(onRetry: onRetry, message: errorText(error))
+      : StateView(
+          icon: YIcons.info,
+          tile: TileColor.red,
+          title: '没有加载出来',
+          message: errorText(error),
+          action: '重新加载',
+          actionIcon: YIcons.refresh,
+          onAction: onRetry,
+        );
+
   factory StateView.empty({
     required String title,
     required String message,
@@ -404,12 +417,12 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
     } else if (_error != null) {
       child = Center(
         key: const ValueKey('error'),
-        child: StateView.network(
+        child: StateView.failure(
+          _error,
           onRetry: () {
             setState(() => _error = null);
             _fetch();
           },
-          message: errorText(_error),
         ),
       );
     } else {
@@ -429,10 +442,20 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
   }
 }
 
-String errorText(Object? e) {
+/// 是否是网络连接问题（断网、超时、连不上服务器）。
+bool isNetworkError(Object? e) {
   final s = e.toString();
-  if (s.contains('SocketException') || s.contains('connection') || s.contains('XMLHttpRequest')) {
-    return '请检查网络连接后重试，已下载的歌曲仍可播放。';
-  }
-  return s.replaceFirst('Exception: ', '');
+  return s.contains('SocketException') ||
+      s.contains('connection') ||
+      s.contains('XMLHttpRequest') ||
+      s.contains('connectionTimeout') ||
+      s.contains('receiveTimeout') ||
+      s.contains('sendTimeout') ||
+      s.contains('TimeoutException') ||
+      s.contains('HandshakeException');
+}
+
+String errorText(Object? e) {
+  if (isNetworkError(e)) return '请检查网络连接后重试，已下载的歌曲仍可播放。';
+  return e.toString().replaceFirst('Exception: ', '');
 }

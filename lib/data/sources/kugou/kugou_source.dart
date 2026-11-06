@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:pointycastle/export.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/text_decode.dart';
@@ -13,7 +15,8 @@ import '../netease/netease_source.dart' show parseLrc;
 
 /// 酷狗音乐播放源：搜索、热搜、排行榜、歌单、专辑、歌手、评论、封面与歌词来自酷狗公开接口。
 ///
-/// 酷狗的播放地址接口要求设备验证与会员；取不到地址时给出酷狗返回的原因。
+/// 播放与账号按酷狗安卓客户端的方式请求：本机先向酷狗注册一次设备（得到 dfid），之后取播放地址不再触发人机验证；
+/// 账号用酷狗 App 扫码登录，得到客户端的登录凭据，歌单、收藏与会员接口都认可它。
 class KugouSource extends MusicSource {
   KugouSource({Dio? dio})
     : _dio =
@@ -23,7 +26,14 @@ class KugouSource extends MusicSource {
   static const _api = 'https://mobiles.kugou.com/api/v3';
 
   final Dio _dio;
+
+  /// 网页接口使用的设备标识（kg_mid）。
   String _deviceId = md5.convert(utf8.encode('${DateTime.now().microsecondsSinceEpoch}-${math.Random.secure().nextDouble()}')).toString();
+
+  /// 客户端接口的设备：guid 随机生成并保存，mid 由 guid 计算（与酷狗客户端相同），dfid 向酷狗注册设备后得到。
+  String _guid = '';
+  String get _mid => _guid.isEmpty ? _deviceId : BigInt.parse(md5.convert(utf8.encode(_guid)).toString(), radix: 16).toString();
+  String? _dfid;
 
   @override
   String get id => sourceId;
@@ -32,7 +42,7 @@ class KugouSource extends MusicSource {
   String get name => '酷狗音乐';
 
   @override
-  String get description => '酷狗的搜索、排行榜与歌词';
+  String get description => '酷狗的搜索、排行榜、歌单与账号，酷狗 App 扫码登录后按账号权限播放';
 
   @override
   Set<SourceFeature> get features => {
@@ -47,18 +57,22 @@ class KugouSource extends MusicSource {
     SourceFeature.album,
     SourceFeature.comments,
     SourceFeature.login,
+    SourceFeature.qrLogin,
     SourceFeature.cookieLogin,
     if (_account != null) SourceFeature.userPlaylists,
   };
 
   // ── 账号 ──────────────────────────────────────────
   //
-  // 酷狗的登录接口需要客户端签名，云音不模拟这些请求：在酷狗官方登录页（应用内网页）登录，
-  // 或从浏览器复制登录后的 Cookie。登录信息保存在 KuGoo Cookie 中（KugooID、t、NickName、Pic）。
+  // 推荐用酷狗 App 扫码登录：得到的是客户端的登录凭据（token + userid），账号接口与播放接口都认可。
+  // 兼容早先的网页登录 / 粘贴 Cookie（KuGoo Cookie 中的 KugooID、t、NickName、Pic），这种凭据只有网页接口认可。
 
   static const _prefsKey = 'kugou.account';
   Map<String, String>? _account;
   UserProfile? _user;
+
+  /// 扫码登录得到的客户端凭据（网页登录的凭据为 false）。
+  bool get _appAccount => _account?['_app'] == '1';
 
   @override
   UserProfile? get user => _user;
@@ -69,6 +83,12 @@ class KugouSource extends MusicSource {
       final prefs = await SharedPreferences.getInstance();
       _deviceId = prefs.getString('kugou.deviceId') ?? _deviceId;
       await prefs.setString('kugou.deviceId', _deviceId);
+      _guid = prefs.getString('kugou.guid') ?? '';
+      if (_guid.isEmpty) {
+        _guid = md5.convert(utf8.encode('${DateTime.now().microsecondsSinceEpoch}-${math.Random.secure().nextDouble()}-guid')).toString();
+        await prefs.setString('kugou.guid', _guid);
+      }
+      _dfid = prefs.getString('kugou.dfid');
       final raw = prefs.getString(_prefsKey);
       if (raw != null) _setAccount(Map<String, String>.from(jsonDecode(raw) as Map));
     } catch (e) {
@@ -90,6 +110,15 @@ class KugouSource extends MusicSource {
             nickname: (a['NickName'] ?? '').isEmpty ? '酷狗用户 ${a['KugooID']}' : a['NickName']!,
             avatar: (a['Pic'] ?? '').replaceFirst('http://', 'https://').ifEmpty(null),
           );
+  }
+
+  Future<void> _saveAccount() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_account == null) {
+      await prefs.remove(_prefsKey);
+    } else {
+      await prefs.setString(_prefsKey, jsonEncode(_account));
+    }
   }
 
   /// 解析 Cookie：可以是整段 Cookie 头，也可以只是 KuGoo 的值。值中的中文使用 %uXXXX 编码。
@@ -135,25 +164,165 @@ class KugouSource extends MusicSource {
     final a = parseKugooCookie(cookie);
     if (a == null) throw Exception('没有找到酷狗的登录信息（需要包含 KuGoo 的 Cookie）');
     _setAccount(a);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, jsonEncode(a));
+    await _saveAccount();
     notifyListeners();
   }
 
   @override
   Future<void> logout() async {
+    cancelQrLogin();
     _setAccount(null);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKey);
+    await _saveAccount();
     notifyListeners();
   }
 
-  // ── 账号数据 ──────────────────────────────────────
-  // 歌单、关注与会员信息来自酷狗客户端的账号接口，用登录得到的 token 查询本人的数据。
+  // ── 扫码登录（酷狗 App 扫码） ─────────────────────────────
 
+  int _qrGeneration = 0;
+
+  @override
+  Future<QrTicket> createQrLogin() async {
+    cancelQrLogin();
+    final generation = _qrGeneration;
+    final j = await _web('https://login-user.kugou.com/v2/qrcode', {
+      'appid': '1001',
+      'type': '1',
+      'plat': '4',
+      'qrcode_txt': 'https://h5.kugou.com/apps/loginQRCode/html/index.html?appid=$_appId&',
+      'srcappid': '2919',
+    });
+    if (generation != _qrGeneration) throw StateError('扫码登录已取消，请重新扫码');
+    final key = '${(j['data'] as Map?)?['qrcode'] ?? ''}';
+    if ('${j['status']}' != '1' || key.isEmpty) throw Exception('获取酷狗登录二维码失败${_why(j)}');
+    return QrTicket(key, 'https://h5.kugou.com/apps/loginQRCode/html/index.html?qrcode=$key', app: '酷狗音乐 App');
+  }
+
+  @override
+  void cancelQrLogin() => _qrGeneration++;
+
+  @override
+  Future<QrState> checkQrLogin(QrTicket ticket) async {
+    final generation = _qrGeneration;
+    final j = await _web('https://login-user.kugou.com/v2/get_userinfo_qrcode', {'plat': '4', 'appid': '$_appId', 'srcappid': '2919', 'qrcode': ticket.key});
+    if (generation != _qrGeneration) throw StateError('扫码登录已取消，请重新扫码');
+    if ('${j['status']}' != '1') throw Exception('查询扫码状态失败${_why(j)}');
+    final d = j['data'] as Map? ?? const {};
+    switch ('${d['status']}') {
+      case '0':
+        return QrState.expired;
+      case '1':
+        return QrState.waiting;
+      case '2':
+        return QrState.scanned;
+      case '4':
+        final token = '${d['token'] ?? ''}';
+        final userid = '${d['userid'] ?? ''}';
+        if (token.isEmpty || userid.isEmpty || userid == '0') throw Exception('酷狗没有返回登录凭据，请重新扫码');
+        _setAccount({'KugooID': userid, 't': token, 'NickName': '${d['nickname'] ?? ''}', 'Pic': '${d['pic'] ?? ''}', '_app': '1'});
+        await _saveAccount();
+        // 新账号在本机重新注册一次设备，按账号身份校验。
+        unawaited(_registerDevice(force: true).catchError((Object _) => '-'));
+        notifyListeners();
+        return QrState.confirmed;
+      default:
+        throw Exception('酷狗扫码登录失败（状态 ${d['status']}）');
+    }
+  }
+
+  static String _why(Map j) {
+    final code = j['error_code'] ?? j['errcode'] ?? j['err_code'];
+    final msg = '${j['error_msg'] ?? j['error'] ?? j['msg'] ?? ''}'.trim();
+    final parts = [if (code != null && '$code' != '0') '错误码 $code', if (msg.isNotEmpty) msg];
+    return parts.isEmpty ? '' : '（${parts.join('，')}）';
+  }
+
+  // ── 客户端接口 ──────────────────────────────────────
+  // 酷狗安卓客户端的请求方式：带设备标识（dfid / mid / uuid）、客户端版本与签名，登录后带 token 与 userid。
+
+  static const _appId = 1005;
+  static const _clientVer = 20489;
   static const _appKey = 'OIlwieks28dk2k092lksi2UIkp';
+  static const _webKey = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt';
+  static const _appUa = 'Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi';
 
-  /// 账号接口用来加密 token 的 RSA 公钥模数（酷狗客户端内置）。
+  static String _sign(String key, Map<String, String> params, [String body = '']) {
+    final keys = params.keys.toList()..sort();
+    return md5.convert(utf8.encode('$key${keys.map((k) => '$k=${params[k]}').join()}$body$key')).toString();
+  }
+
+  /// 登录接口（网页签名）。
+  Future<Map<String, dynamic>> _web(String url, Map<String, String> query) async {
+    final params = <String, String>{
+      'dfid': _dfid ?? '-',
+      'mid': _mid,
+      'uuid': '-',
+      'clientver': '$_clientVer',
+      'clienttime': '${DateTime.now().millisecondsSinceEpoch ~/ 1000}',
+      ...query,
+    };
+    params['signature'] = _sign(_webKey, params);
+    final res = await _dio.get<String>(url, queryParameters: params, options: Options(validateStatus: (_) => true, headers: {'User-Agent': _appUa}));
+    return jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+  }
+
+  /// 客户端接口，返回完整的 JSON（不检查 status）。[withToken] 为 false 时不带账号（按游客请求）。
+  Future<Map<String, dynamic>> _app(
+    String path, {
+    String base = 'https://gateway.kugou.com',
+    Map<String, Object?> query = const {},
+    Object? body,
+    String? router,
+    String method = 'GET',
+    bool withToken = true,
+  }) async {
+    final a = withToken && _appAccount ? _account : null;
+    final dfid = await _deviceDfid();
+    final params = <String, String>{
+      'dfid': dfid,
+      'mid': _mid,
+      'uuid': '-',
+      'appid': '$_appId',
+      'clientver': '$_clientVer',
+      'clienttime': '${DateTime.now().millisecondsSinceEpoch ~/ 1000}',
+      if (a != null) ...{'token': a['t'] ?? '', 'userid': a['KugooID'] ?? '0'},
+      for (final e in query.entries) e.key: '${e.value}',
+    };
+    final data = body == null ? '' : (body is String ? body : jsonEncode(body));
+    params['signature'] = _sign(_appKey, params, data);
+    final res = await _dio.request<String>(
+      '$base$path',
+      queryParameters: params,
+      data: body == null ? null : data,
+      options: Options(
+        method: body == null ? method : 'POST',
+        // 401 / 403 等也读出酷狗返回的原因。
+        validateStatus: (_) => true,
+        headers: {
+          'User-Agent': _appUa,
+          'dfid': dfid,
+          'mid': _mid,
+          'clienttime': params['clienttime'],
+          'kg-rc': '1',
+          'kg-thash': '5d816a0',
+          'kg-rec': '1',
+          'kg-rf': 'B9EDA08A64250DEFFBCADDEE00F8F25F',
+          'x-router': ?router,
+          if (body != null) 'Content-Type': 'application/json',
+        },
+      ),
+    );
+    try {
+      return jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    } catch (_) {
+      throw _KugouRefusal('HTTP ${res.statusCode}', '');
+    }
+  }
+
+  // ── 设备注册 ──────────────────────────────────────
+  // 未注册的设备取播放地址会被要求验证（20028 / 30020）。注册接口的请求体用随机密钥做 AES 加密，
+  // 密钥用酷狗客户端内置的 RSA 公钥加密后放在 p 参数中；返回的 dfid 保存在本机，之后一直使用。
+
+  /// 酷狗客户端内置的 RSA 公钥模数。
   static final _rsaModulus = BigInt.parse(
     'c8006ed03842d2628209bd314984ca5ed6cfe06e30c95f9d4704d9c49791d7a935ba950ecb0bc8ebf5f5994f0bac927a7eb151b3c1de343303fa539c83136ecc'
     'fd7d7e511e2dbce18eaa9f784c9b50d443e75865979e0a5e216e46c684066a8d6b998580bbaa22d73f5790286bb14742e83244e44db6d707ffe162c5c7002d45',
@@ -168,14 +337,133 @@ class KugouSource extends MusicSource {
     return m.modPow(BigInt.from(65537), _rsaModulus).toRadixString(16).padLeft(256, '0').toUpperCase();
   }
 
-  /// 账号接口先按网页版（与网页登录得到的 token 相同的 appid，网页签名）请求，不通过时再按客户端请求；
-  /// 记住能用的方式，下次先用它。
-  static const _webKey = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt';
+  /// RSA PKCS#1 v1.5 加密（设备注册的 p 参数）。
+  static String _rsaPkcs1(List<int> message) {
+    final r = math.Random.secure();
+    final em = <int>[0, 2, for (var i = 0; i < 128 - 3 - message.length; i++) 1 + r.nextInt(255), 0, ...message];
+    final m = em.fold(BigInt.zero, (v, b) => (v << 8) | BigInt.from(b));
+    return m.modPow(BigInt.from(65537), _rsaModulus).toRadixString(16).padLeft(256, '0');
+  }
+
+  /// 设备注册数据的 AES-128-CBC：密钥与 IV 分别是 md5(随机密钥) 的前后 16 个字符。
+  static Uint8List _aes(bool encrypt, Uint8List data, String key) {
+    final h = md5.convert(utf8.encode(key)).toString();
+    final cipher = PaddedBlockCipherImpl(PKCS7Padding(), CBCBlockCipher(AESEngine()))
+      ..init(
+        encrypt,
+        PaddedBlockCipherParameters<CipherParameters, CipherParameters?>(
+          ParametersWithIV<KeyParameter>(KeyParameter(Uint8List.fromList(utf8.encode(h.substring(0, 16)))), Uint8List.fromList(utf8.encode(h.substring(16, 32)))),
+          null,
+        ),
+      );
+    return cipher.process(data);
+  }
+
+  Future<String>? _registering;
+  DateTime _registerFailedAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// 本机注册得到的 dfid；还没有时先注册（失败时用“-”，10 分钟后再试）。
+  Future<String> _deviceDfid() async {
+    final dfid = _dfid;
+    if (dfid != null && dfid.isNotEmpty) return dfid;
+    if (DateTime.now().difference(_registerFailedAt) < const Duration(minutes: 10)) return '-';
+    return _registerDevice();
+  }
+
+  Future<String> _registerDevice({bool force = false}) {
+    if (force) {
+      _dfid = null;
+      _registerFailedAt = DateTime.fromMillisecondsSinceEpoch(0);
+    }
+    return _registering ??= () async {
+      try {
+        const letters = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        final r = math.Random.secure();
+        final key = String.fromCharCodes([for (var i = 0; i < 6; i++) letters.codeUnitAt(r.nextInt(letters.length))]);
+        final a = _appAccount ? _account : null;
+        final device = {
+          'availableRamSize': 4983533568,
+          'availableRomSize': 48114719,
+          'availableSDSize': 48114717,
+          'basebandVer': '',
+          'batteryLevel': 100,
+          'batteryStatus': 3,
+          'brand': 'Redmi',
+          'buildSerial': 'unknown',
+          'device': 'marble',
+          'imei': _guid,
+          'imsi': '',
+          'manufacturer': 'Xiaomi',
+          'uuid': _guid,
+          for (final sensor in const ['accelerometer', 'gravity', 'gyroscope', 'light', 'magnetic', 'orientation', 'pressure', 'step_counter', 'temperature']) ...{
+            sensor: false,
+            '${sensor}Value': '',
+          },
+        };
+        final body = base64.encode(_aes(true, Uint8List.fromList(utf8.encode(jsonEncode(device))), key));
+        final params = <String, String>{
+          'dfid': '-',
+          'mid': _mid,
+          'uuid': '-',
+          'appid': '$_appId',
+          'clientver': '$_clientVer',
+          'clienttime': '${DateTime.now().millisecondsSinceEpoch ~/ 1000}',
+          'part': '1',
+          'platid': '1',
+          'p': _rsaPkcs1(utf8.encode(jsonEncode({'aes': key, 'uid': int.tryParse(a?['KugooID'] ?? '') ?? 0, 'token': a?['t'] ?? ''}))),
+        };
+        params['signature'] = _sign(_appKey, params, body);
+        final res = await _dio.post<List<int>>(
+          'https://userservice.kugou.com/risk/v3/r_register_dev',
+          queryParameters: params,
+          data: body,
+          options: Options(
+            responseType: ResponseType.bytes,
+            validateStatus: (_) => true,
+            headers: {'User-Agent': _appUa, 'dfid': '-', 'mid': _mid, 'clienttime': params['clienttime'], 'Content-Type': 'text/plain'},
+          ),
+        );
+        final bytes = Uint8List.fromList(res.data ?? const []);
+        Map<String, dynamic> j;
+        try {
+          // 失败时返回明文 JSON（例如 rsa failure），成功时返回加密数据。
+          j = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+        } catch (_) {
+          j = jsonDecode(utf8.decode(_aes(false, bytes, key))) as Map<String, dynamic>;
+        }
+        final dfid = '${(j['data'] is Map ? j['data']['dfid'] : null) ?? ''}';
+        if ('${j['status']}' != '1' || dfid.isEmpty) throw _KugouRefusal('${j['error_code'] ?? ''}', '${j['data'] is String ? j['data'] : ''}');
+        _dfid = dfid;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('kugou.dfid', dfid);
+        return dfid;
+      } catch (e) {
+        debugPrint('kugou register device: $e');
+        _registerFailedAt = DateTime.now();
+        return '-';
+      } finally {
+        _registering = null;
+      }
+    }();
+  }
+
+  // ── 账号数据 ──────────────────────────────────────
+  // 歌单、关注与会员信息来自酷狗客户端的账号接口，用登录得到的 token 查询本人的数据。
+
+  /// 网页登录的账号：先按网页版（与网页登录得到的 token 相同的 appid，网页签名）请求，不通过时再按客户端请求；
+  /// 记住能用的方式，下次先用它。扫码登录的账号直接按客户端请求。
   bool _androidFirst = false;
 
   Future<Map<String, dynamic>> _account2(String path, {String base = 'https://gateway.kugou.com', Map<String, Object?> query = const {}, Object? body, String? router}) async {
     final a = _account;
     if (a == null) throw const SourceUnsupported('请先登录酷狗账号');
+    if (_appAccount) {
+      final j = await _app(path, base: base, query: query, body: body, router: router);
+      if ('${j['status']}' == '1') return (j['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+      final code = '${j['error_code'] ?? j['errcode'] ?? j['err_code'] ?? ''}';
+      // 20018 / 34175 / 51002 等：登录已失效。
+      throw Exception('酷狗账号接口没有返回数据${_why(j)}${const {'20018', '34175', '51002', '20017'}.contains(code) ? '，登录已失效，请重新扫码登录酷狗' : ''}');
+    }
     final failures = <String>[];
     for (final android in _androidFirst ? const [true, false] : const [false, true]) {
       try {
@@ -186,8 +474,7 @@ class KugouSource extends MusicSource {
         failures.add('${android ? '客户端' : '网页'}${e.code == null ? '' : ' 错误码 ${e.code}'}${e.message.isEmpty ? '' : '：${e.message}'}');
       }
     }
-    // 20018 / 34175 / 51002 等：token 已失效。
-    throw Exception('酷狗账号接口没有返回数据（${failures.join('；')}），如果持续失败请重新登录酷狗');
+    throw Exception('酷狗账号接口没有返回数据（${failures.join('；')}）。网页登录的凭据不被酷狗客户端接口认可，请退出后用“酷狗 App 扫码登录”重新登录');
   }
 
   Future<Map<String, dynamic>> _accountRequest(
@@ -205,8 +492,8 @@ class KugouSource extends MusicSource {
       'dfid': dfid,
       'mid': mid,
       'uuid': android ? '-' : mid,
-      'appid': android ? '1005' : (a['a_id'] ?? '').ifEmpty('1014')!,
-      'clientver': android ? '20489' : '20000',
+      'appid': android ? '$_appId' : (a['a_id'] ?? '').ifEmpty('1014')!,
+      'clientver': android ? '$_clientVer' : '20000',
       if (!android) 'srcappid': '2919',
       'clienttime': '${DateTime.now().millisecondsSinceEpoch ~/ 1000}',
       'token': a['t'] ?? '',
@@ -214,9 +501,7 @@ class KugouSource extends MusicSource {
       for (final e in query.entries) e.key: '${e.value}',
     };
     final data = body == null ? '' : jsonEncode(body);
-    final key = android ? _appKey : _webKey;
-    final keys = params.keys.toList()..sort();
-    params['signature'] = md5.convert(utf8.encode('$key${keys.map((k) => '$k=${params[k]}').join()}$data$key')).toString();
+    params['signature'] = _sign(android ? _appKey : _webKey, params, data);
     final res = await _dio.request<String>(
       '$base$path',
       queryParameters: params,
@@ -349,6 +634,7 @@ class KugouSource extends MusicSource {
         final album = x['albuminfo'] is Map ? x['albuminfo'] as Map : const {};
         final name = '${x['name'] ?? ''}';
         final i = name.indexOf(' - ');
+        final trans = x['trans_param'] is Map ? x['trans_param'] as Map : const {};
         out.add(
           _song({
             'hash': x['hash'],
@@ -357,9 +643,14 @@ class KugouSource extends MusicSource {
             'songname': i > 0 ? name.substring(i + 3) : name,
             'singername': i > 0 ? name.substring(0, i) : (x['singername'] ?? ''),
             'album_name': album['name'] ?? '',
-            'album_sizable_cover': x['cover'],
+            // 封面可能在 cover、trans_param.union_cover 或专辑信息中。
+            'album_sizable_cover': '${x['cover'] ?? ''}'.ifEmpty(null) ?? '${trans['union_cover'] ?? ''}'.ifEmpty(null) ?? '${album['sizable_cover'] ?? album['cover'] ?? ''}'.ifEmpty(null),
             'duration': (int.tryParse('${x['timelen'] ?? 0}') ?? 0) ~/ 1000,
             'privilege': x['privilege'],
+            'pay_type': x['pay_type'],
+            'pkg_price': x['pkg_price'],
+            'trans_param': trans,
+            'sqhash': x['sqhash'],
           }),
         );
       }
@@ -493,9 +784,29 @@ class KugouSource extends MusicSource {
       album: albumName.isEmpty && cover == null ? null : AlbumRef(albumId, albumName, cover: cover),
       duration: Duration(seconds: seconds),
       cover: cover,
-      // privilege 为 10（或需要音乐包）的是会员歌曲。
-      vip: j['privilege'] == 10 || (j['trans_param'] is Map && j['trans_param']['musicpack_advance'] == 1),
+      // privilege 为 5：下架或没有版权。
+      playable: '${j['privilege'] ?? ''}' != '5',
+      fee: kugouFee(j),
+      maxQuality: '${j['sqhash'] ?? j['SQFileHash'] ?? ''}'.replaceAll('0', '').isNotEmpty
+          ? AudioQuality.lossless
+          : ('${j['320hash'] ?? j['HQFileHash'] ?? ''}'.replaceAll('0', '').isNotEmpty ? AudioQuality.exhigh : null),
     );
+  }
+
+  /// 酷狗的付费规则：
+  /// - privilege 为 10 表示需要付费才能完整播放：在音乐包内（pkg_price 大于 0、musicpack_advance 为 1，或 pay_type 为 3）
+  ///   的是 VIP 歌曲；不在音乐包内、需要单独购买的（pay_type 为 2 的付费单曲 / 数字专辑）是付费歌曲；
+  /// - privilege 为 8 可以免费播放（VIP 才能下载与听高音质），0 / 4 为免费歌曲。
+  @visibleForTesting
+  static SongFee kugouFee(Map j) {
+    final privilege = int.tryParse('${j['privilege'] ?? j['Privilege'] ?? ''}') ?? 0;
+    if (privilege != 10) return SongFee.free;
+    final trans = j['trans_param'] is Map ? j['trans_param'] as Map : const {};
+    final pkg = int.tryParse('${j['pkg_price'] ?? ''}');
+    final pay = int.tryParse('${j['pay_type'] ?? j['PayType'] ?? ''}');
+    if (trans['musicpack_advance'] == 1 || (pkg ?? 0) > 0 || pay == 3) return SongFee.vip;
+    if (pay == 2 && pkg == 0) return SongFee.paid;
+    return SongFee.vip;
   }
 
   ({String hash, String audio, String album}) _ids(Song s) {
@@ -768,47 +1079,244 @@ class KugouSource extends MusicSource {
 
   @override
   Future<CommentPage> comments(Song song, {CommentSort sort = CommentSort.recommend, int offset = 0}) async {
+    final ids = _ids(song);
+    // 推荐 / 热门：酷狗客户端的评论接口，按歌曲（album_audio_id）汇总所有版本的评论，可以一直向后翻。
+    if (sort != CommentSort.latest && ids.audio.isNotEmpty && ids.audio != '0') {
+      try {
+        return await _appComments(ids.audio, offset);
+      } catch (e) {
+        debugPrint('kugou comments: $e');
+      }
+    }
+    // 最新：按时间排列的评论（按歌曲文件 hash 查询）。
     const size = 20;
-    final hash = _ids(song).hash.toUpperCase();
+    final page = offset ~/ size + 1;
     final j = await _get(
-      'https://mcomment.kugou.com/index.php?r=commentsv2/getCommentWithLike&code=fc4be23b4e972707f36b8a828a93ba8a&extdata=$hash&p=${offset ~/ size + 1}&pagesize=$size',
+      'https://mcomment.kugou.com/index.php?r=commentsv2/getCommentWithLike&code=fc4be23b4e972707f36b8a828a93ba8a&extdata=${ids.hash.toUpperCase()}&p=$page&pagesize=$size',
     );
-    // 热门评论在第一页的 weightList 中（有时为空字符串），其余为按时间排列的 list。
-    final hot = j['weightList'] is List ? (j['weightList'] as List).cast<Map>() : const <Map>[];
-    final latest = (j['list'] as List? ?? const []).cast<Map>();
-    final source = sort == CommentSort.latest || offset > 0 || hot.isEmpty ? latest : hot;
-    final comments = [
-      for (final c in source)
-        if ('${c['content'] ?? ''}'.trim().isNotEmpty)
-          Comment(
-            id: '${c['id']}',
-            userName: '${c['user_name'] ?? ''}',
-            avatar: (c['user_pic'] as String? ?? '').replaceFirst('http://', 'https://').ifEmpty(null),
-            content: '${c['content']}'.trim(),
-            time: DateTime.tryParse('${c['addtime'] ?? ''}'.replaceFirst(' ', 'T')),
-            likedCount: ((c['like'] as Map?)?['likenum'] as num?)?.toInt() ?? 0,
-            replyCount: (c['reply_num'] as num?)?.toInt() ?? 0,
-          ),
-    ];
-    final total = (j['count'] as num?)?.toInt() ?? comments.length;
-    return CommentPage(total: total, comments: comments, hasMore: offset + latest.length < total && latest.isNotEmpty);
+    final latest = (j['list'] as List? ?? const []).whereType<Map>().toList();
+    final total = (j['count'] as num?)?.toInt() ?? latest.length;
+    return CommentPage(total: total, comments: [for (final c in latest) ?_comment(c)], hasMore: latest.isNotEmpty && page * size < total, next: page * size);
+  }
+
+  Future<CommentPage> _appComments(String mixId, int offset) async {
+    const size = 30;
+    final page = offset ~/ size + 1;
+    final j = await _app(
+      '/mcomment/v1/cmtlist',
+      method: 'POST',
+      query: {
+        'ver': 6,
+        'mixsongid': mixId,
+        'need_show_image': 1,
+        'p': page,
+        'pagesize': size,
+        'show_classify': 1,
+        'show_hotword_list': 1,
+        'extdata': '0',
+        'code': 'fc4be23b4e972707f36b8a828a93ba8a',
+      },
+    );
+    if ('${j['status']}' != '1') throw _KugouRefusal('${j['err_code'] ?? j['error_code'] ?? ''}', '${j['msg'] ?? j['message'] ?? ''}');
+    final list = (j['list'] as List? ?? const []).whereType<Map>().toList();
+    final total = (j['count'] as num?)?.toInt() ?? (j['combine_count'] as num?)?.toInt() ?? list.length;
+    final maxPage = (j['maxPage'] as num?)?.toInt() ?? 1 << 20;
+    return CommentPage(
+      total: total,
+      comments: [for (final c in list) ?_comment(c)],
+      hasMore: list.isNotEmpty && page < maxPage && page * size < total,
+      next: page * size,
+    );
+  }
+
+  Comment? _comment(Map c) {
+    final content = '${c['content'] ?? ''}'.trim();
+    if (content.isEmpty) return null;
+    return Comment(
+      id: '${c['id']}',
+      userName: '${c['user_name'] ?? ''}',
+      avatar: (c['user_pic'] as String? ?? '').replaceFirst('http://', 'https://').ifEmpty(null),
+      content: content,
+      time: DateTime.tryParse('${c['addtime'] ?? ''}'.replaceFirst(' ', 'T')),
+      location: '${c['location'] ?? ''}'.trim().ifEmpty(null),
+      likedCount: ((c['like'] as Map?)?['likenum'] as num?)?.toInt() ?? 0,
+      liked: (c['like'] as Map?)?['haslike'] == true,
+      replyCount: (c['reply_num'] as num?)?.toInt() ?? 0,
+    );
   }
 
   // ── 播放 ──────────────────────────────────────────
 
-  /// 取到的播放地址保留 20 分钟：重新播放、拖动进度或重新载入同一首歌时不再请求播放接口，
-  /// 减少触发酷狗人机验证的请求次数。
+  /// 取到的播放地址保留 20 分钟：重新播放、拖动进度或重新载入同一首歌时不再请求播放接口。
   final _streams = <String, (StreamInfo, DateTime)>{};
 
   @override
   Future<StreamInfo> stream(Song song, AudioQuality quality) async {
-    final cached = _streams[song.id];
+    final key = '${song.id}@${quality.name}';
+    final cached = _streams[key];
     if (cached != null && DateTime.now().difference(cached.$2) < const Duration(minutes: 20)) return cached.$1;
-    final info = await _webPlayInfo(song);
-    _streams.remove(song.id);
-    _streams[song.id] = (info, DateTime.now());
+    final info = await _resolve(song, quality);
+    _streams.remove(key);
+    _streams[key] = (info, DateTime.now());
     if (_streams.length > 200) _streams.remove(_streams.keys.first);
     return info;
+  }
+
+  /// 依次尝试：
+  /// 1. 客户端播放接口（设备已注册，不需要人机验证；扫码登录后按账号会员权限给出完整地址与高音质）；
+  /// 2. 移动版接口（免费歌曲的标准音质，不需要验证）；
+  /// 3. 网页登录的账号：网页播放接口（按网页账号的会员权限取地址，酷狗可能要求人机验证）。
+  /// 都只有试听片段时播放试听片段。
+  Future<StreamInfo> _resolve(Song song, AudioQuality quality) async {
+    final ids = _ids(song);
+    if (ids.hash.isEmpty) throw Exception('这首歌缺少酷狗播放标识');
+    final errors = <String>[];
+    StreamInfo? trial;
+    try {
+      final info = await _appUrl(song, quality);
+      if (!info.trial) return info;
+      trial = info;
+    } catch (e) {
+      errors.add('$e'.replaceFirst('Exception: ', ''));
+    }
+    if (trial == null) {
+      try {
+        final info = await _mobileUrl(song);
+        if (info != null) return info;
+      } catch (e) {
+        debugPrint('kugou mobile url: $e');
+      }
+    }
+    if (_account != null && !_appAccount) {
+      try {
+        final info = await _webPlayInfo(song);
+        if (!info.trial || trial == null) return info;
+      } on SourceVerificationRequired {
+        if (trial != null) return trial;
+        rethrow;
+      } catch (e) {
+        errors.add('$e'.replaceFirst('Exception: ', ''));
+      }
+    }
+    if (trial != null) return trial;
+    if (song.fee == SongFee.paid) throw Exception('这首歌是酷狗的付费歌曲（单曲或数字专辑），需要在酷狗购买后播放');
+    throw Exception(errors.isEmpty ? '酷狗没有返回这首歌的播放地址' : errors.first);
+  }
+
+  /// 客户端接口的音质参数，从高到低。
+  static const _appQualities = [(AudioQuality.hires, 'high'), (AudioQuality.lossless, 'flac'), (AudioQuality.exhigh, '320'), (AudioQuality.standard, '128')];
+
+  Future<StreamInfo> _appUrl(Song song, AudioQuality quality) async {
+    final ids = _ids(song);
+    final wanted = [
+      for (final q in _appQualities)
+        if (q.$1.index <= quality.index || q.$1 == AudioQuality.standard) q,
+    ];
+    var reregistered = false;
+    var hasTrial = false;
+    String? lastCode;
+    String lastMessage = '';
+    var i = 0;
+    while (i < wanted.length) {
+      final j = await _urlRequest(ids, wanted[i].$2);
+      final info = _urlInfo(j, wanted[i].$1);
+      if (info != null) return info;
+      final code = '${j['errcode'] ?? j['error_code'] ?? j['err_code'] ?? ''}';
+      // 20028：设备需要验证。重新注册一次设备后重试。
+      if (code == '20028' && !reregistered) {
+        reregistered = true;
+        await _registerDevice(force: true);
+        continue;
+      }
+      if (j['hash_offset'] is Map) hasTrial = true;
+      if (code.isNotEmpty && code != '0') lastCode = code;
+      lastMessage = '${j['error'] ?? j['msg'] ?? ''}'.trim();
+      // 这一档音质没有权限或没有文件（status 为 2）：试下一档。
+      i++;
+    }
+    if (hasTrial) {
+      final j = await _urlRequest(ids, '128', freePart: true);
+      final info = _urlInfo(j, AudioQuality.standard, trial: true);
+      if (info != null) return info;
+    }
+    final why = [if (lastCode != null) '错误码 $lastCode', if (lastMessage.isNotEmpty) lastMessage].join('，');
+    if (lastCode == '20028') throw Exception('酷狗要求验证本机设备（$why），请稍后重试');
+    throw Exception(hasTrial || song.vip ? '这首歌需要酷狗 VIP（请用酷狗 App 扫码登录有会员的账号）' : '酷狗没有返回这首歌的播放地址${why.isEmpty ? '' : '（$why）'}');
+  }
+
+  Future<Map<String, dynamic>> _urlRequest(({String hash, String audio, String album}) ids, String quality, {bool freePart = false}) {
+    final a = _appAccount ? _account : null;
+    return _app(
+      '/v5/url',
+      router: 'trackercdn.kugou.com',
+      query: {
+        'album_id': int.tryParse(ids.album) ?? 0,
+        'area_code': 1,
+        'hash': ids.hash.toLowerCase(),
+        'ssa_flag': 'is_fromtrack',
+        'version': 11430,
+        'page_id': 151369488,
+        'quality': quality,
+        'album_audio_id': int.tryParse(ids.audio) ?? 0,
+        'behavior': 'play',
+        'pid': 2,
+        'cmd': 26,
+        'pidversion': 3001,
+        'IsFreePart': freePart ? 1 : 0,
+        'ppage_id': '463467626,350369493,788954147',
+        'cdnBackup': 1,
+        'module': '',
+        'clientver': 11430,
+        'key': md5.convert(utf8.encode('${ids.hash.toLowerCase()}57ae12eb6890223e355ccfcb74edf70d$_appId$_mid${a?['KugooID'] ?? 0}')).toString(),
+      },
+    );
+  }
+
+  static StreamInfo? _urlInfo(Map<String, dynamic> j, AudioQuality quality, {bool trial = false}) {
+    if ('${j['status']}' != '1') return null;
+    final urls = [
+      for (final value in [j['url'], j['backupUrl']].expand((v) => v is List ? v : [v]))
+        if (value is String && _validUrl(value) != null) _validUrl(value)!,
+    ];
+    if (urls.isEmpty) return null;
+    final ext = '${j['extName'] ?? ''}'.toLowerCase();
+    final transParam = j['trans_param'] is Map ? j['trans_param'] as Map : const {};
+    return StreamInfo(
+      url: urls.firstWhere((u) => u.startsWith('https://'), orElse: () => urls.first),
+      quality: ext == 'flac' && quality.index < AudioQuality.lossless.index ? AudioQuality.lossless : quality,
+      trial: trial,
+      headers: const {'User-Agent': _appUa},
+      cover: _cover(transParam['union_cover'] as String?),
+    );
+  }
+
+  static String? _validUrl(String value) {
+    final url = Uri.tryParse(value.trim());
+    if (url == null || (url.scheme != 'http' && url.scheme != 'https') || url.host.isEmpty || url.userInfo.isNotEmpty) return null;
+    return url.toString();
+  }
+
+  /// 移动版接口：免费歌曲给出标准音质的完整地址，不需要设备验证；会员歌曲返回“需要付费”。
+  Future<StreamInfo?> _mobileUrl(Song song) async {
+    final j = await _get('https://m.kugou.com/app/i/getSongInfo.php?cmd=playInfo&hash=${_ids(song).hash}');
+    if ('${j['status']}' != '1') return null;
+    final url = _validUrl('${j['url'] ?? ''}') ?? [for (final u in (j['backup_url'] is List ? j['backup_url'] as List : const [])) _validUrl('$u')].nonNulls.firstOrNull;
+    if (url == null) return null;
+    final bitrate = int.tryParse('${j['bitRate'] ?? 0}') ?? 0;
+    return StreamInfo(
+      url: url,
+      quality: '${j['extName']}'.toLowerCase() == 'flac' ? AudioQuality.lossless : (bitrate >= 320 ? AudioQuality.exhigh : AudioQuality.standard),
+      cover: _cover(j['album_img'] as String?),
+    );
+  }
+
+  /// 列表里没有封面的歌曲：移动版歌曲信息中的专辑封面（没有时用歌手照片）。
+  @override
+  Future<String?> songCover(Song song) async {
+    final hash = _ids(song).hash;
+    if (hash.isEmpty) return null;
+    final j = await _get('https://m.kugou.com/app/i/getSongInfo.php?cmd=playInfo&hash=$hash');
+    return _cover('${j['album_img'] ?? ''}'.ifEmpty(null) ?? '${j['imgUrl'] ?? ''}'.ifEmpty(null));
   }
 
   Future<StreamInfo> _webPlayInfo(Song song) async {

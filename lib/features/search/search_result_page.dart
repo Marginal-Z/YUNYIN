@@ -19,6 +19,7 @@ import '../discover/discover_page.dart';
 import '../library/library_page.dart';
 import '../shell/nav.dart';
 import 'search_page.dart';
+import '../common/song_cover.dart';
 
 const _tabs = ['综合', '歌曲', '歌手', '专辑', '歌单'];
 
@@ -136,7 +137,7 @@ class _MobileAll extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      Cover(best.coverUrl, size: 64, radius: 16, shadows: [Shadow2(0, 8, 18, CoverArt.tint(best.coverUrl).withValues(alpha: 0.30))]),
+                      SongCover(best, size: 64, radius: 16, shadows: [Shadow2(0, 8, 18, CoverArt.tint(best.coverUrl).withValues(alpha: 0.30))]),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(

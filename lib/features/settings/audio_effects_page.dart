@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -19,7 +22,11 @@ class AudioEffectsPage extends StatelessWidget {
     final p = Palette.of(context);
     final s = context.watch<AppSettings>();
     final unsupported = context.select<PlayerController, bool>((c) => c.eqUnsupported);
+    final mayClip = context.select<PlayerController, bool>((c) => c.boostMayClip);
+    final spatialUnsupported = context.select<PlayerController, bool>((c) => c.spatialUnsupported);
+    final bassUnsupported = context.select<PlayerController, bool>((c) => c.bassUnsupported);
     final desktop = LayoutScope.isDesktop(context);
+    final android = !kIsWeb && Platform.isAndroid;
     return AdaptivePage(
       chrome: Chrome.navOnly,
       mobileTop: 78,
@@ -31,7 +38,23 @@ class AudioEffectsPage extends StatelessWidget {
         ),
       ],
       children: [
-        PageTitle('音效', subtitle: '均衡器与音量', size: desktop ? 40 : 36),
+        PageTitle('音效', subtitle: '音质引擎、均衡器与音量', size: desktop ? 40 : 36),
+        const GroupLabel('音质引擎'),
+        CardList(
+          indent: 14,
+          children: [
+            SettingsRow(
+              title: '高保真引擎',
+              trailing: YSwitch(value: s.hifiEngine, label: '高保真引擎', onChanged: (v) => s.setFlag('hifiEngine', v)),
+            ),
+            SettingsRow(title: '播放音质', value: s.quality.label),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '高保真引擎使用更高精度的重采样滤镜与三角高通抖动，采样率转换和 16 位输出时保留更多细节；播放音质优先取平台的最高音质（Hi-Res / 无损），没有时逐级降低。',
+          style: ts(13, height: 1.5, color: p.text2),
+        ),
         const GroupLabel('均衡器'),
         CardList(
           indent: 14,
@@ -55,7 +78,7 @@ class AudioEffectsPage extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            for (final preset in EqPreset.values) ...[
+                            for (final preset in EqPreset.ordered) ...[
                               YChip(preset.label, selected: s.eqPreset == preset, onTap: () => s.setEqPreset(preset)),
                               const SizedBox(width: 8),
                             ],
@@ -88,6 +111,28 @@ class AudioEffectsPage extends StatelessWidget {
             ),
           ],
         ),
+        if (android) ...[
+          const GroupLabel('空间与低频'),
+          CardList(
+            indent: 14,
+            children: [
+              _SliderRow(
+                title: '空间音效',
+                value: s.spatial,
+                text: spatialUnsupported ? '不支持' : (s.spatial == 0 ? '关闭' : '${(s.spatial * 100).round()}%'),
+                onChanged: s.setSpatial,
+              ),
+              _SliderRow(
+                title: '低频增强',
+                value: s.bassEnhance,
+                text: bassUnsupported ? '不支持' : (s.bassEnhance == 0 ? '关闭' : '${(s.bassEnhance * 100).round()}%'),
+                onChanged: s.setBassEnhance,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('空间音效使用系统的虚拟环绕，戴耳机时声场更开阔；低频增强提升鼓点与贝斯的力度。个别设备不支持时显示“不支持”。', style: ts(13, height: 1.5, color: p.text2)),
+        ],
         const GroupLabel('音量'),
         CardList(
           indent: 14,
@@ -100,15 +145,20 @@ class AudioEffectsPage extends StatelessWidget {
               _SliderRow(title: '均衡强度', value: s.normalizeStrength, text: '${(s.normalizeStrength * 100).round()}%', onChanged: s.setNormalizeStrength),
             _SliderRow(
               title: '音量增强',
-              value: s.volumeBoost / 6,
+              value: s.volumeBoost / AppSettings.maxVolumeBoost,
               text: s.volumeBoost == 0 ? '关闭' : '+${s.volumeBoost} dB',
-              divisions: 6,
-              onChanged: (v) => s.setVolumeBoost((v * 6).round()),
+              divisions: AppSettings.maxVolumeBoost,
+              onChanged: (v) => s.setVolumeBoost((v * AppSettings.maxVolumeBoost).round()),
             ),
           ],
         ),
         const SizedBox(height: 10),
-        Text('音量均衡按平台提供的响度信息让不同歌曲音量接近；强度越低，响的歌曲被压低得越少。音量增强过高时，响亮的歌曲可能失真。', style: ts(13, height: 1.5, color: p.text2)),
+        Text(
+          mayClip
+              ? '当前设备的播放引擎没有可用的限幅器，音量增强只能直接提升音量，响亮的歌曲可能失真；建议调低增强或使用系统音量。'
+              : '音量均衡按平台提供的响度信息让不同歌曲音量接近。音量增强先提升增益，再经过限幅器压住峰值，响亮的歌曲也不会削波破音。',
+          style: ts(13, height: 1.5, color: mayClip ? p.accentText : p.text2),
+        ),
       ],
     );
   }

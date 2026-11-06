@@ -7,166 +7,168 @@ import 'package:yunyin/data/models.dart';
 import 'package:yunyin/data/sources/kugou/kugou_source.dart';
 import 'package:yunyin/data/sources/music_source.dart';
 
+/// 按接口路径模拟酷狗的返回；设备注册返回明文错误（注册失败，使用“-”）。
+Dio _dio(Map<String, Object? Function(RequestOptions o)> routes, {List<RequestOptions>? log}) {
+  final dio = Dio();
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (o, h) {
+        log?.add(o);
+        final route = routes[o.uri.path];
+        final body = route == null ? {'status': 0, 'error_code': 404} : route(o);
+        final data = jsonEncode(body);
+        h.resolve(Response(requestOptions: o, statusCode: 200, data: o.responseType == ResponseType.bytes ? utf8.encode(data) : data));
+      },
+    ),
+  );
+  return dio;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
-  const song = Song(id: 'hash:123:456', sourceId: 'kugou', name: '测试歌曲');
+  const song = Song(id: 'abc123:556677:998', sourceId: 'kugou', name: '测试歌曲');
 
-  test('酷狗播放使用登录时的设备标识，保留可用备用地址和试听状态', () async {
-    RequestOptions? request;
-    final dio = Dio();
-    dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          request = options;
-          handler.resolve(
-            Response<String>(
-              requestOptions: options,
-              statusCode: 200,
-              data: jsonEncode({
-                'status': 1,
-                'data': {'play_url': '', 'play_backup_url': 'http://audio.example/track.mp3', 'is_free_part': 1, 'bitrate': 320},
-              }),
-            ),
-          );
-        },
-      ),
-    );
-    final source = KugouSource(dio: dio);
-    await source.loginWithCookie('kg_mid=device-mid; kg_dfid=device-dfid; KuGoo=KugooID=123&t=token-test');
-    final info = await source.stream(song, AudioQuality.exhigh);
-    expect(request!.queryParameters['mid'], 'device-mid');
-    expect(request!.queryParameters['dfid'], 'device-dfid');
-    expect(request!.headers['Cookie'], contains('kg_dfid=device-dfid'));
-    expect(info.url, 'http://audio.example/track.mp3');
-    expect(info.trial, isTrue);
+  test('客户端接口：按音质从高到低取地址，请求带签名、设备与播放 key', () async {
+    final log = <RequestOptions>[];
+    final dio = _dio({
+      '/risk/v3/r_register_dev': (_) => {'status': 0, 'error_code': 20010, 'data': 'rsa failure'},
+      '/v5/url': (o) => o.queryParameters['quality'] == '320'
+          ? {'status': 1, 'url': ['http://fs.example/a.mp3'], 'backupUrl': ['https://fs.example/a.mp3'], 'extName': 'mp3', 'bitRate': 320000}
+          : {'status': 2, 'fail_process': ['pkg']},
+    }, log: log);
+    final kg = KugouSource(dio: dio);
+    await kg.init();
+    final info = await kg.stream(song, AudioQuality.lossless);
+    expect(info.url, 'https://fs.example/a.mp3', reason: '优先使用 https 地址');
     expect(info.quality, AudioQuality.exhigh);
-    expect(info.headers, isNot(contains('Cookie')));
+    expect(info.trial, isFalse);
+    final urls = log.where((o) => o.uri.path == '/v5/url').toList();
+    expect([for (final o in urls) o.queryParameters['quality']], ['flac', '320']);
+    final q = urls.last.queryParameters;
+    expect(q['hash'], 'abc123');
+    expect(q['album_audio_id'], '556677');
+    expect(q['appid'], '1005');
+    expect(q['key'], hasLength(32));
+    expect(q['signature'], hasLength(32));
+    expect(urls.last.headers['x-router'], 'trackercdn.kugou.com');
+    // 同一首歌 20 分钟内不再请求。
+    await kg.stream(song, AudioQuality.lossless);
+    expect(log.where((o) => o.uri.path == '/v5/url').length, 2);
     dio.close();
   });
 
-  test('酷狗接口失败保留错误码，不把所有已登录失败都归因为缺少会员', () async {
-    final dio = Dio();
-    dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          handler.resolve(Response<String>(requestOptions: options, statusCode: 200, data: '{"status":0,"err_code":30020,"error":"设备校验失败"}'));
-        },
-      ),
-    );
-    final source = KugouSource(dio: dio);
-    await source.loginWithCookie('KuGoo=KugooID=123&t=token-test');
+  test('会员歌曲没有权限时取官方试听片段', () async {
+    final log = <RequestOptions>[];
+    final dio = _dio({
+      '/v5/url': (o) => o.queryParameters['IsFreePart'] == '1'
+          ? {'status': 1, 'url': ['https://fs.example/trial.mp3'], 'extName': 'mp3'}
+          : {
+              'status': 2,
+              'fail_process': ['pkg', 'buy'],
+              'hash_offset': {'end_ms': 60000},
+            },
+    }, log: log);
+    final info = await KugouSource(dio: dio).stream(const Song(id: 'h:1:2', sourceId: 'kugou', name: 'VIP', fee: SongFee.vip), AudioQuality.exhigh);
+    expect(info.url, 'https://fs.example/trial.mp3');
+    expect(info.trial, isTrue);
+    dio.close();
+  });
+
+  test('20028 要求验证设备：重新注册设备后重试；仍不行时免费歌曲改用移动版接口', () async {
+    var registrations = 0;
+    final dio = _dio({
+      '/risk/v3/r_register_dev': (_) {
+        registrations++;
+        return {'status': 0, 'error_code': 20010};
+      },
+      '/v5/url': (_) => {'status': 2, 'errcode': 20028, 'error': '本次请求需要验证'},
+      '/app/i/getSongInfo.php': (_) => {'status': 1, 'url': 'https://m.example/free.mp3', 'bitRate': 128, 'extName': 'mp3', 'album_img': 'http://img.example/{size}/a.jpg'},
+    });
+    final info = await KugouSource(dio: dio).stream(song, AudioQuality.exhigh);
+    expect(info.url, 'https://m.example/free.mp3');
+    expect(info.cover, 'https://img.example/400/a.jpg');
+    expect(registrations, greaterThanOrEqualTo(1));
+    dio.close();
+  });
+
+  test('网页登录的账号：客户端接口与移动版都取不到时用网页接口，30020 打开官方验证页', () async {
+    final dio = _dio({
+      '/v5/url': (_) => {'status': 2, 'fail_process': ['pkg']},
+      '/app/i/getSongInfo.php': (_) => {'status': 0, 'error': '需要付费'},
+      '/play/songinfo': (_) => {
+        'status': 0,
+        'err_code': 30020,
+        'data': {'SSA-CODE': 'event/+?test', 'SSA-HMID': 'challenge-mid', 'is_publish': 1, 'privilege': 0},
+      },
+    });
+    final kg = KugouSource(dio: dio);
+    await kg.loginWithCookie('kg_mid=device-mid; kg_dfid=device-dfid; KuGoo=KugooID=123&t=token-test');
     await expectLater(
-      source.stream(const Song(id: 'h:1:2', sourceId: 'kugou', name: 'VIP', vip: true), AudioQuality.lossless),
-      throwsA(predicate((error) => '$error'.contains('30020') && '$error'.contains('设备校验失败') && !'$error'.contains('需要酷狗会员'))),
+      kg.stream(song, AudioQuality.standard),
+      throwsA(isA<SourceVerificationRequired>().having((e) => e.url.host, 'host', 'h5.kugou.com')),
     );
     dio.close();
   });
 
-  test('酷狗 30020 挑战打开官方验证页，重试和重启保留同一设备', () async {
-    final requests = <RequestOptions>[];
-    final dio = Dio();
-    dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          requests.add(options);
-          handler.resolve(
-            Response<String>(
-              requestOptions: options,
-              statusCode: 200,
-              data: jsonEncode({
-                'status': 0,
-                'err_code': 30020,
-                'data': {'SSA-CODE': 'event/+?test', 'SSA-HMID': 'challenge-mid', 'is_publish': 1, 'privilege': 0},
-              }),
-            ),
-          );
-        },
-      ),
-    );
-    var source = KugouSource(dio: dio);
-    await source.init();
+  test('付费歌曲取不到地址时说明需要购买', () async {
+    final dio = _dio({
+      '/v5/url': (_) => {'status': 2, 'fail_process': ['buy']},
+      '/app/i/getSongInfo.php': (_) => {'status': 0},
+    });
     await expectLater(
-      source.stream(song, AudioQuality.standard),
-      throwsA(
-        isA<SourceVerificationRequired>().having(
-          (error) {
-            expect(error.url.host, 'h5.kugou.com');
-            expect(error.url.path, '/apps/verify-h5/dist/');
-            final route = error.url.fragment.split('/');
-            expect(Uri.decodeComponent(route[2]), 'event/+?test');
-            expect(route[3], '1014');
-            expect(Uri.parse(Uri.decodeComponent(route[4])).host, 'www.kugou.com');
-            expect(route[5], 'challenge-mid');
-            return error.message;
-          },
-          '提示',
-          contains('返回后重新点播放'),
-        ),
-      ),
-    );
-    source = KugouSource(dio: dio);
-    await source.init();
-    await expectLater(source.stream(song, AudioQuality.standard), throwsA(isA<SourceVerificationRequired>()));
-    expect(requests[0].queryParameters['mid'], requests[1].queryParameters['mid']);
-    dio.close();
-  });
-
-  test('酷狗 30020 下架或受限歌曲不误导用户进行人机验证', () async {
-    final dio = Dio();
-    dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          handler.resolve(
-            Response<String>(
-              requestOptions: options,
-              statusCode: 200,
-              data: '{"status":0,"err_code":30020,"data":{"is_publish":0,"privilege":5,"SSA-CODE":"challenge"}}',
-            ),
-          );
-        },
-      ),
-    );
-    await expectLater(
-      KugouSource(dio: dio).stream(song, AudioQuality.standard),
-      throwsA(predicate((error) => error is! SourceVerificationRequired && '$error'.contains('暂不允许播放'))),
+      KugouSource(dio: dio).stream(const Song(id: 'h:1:2', sourceId: 'kugou', name: '付费', fee: SongFee.paid), AudioQuality.standard),
+      throwsA(predicate((e) => '$e'.contains('付费歌曲'))),
     );
     dio.close();
   });
 
-  test('酷狗只使用成功响应中的合法播放地址', () async {
-    var success = true;
-    var requests = 0;
-    final dio = Dio();
-    dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          requests++;
-          handler.resolve(
-            Response<String>(
-              requestOptions: options,
-              statusCode: 200,
-              data: jsonEncode({
-                'status': success ? 1 : 0,
-                'err_code': success ? 0 : 12345,
-                'data': {
-                  'play_url': 'https://name:secret@audio.example/invalid.mp3',
-                  'play_backup_url': ['javascript:alert(1)', 'https://audio.example/valid.mp3'],
-                },
-              }),
-            ),
-          );
-        },
-      ),
+  test('酷狗的付费规则：音乐包内为 VIP，单独购买为付费，privilege 8 免费', () {
+    expect(KugouSource.kugouFee({'privilege': 10, 'pay_type': 3, 'pkg_price': 1}), SongFee.vip);
+    expect(KugouSource.kugouFee({'privilege': 10, 'pay_type': 2, 'pkg_price': 0}), SongFee.paid);
+    expect(
+      KugouSource.kugouFee({
+        'privilege': 10,
+        'pay_type': 0,
+        'trans_param': {'musicpack_advance': 1},
+      }),
+      SongFee.vip,
     );
-    final source = KugouSource(dio: dio);
-    expect((await source.stream(song, AudioQuality.standard)).url, 'https://audio.example/valid.mp3');
-    success = false;
-    // 同一首歌在 20 分钟内使用已取到的地址，不再请求播放接口。
-    expect((await source.stream(song, AudioQuality.standard)).url, 'https://audio.example/valid.mp3');
-    expect(requests, 1);
-    final other = Song(id: 'def456:2:3', sourceId: song.sourceId, name: '另一首');
-    await expectLater(source.stream(other, AudioQuality.standard), throwsA(predicate((error) => '$error'.contains('12345'))));
+    expect(KugouSource.kugouFee({'privilege': 8, 'pay_type': 3}), SongFee.free);
+    expect(KugouSource.kugouFee({'privilege': 0}), SongFee.free);
+  });
+
+  test('评论：推荐评论按 album_audio_id 汇总，按页码翻页', () async {
+    final pages = <String>[];
+    final dio = _dio({
+      '/mcomment/v1/cmtlist': (o) {
+        pages.add('${o.queryParameters['p']}');
+        return {
+          'status': 1,
+          'count': 100,
+          'maxPage': 4,
+          'list': [
+            for (var i = 0; i < 30; i++)
+              {
+                'id': '${o.queryParameters['p']}-$i',
+                'user_name': 'u',
+                'content': i == 0 ? '' : '评论 $i',
+                'addtime': '2026-01-01 10:00:00',
+                'like': {'likenum': 3, 'haslike': false},
+                'location': '上海',
+              },
+          ],
+        };
+      },
+    });
+    final kg = KugouSource(dio: dio);
+    final first = await kg.comments(song);
+    expect(first.comments.length, 29, reason: '空评论被跳过');
+    expect(first.next, 30, reason: '下一页按页码计算，不受跳过的评论影响');
+    expect(first.comments.first.location, '上海');
+    final second = await kg.comments(song, offset: first.next!);
+    expect(second.comments.first.id, '2-1');
+    expect(pages, ['1', '2']);
     dio.close();
   });
 }

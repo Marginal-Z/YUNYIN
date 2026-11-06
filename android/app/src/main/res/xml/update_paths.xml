@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="updates" path="yunyin-update/"/>
+    <!-- 分享听歌海报：先写到缓存目录，再交给系统分享面板。 -->
+    <cache-path name="share" path="yunyin-share/"/>
 </paths>

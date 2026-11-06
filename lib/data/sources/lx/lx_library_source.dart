@@ -64,7 +64,8 @@ class LxLibrarySource extends MusicSource {
     cover: s.cover,
     playable: s.playable,
     alias: s.alias,
-    vip: s.vip,
+    fee: s.fee,
+    maxQuality: s.maxQuality,
   );
 
   /// 拆出歌曲所属的平台与该平台的歌曲（酷我歌曲保持原样）。
@@ -75,7 +76,7 @@ class LxLibrarySource extends MusicSource {
     if (platform == null) return ('kw', s);
     return (
       key,
-      Song(id: s.id.substring(i + 1), sourceId: platform, name: s.name, artists: s.artists, album: s.album, duration: s.duration, cover: s.cover, alias: s.alias, vip: s.vip),
+      Song(id: s.id.substring(i + 1), sourceId: platform, name: s.name, artists: s.artists, album: s.album, duration: s.duration, cover: s.cover, alias: s.alias, fee: s.fee, maxQuality: s.maxQuality),
     );
   }
 
@@ -218,7 +219,15 @@ class LxLibrarySource extends MusicSource {
     ];
   }
 
-  /// 榜单歌曲不带封面：按歌曲查询封面地址（前 [count] 首并行，查不到时显示占位图）。
+  /// 没有封面的歌曲：酷我歌曲按歌曲查询封面；其他平台曲库的歌曲交给对应平台查询。
+  @override
+  Future<String?> songCover(Song song) async {
+    final (key, inner) = _unwrap(song);
+    if (key != 'kw') return _catalogs[key]?.songCover(inner);
+    return (await _covers([song.id], count: 1))[song.id];
+  }
+
+  /// 榜单歌曲不带封面：按歌曲查询封面地址（前 [count] 首并行；其余的在列表显示时按需查询，见 [songCover]）。
   Future<Map<String, String>> _covers(Iterable<String> rids, {int count = 40}) async {
     final out = <String, String>{};
     await Future.wait([

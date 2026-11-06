@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/theme/cover_colors.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
-import '../../core/ui/cover.dart';
 import '../../core/ui/feedback.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
@@ -24,6 +23,7 @@ import '../queue/queue_sheet.dart';
 import '../shell/nav.dart';
 import 'layout.dart';
 import 'sheet_route.dart';
+import 'song_cover.dart';
 
 void go(BuildContext context, AppRoute route) => context.read<AppNav>().push(route);
 
@@ -217,7 +217,7 @@ Future<void> showSongMenu(BuildContext context, Song song) async {
                     padding: const EdgeInsets.fromLTRB(6, 16, 6, 10),
                     child: Row(
                       children: [
-                        Cover(song.coverUrl, size: 48, radius: 12),
+                        SongCover(song, size: 48, radius: 12),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(

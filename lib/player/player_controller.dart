@@ -4,10 +4,12 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/settings.dart';
+import '../data/cover_resolver.dart';
 import '../data/models.dart';
 import '../data/sources/music_source.dart';
 import '../data/sources/source_manager.dart';
@@ -95,6 +97,7 @@ class PlayerController extends ChangeNotifier {
     settings.addListener(_applyVolume);
     settings.addListener(_applyOutput);
     settings.addListener(_scheduleEq);
+    settings.addListener(_scheduleFx);
     sources.addListener(_refreshLikes);
     sources.addListener(_onPlatformChanged);
     _platform = sources.current.id;
@@ -180,6 +183,14 @@ class PlayerController extends ChangeNotifier {
   /// 这里统一以 16 位立体声交给系统混音，这是所有 Android 设备都支持的格式，手机上听感相同。
   Future<void> _configureAndroidAudio(Player p) async {
     if (!await setMpvProperty(p, 'audio-channels', 'stereo')) return;
+    // 播放器使用单独申请的音频会话，系统音效链（音量增强与限幅、空间音效、低频增强）挂在这个会话上。
+    try {
+      final session = await _fxChannel.invokeMethod<int>('session');
+      if (session != null && session > 0 && await setMpvProperty(p, 'audiotrack-session-id', '$session')) _fxSession = session;
+    } catch (e) {
+      debugPrint('audio fx session: $e');
+    }
+    await _applyFx();
     // “高解析输出”打开时以 32 位浮点交给系统，保留解码后的完整动态范围。
     await setMpvProperty(p, 'audiotrack-pcm-float', settings.hiResOutput ? 'yes' : 'no');
     if (settings.openSles) await setMpvProperty(p, 'ao', 'opensles');
@@ -193,6 +204,7 @@ class PlayerController extends ChangeNotifier {
   /// - Windows / macOS 可独占音频设备（WASAPI / Core Audio 独占模式），绕过系统混音与重采样。
   Future<void> _configureOutput(Player p) async {
     if (!await setMpvProperty(p, 'volume-max', '200')) return;
+    await _applyHifi(p);
     await setMpvProperty(p, 'replaygain', settings.normalize ? 'track' : 'no');
     // 按标签提升音量时自动降低增益，避免削波破音。
     await setMpvProperty(p, 'replaygain-clip', 'yes');
@@ -207,6 +219,18 @@ class PlayerController extends ChangeNotifier {
   bool _hiRes = false;
   bool _exclusive = false;
   bool _normalize = true;
+  bool? _hifi;
+
+  /// 高保真引擎：重采样使用更长的 sinc 滤镜（32 抽头、12 位相位精度，默认 16 / 10），
+  /// 转换为整数采样时使用三角高通抖动，降低量化噪声。关闭时恢复 mpv 默认值。
+  Future<void> _applyHifi(Player p) async {
+    if (_hifi == settings.hifiEngine) return;
+    _hifi = settings.hifiEngine;
+    final on = settings.hifiEngine;
+    await setMpvProperty(p, 'audio-resample-filter-size', on ? '32' : '16');
+    await setMpvProperty(p, 'audio-resample-phase-shift', on ? '12' : '10');
+    await setMpvProperty(p, 'audio-swresample-o', on ? 'dither_method=triangular_hp' : '');
+  }
 
   /// 设置中切换输出相关选项（兼容输出、高解析输出、独占输出、音量均衡）：更新 mpv 属性，
   /// 需要重新打开音频设备的选项在原位置重新加载当前歌曲。
@@ -218,6 +242,7 @@ class PlayerController extends ChangeNotifier {
       _normalize = settings.normalize;
       await setMpvProperty(p, 'replaygain', _normalize ? 'track' : 'no');
     }
+    if (settings.hifiEngine != _hifi) await _applyHifi(p);
     if (Platform.isAndroid && settings.openSles != _openSles) {
       _openSles = settings.openSles;
       reload = await setMpvProperty(p, 'ao', _openSles ? 'opensles' : 'audiotrack,opensles');
@@ -250,6 +275,12 @@ class PlayerController extends ChangeNotifier {
       debugPrint('audio device failed, fallback $_audioFallback');
       if (_audioFallback == 1) {
         await setMpvProperty(p, 'audio-samplerate', '48000');
+        // 个别设备不接受单独申请的音频会话：改用系统默认会话（系统音效链随之停用，增强改回软件音量）。
+        if (_fxSession != 0 && await setMpvProperty(p, 'audiotrack-session-id', '0')) {
+          _fxSession = 0;
+          _nativeBoost = false;
+          await _applyVolume();
+        }
       } else {
         await setMpvProperty(p, 'ao', 'opensles');
       }
@@ -311,7 +342,9 @@ class PlayerController extends ChangeNotifier {
 
   double get _effectiveVolume {
     final base = _systemVolumeOnly ? 1.0 : settings.volume;
-    final boost = math.pow(10, settings.volumeBoost / 20).toDouble();
+    // 音量增强由带限幅的音效链完成时（Android 系统音效、桌面端的限幅滤镜），播放器音量不再提升；
+    // 都不可用时才退回软件音量提升（可能削波，音效页会提示）。
+    final boost = _boostHandled ? 1.0 : math.pow(10, settings.volumeBoost / 20).toDouble();
     // 音量均衡强度：按比例应用响度增益（强度 0.5 时衰减量减半）。
     final level = levelFactor(gain: _gain, normalize: settings.normalize, strength: settings.normalizeStrength);
     return (base * _fade * level * boost * _eqHeadroom * 100).clamp(0, 200).toDouble();
@@ -332,25 +365,101 @@ class PlayerController extends ChangeNotifier {
   /// equalizer 只接受平面格式的采样，FFmpeg 平时会自动插入 aresample 转换格式，精简版里没有它，
   /// 滤镜图就无法配置；所以先用 mpv 自带的 format 滤镜转成平面浮点（floatp），FFmpeg 无需再转换。
   /// 所有频段为 0 时返回空字符串（不加滤镜）。
-  static String eqFilter(List<double> gains) {
-    if (gains.every((g) => g.abs() < 0.05)) return '';
+  static String eqFilter(List<double> gains) => audioFilter(gains: gains);
+
+  /// 完整的音频滤镜：均衡器各频段，以及（[boostDb] 大于 0 时）增益与限幅器。
+  /// 限幅器（alimiter，-0.5 dBFS，1 ms 起始、80 ms 释放，不做自动电平）放在最后，增益与均衡器提升都不会削波。
+  static String audioFilter({List<double> gains = const [], int boostDb = 0}) {
     final parts = <String>[
       for (var i = 0; i < gains.length && i < kEqBands.length; i++)
         if (gains[i].abs() >= 0.05) 'equalizer=f=${kEqBands[i]}:width_type=o:width=1:g=${gains[i].toStringAsFixed(1)}',
+      if (boostDb > 0) ...['volume=${boostDb}dB', 'alimiter=limit=0.944:attack=1:release=80:level=0'],
     ];
+    if (parts.isEmpty) return '';
     return 'format=format=floatp,lavfi=[${parts.join(',')}]';
+  }
+
+  // ── 系统音效链与限幅 ──────────────────────────────────
+
+  static const _fxChannel = MethodChannel('yunyin/audio_fx');
+
+  /// Android 播放器使用的音频会话（0 表示系统默认会话，没有系统音效链）。
+  int _fxSession = 0;
+
+  /// Android 系统音效链负责音量增强（DynamicsProcessing / LoudnessEnhancer）。
+  bool _nativeBoost = false;
+
+  /// 桌面端的播放引擎没有限幅滤镜（精简版 FFmpeg）。
+  bool limiterUnsupported = false;
+
+  /// Android 设备不支持空间音效 / 低频增强（音效页显示“当前设备不支持”）。
+  bool spatialUnsupported = false;
+  bool bassUnsupported = false;
+
+  /// 音量增强由带限幅的音效链完成，而不是提升播放器音量。
+  bool get _boostHandled => settings.volumeBoost == 0 || _nativeBoost || _limiterBoost;
+
+  /// 桌面端在滤镜中完成音量增强（增益 + 限幅）。
+  bool get _limiterBoost => !_isAndroid && !limiterUnsupported && settings.volumeBoost > 0;
+
+  static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+
+  /// 音量增强在当前设备上会不会削波（没有可用的限幅器）。
+  bool get boostMayClip => settings.volumeBoost > 0 && !_boostHandled;
+
+  Timer? _fxTimer;
+  String _fxApplied = '';
+
+  void _scheduleFx() {
+    if (!_isAndroid || _fxSession == 0) return;
+    if (_fxKey == _fxApplied) return;
+    _fxTimer?.cancel();
+    _fxTimer = Timer(const Duration(milliseconds: 150), _applyFx);
+  }
+
+  String get _fxKey => '${settings.volumeBoost}|${settings.spatial.toStringAsFixed(2)}|${settings.bassEnhance.toStringAsFixed(2)}|${settings.eqEnabled}';
+
+  Future<void> _applyFx() async {
+    if (!_isAndroid || _fxSession == 0) return;
+    _fxApplied = _fxKey;
+    try {
+      final r = await _fxChannel.invokeMapMethod<String, Object?>('configure', {
+        'boostDb': settings.volumeBoost.toDouble(),
+        // 均衡器有提升或者开了音量增强时保留限幅器，其余时候不改变原始声音。
+        'limiter': settings.volumeBoost > 0 || (settings.eqEnabled && settings.eqGains.any((g) => g > 0)),
+        'spatial': settings.spatial,
+        'bass': settings.bassEnhance,
+      });
+      _nativeBoost = settings.volumeBoost > 0 && r?['limiter'] == true;
+      spatialUnsupported = settings.spatial > 0 && r?['spatial'] == false;
+      bassUnsupported = settings.bassEnhance > 0 && r?['bass'] == false;
+    } catch (e) {
+      debugPrint('audio fx: $e');
+      _nativeBoost = false;
+    }
+    await _applyVolume();
+    notifyListeners();
   }
 
   /// 均衡器有提升时整体降低一部分电平（通过播放器音量，而不是 volume 滤镜），减少削波。
   double get _eqHeadroom {
-    if (_eqApplied.isEmpty) return 1;
+    if (_eqApplied.isEmpty || !settings.eqEnabled || eqUnsupported) return 1;
+    // 后面有限幅器时不需要预先压低电平。Android 的系统限幅器在 mpv 之后：只有以浮点格式交给系统时
+    // （高解析输出），超过满刻度的采样才能完整到达限幅器，否则在转换为 16 位时已经削波。
+    if (_eqApplied.contains('alimiter') || (_isAndroid && _fxSession != 0 && settings.hiResOutput)) return 1;
     final peak = settings.eqGains.reduce(math.max);
     return peak > 0 ? math.pow(10, -peak * 0.6 / 20).toDouble() : 1;
   }
 
   /// 拖动滑块时连续变化：合并为每 120ms 最多更新一次滤镜。
+  /// 当前设置对应的滤镜：均衡器（打开且设备支持时），以及桌面端的音量增强与限幅。
+  String get _wantedFilter => audioFilter(
+    gains: settings.eqEnabled && !eqUnsupported ? settings.eqGains : const [],
+    boostDb: _limiterBoost ? settings.volumeBoost : 0,
+  );
+
   void _scheduleEq() {
-    final want = settings.eqEnabled && !eqUnsupported ? eqFilter(settings.eqGains) : '';
+    final want = _wantedFilter;
     if (want == _eqApplied) return;
     _eqTimer?.cancel();
     _eqTimer = Timer(const Duration(milliseconds: 120), _applyEq);
@@ -359,13 +468,25 @@ class PlayerController extends ChangeNotifier {
   Future<void> _applyEq() async {
     final p = _player;
     if (p == null || kIsWeb) return;
-    final want = settings.eqEnabled && !eqUnsupported ? eqFilter(settings.eqGains) : '';
+    final want = _wantedFilter;
     if (want == _eqApplied) return;
     if (await setMpvProperty(p, 'af', want)) _eqApplied = want;
     await _applyVolume();
   }
 
   Future<void> _onEqFailed() async {
+    // 滤镜链中有限幅器且还没确认过：先认为是限幅器不可用（精简版播放引擎没有 alimiter），去掉它再试，
+    // 不连带关闭均衡器。
+    if (_eqApplied.contains('alimiter') && !limiterUnsupported) {
+      limiterUnsupported = true;
+      unawaited(SharedPreferences.getInstance().then((p) => p.setBool('limiterUnsupported', true)));
+      final p = _player;
+      final want = _wantedFilter;
+      if (p != null && await setMpvProperty(p, 'af', want)) _eqApplied = want;
+      await _applyVolume();
+      notifyListeners();
+      return;
+    }
     if (eqUnsupported) return;
     eqUnsupported = true;
     unawaited(SharedPreferences.getInstance().then((p) => p.setBool('eqUnsupported', true)));
@@ -734,6 +855,7 @@ class PlayerController extends ChangeNotifier {
       return;
     }
     if (token != _loadToken) return;
+    _fillCover(song, info.cover);
 
     if (_player == null || info.url == null) _opening = false;
     if (_player == null) {
@@ -795,6 +917,21 @@ class PlayerController extends ChangeNotifier {
       notifyListeners();
       _notices.add(PlayerNotice('播放失败', message: error.toString().replaceFirst('Exception: ', '')));
     }
+  }
+
+  /// 当前歌曲没有封面：用取地址时平台给出的封面，或者向平台查询一次，查到后替换队列中的这首歌
+  /// （播放页、通知栏、桌面小部件都显示新封面）。
+  void _fillCover(Song song, String? cover) {
+    if (song.coverUrl != null) return;
+    CoverResolver.instance.remember(song, cover);
+    CoverResolver.instance.resolve(sources, song).then((url) {
+      if (_disposed || url == null) return;
+      final i = _queue.indexOf(song);
+      if (i < 0 || _queue[i].coverUrl != null) return;
+      _queue[i] = _queue[i].copyWith(cover: url);
+      _saveQueue();
+      notifyListeners();
+    });
   }
 
   /// 均衡器滤镜在个别播放引擎中无法创建时，mpv 不报错而是一直停在开头：
@@ -960,6 +1097,7 @@ class PlayerController extends ChangeNotifier {
       }
     } catch (_) {}
     eqUnsupported = p.getBool('eqUnsupported') ?? false;
+    limiterUnsupported = p.getBool('limiterUnsupported') ?? false;
     try {
       final h = p.getString('player.history');
       if (h != null) {
@@ -995,6 +1133,8 @@ class PlayerController extends ChangeNotifier {
     settings.removeListener(_applyVolume);
     settings.removeListener(_applyOutput);
     settings.removeListener(_scheduleEq);
+    settings.removeListener(_scheduleFx);
+    _fxTimer?.cancel();
     sources.removeListener(_refreshLikes);
     sources.removeListener(_onPlatformChanged);
     _sleepTimer?.cancel();

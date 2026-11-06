@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../../core/settings.dart';
 import '../../core/system_bars.dart';
 import '../../core/theme/palette.dart';
-import '../../core/ui/cover.dart';
 import '../../core/ui/glow_background.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
@@ -15,6 +14,7 @@ import '../../player/player_controller.dart';
 import '../common/actions.dart';
 import 'lyrics_view.dart';
 import 'player_page.dart';
+import '../common/song_cover.dart';
 
 /// 移动端全屏歌词。Android 上隐藏系统栏沉浸显示；歌词铺满屏幕，控件闲置几秒后自动隐藏，轻点空白处重新显示。
 class LyricsPage extends StatefulWidget {
@@ -153,7 +153,7 @@ class _LyricsPageState extends State<LyricsPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Row(
                           children: [
-                            Cover(song.coverUrl, size: 48, radius: 12),
+                            SongCover(song, size: 48, radius: 12),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(

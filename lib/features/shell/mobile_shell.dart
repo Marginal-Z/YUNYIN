@@ -8,7 +8,6 @@ import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/app_background.dart';
 import '../../core/ui/box.dart';
-import '../../core/ui/cover.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
@@ -20,6 +19,8 @@ import 'routes.dart';
 import 'landscape_chrome.dart';
 import 'tab_bar.dart';
 import 'transitions.dart';
+import '../common/song_cover.dart';
+import '../../core/ui/motion.dart';
 
 /// 移动端外壳：三个标签各自的导航栈 + 悬浮玻璃导航栏与迷你播放条。
 class MobileShell extends StatefulWidget {
@@ -70,7 +71,7 @@ class _MobileShellState extends State<MobileShell> {
                       // 每个页面单独一组背景截取：转场时上下两个页面都在绘制，各自的玻璃读取各自的背景。
                       pages: [
                         for (final r in nav.stacks[i])
-                          CupertinoPage<void>(
+                          SpringPage<void>(
                             key: ValueKey(r.uid),
                             child: BackdropGroup(child: buildMobileRoute(r)),
                           ),
@@ -91,7 +92,7 @@ class _MobileShellState extends State<MobileShell> {
             // 横屏：左侧竖向导航，底部整行播放控制条。
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
+              curve: Motion.spring,
               left: rail ? mq.padding.left + 12 : -kLandscapeRailWidth - 20,
               top: mq.padding.top + 12,
               bottom: bottom,
@@ -100,7 +101,7 @@ class _MobileShellState extends State<MobileShell> {
             ),
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
+              curve: Motion.spring,
               left: rail ? railSpace : 16,
               right: 16 + mq.padding.right,
               bottom: showMini ? bottom : -kLandscapeBarHeight - 40,
@@ -116,7 +117,7 @@ class _MobileShellState extends State<MobileShell> {
           ] else ...[
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
+              curve: Motion.spring,
               left: 12 + barInset,
               right: 12 + barInset,
               bottom: chrome == Chrome.miniOnly ? bottom + 2 : bottom + 74,
@@ -131,7 +132,7 @@ class _MobileShellState extends State<MobileShell> {
             ),
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
+              curve: Motion.spring,
               left: 16 + barInset,
               right: 16 + barInset,
               bottom: showNav ? bottom : -100,
@@ -227,7 +228,7 @@ class MiniPlayer extends StatelessWidget {
               scale: 1,
               child: Row(
                 children: [
-                  Cover(song?.coverUrl, size: 42, circle: true),
+                  SongCover(song, size: 42, circle: true),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(

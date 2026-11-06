@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/palette.dart';
-import '../../core/ui/cover.dart';
 import '../../core/ui/feedback.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
@@ -12,6 +11,7 @@ import '../../data/models.dart';
 import '../../data/sources/music_source.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
+import '../common/song_cover.dart';
 
 /// 本地歌曲手动匹配：在网易云、QQ 音乐、酷狗中搜索，选中一首后用它的封面与歌词替换。
 class LocalMatchPage extends StatefulWidget {
@@ -133,7 +133,7 @@ class _LocalMatchPageState extends State<LocalMatchPage> {
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Row(
                           children: [
-                            Cover(s.coverUrl, size: 46, radius: 10),
+                            SongCover(s, size: 46, radius: 10),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(

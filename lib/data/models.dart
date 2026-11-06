@@ -31,6 +31,12 @@ String? fixImageUrl(String? url) {
   return 'http://${url.substring(8)}';
 }
 
+/// 歌曲的付费类型，按各平台自己的规则判断：
+/// - [vip]：平台会员可以完整播放（网易云黑胶 VIP、QQ 音乐绿钻、酷狗 VIP）；
+/// - [paid]：需要单独购买（数字专辑、付费单曲），开通会员也不能播放完整版；
+/// - [free]：免费歌曲。
+enum SongFee { free, vip, paid }
+
 class Song {
   const Song({
     required this.id,
@@ -44,7 +50,8 @@ class Song {
     this.alias,
     this.localPath,
     this.playCount,
-    this.vip = false,
+    this.fee = SongFee.free,
+    this.maxQuality,
   });
 
   final String id;
@@ -65,8 +72,14 @@ class Song {
   /// 热门歌曲的播放次数文案（例如“4.2 亿次”）。
   final String? playCount;
 
-  /// 平台标记为会员歌曲（列表中显示 VIP 标志；未登录或没有会员时通常只能试听）。
-  final bool vip;
+  /// 平台规定的付费类型（列表中按平台样式显示 VIP / 付费标志）。
+  final SongFee fee;
+
+  /// 平台提供的最高音质（列表中显示 SQ / Hi-Res 标志）；不知道时为 null。
+  final AudioQuality? maxQuality;
+
+  /// 会员或付费歌曲（未登录、没有会员或没有购买时通常只能试听）。
+  bool get vip => fee != SongFee.free;
 
   String get key => '$sourceId:$id';
   String get artistText => artists.isEmpty ? '未知歌手' : artists.map((a) => a.name).join(' / ');
@@ -86,7 +99,8 @@ class Song {
     alias: alias,
     localPath: localPath ?? this.localPath,
     playCount: playCount,
-    vip: vip,
+    fee: fee,
+    maxQuality: maxQuality,
   );
 
   Map<String, dynamic> toJson() => {
@@ -100,7 +114,8 @@ class Song {
     'playable': playable,
     'alias': alias,
     'localPath': localPath,
-    if (vip) 'vip': true,
+    if (fee != SongFee.free) 'fee': fee.name,
+    if (maxQuality != null) 'maxQuality': maxQuality!.name,
   };
 
   factory Song.fromJson(Map<String, dynamic> j) => Song(
@@ -114,7 +129,9 @@ class Song {
     playable: j['playable'] as bool? ?? true,
     alias: j['alias'] as String?,
     localPath: j['localPath'] as String?,
-    vip: j['vip'] == true,
+    // 旧版本只保存了 vip 标记。
+    fee: SongFee.values.asNameMap()[j['fee']] ?? (j['vip'] == true ? SongFee.vip : SongFee.free),
+    maxQuality: AudioQuality.values.asNameMap()[j['maxQuality']],
   );
 
   @override
@@ -371,11 +388,15 @@ class Comment {
 }
 
 class CommentPage {
-  const CommentPage({required this.total, required this.comments, this.hasMore = false});
+  const CommentPage({required this.total, required this.comments, this.hasMore = false, this.next});
 
   final int total;
   final List<Comment> comments;
   final bool hasMore;
+
+  /// 请求下一页时使用的 offset。平台会过滤掉部分评论（只有语音、图片的评论等），或者第一页混排了热门评论，
+  /// 已显示的条数不等于平台的分页位置；为 null 时按已显示的条数计算。
+  final int? next;
 }
 
 enum CommentSort { recommend, hot, latest }
@@ -459,7 +480,7 @@ enum AudioQuality {
 
 /// 播放地址。[url] 为空表示无法播放（无版权等）。
 class StreamInfo {
-  const StreamInfo({this.url, this.headers = const {}, this.trial = false, this.quality, this.gainDb});
+  const StreamInfo({this.url, this.headers = const {}, this.trial = false, this.quality, this.gainDb, this.cover});
 
   final String? url;
   final Map<String, String> headers;
@@ -468,6 +489,9 @@ class StreamInfo {
 
   /// 平台提供的响度增益（dB，类似 ReplayGain），用于音量均衡。
   final double? gainDb;
+
+  /// 取地址时平台一并给出的封面（列表里没有封面的歌曲用它补上）。
+  final String? cover;
 }
 
 /// 二维码登录凭据。

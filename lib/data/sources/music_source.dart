@@ -124,6 +124,9 @@ abstract class MusicSource extends ChangeNotifier {
   Future<StreamInfo> stream(Song song, AudioQuality quality);
   Future<Lyrics> lyrics(Song song) async => Lyrics.empty;
 
+  /// 列表里没有封面的歌曲：按歌曲单独查询封面（查不到时返回 null，界面显示占位图）。
+  Future<String?> songCover(Song song) async => null;
+
   // ── 评论 ──────────────────────────────────────────
   Future<CommentPage> comments(Song song, {CommentSort sort = CommentSort.recommend, int offset = 0}) => throw const SourceUnsupported('评论');
   Future<void> postComment(Song song, String content) => throw const SourceUnsupported('发表评论');

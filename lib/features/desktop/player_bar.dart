@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/settings.dart';
 
 import '../../core/theme/palette.dart';
-import '../../core/ui/cover.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/text.dart';
@@ -12,6 +11,7 @@ import '../../core/ui/widgets.dart';
 import '../../player/player_controller.dart';
 import '../common/actions.dart';
 import '../player/player_page.dart';
+import '../common/song_cover.dart';
 
 /// 桌面端底部玻璃播放条（高 76，圆角 38）。
 class DesktopPlayerBar extends StatelessWidget {
@@ -42,7 +42,7 @@ class DesktopPlayerBar extends StatelessWidget {
               scale: 1,
               child: Row(
                 children: [
-                  Cover(song?.coverUrl, size: 52, circle: true),
+                  SongCover(song, size: 52, circle: true),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
