@@ -298,6 +298,9 @@ class QQMusicSource extends MusicSource {
       playable: true,
       fee: qqFee(j),
       maxQuality: _qqMaxQuality(j),
+      // 响度信息：volume.gain（dB）与 volume.peak（线性峰值）。
+      gainDb: ((j['volume'] as Map?)?['gain'] as num?)?.toDouble(),
+      peak: ((j['volume'] as Map?)?['peak'] as num?)?.toDouble(),
     );
   }
 
@@ -950,11 +953,11 @@ class QQMusicSource extends MusicSource {
           final u = await url(i);
           if (u == null) continue;
           _vkeyStyle = style;
-          return StreamInfo(url: u, quality: wanted[i].$1);
+          return StreamInfo(url: u, quality: wanted[i].$1, gainDb: song.gainDb, peak: song.peak);
         }
         if (trial == null && infos.length > wanted.length) {
           final u = await url(wanted.length);
-          if (u != null) trial = StreamInfo(url: u, quality: AudioQuality.standard, trial: true);
+          if (u != null) trial = StreamInfo(url: u, quality: AudioQuality.standard, trial: true, gainDb: song.gainDb, peak: song.peak);
         }
       } catch (e) {
         lastError = e;

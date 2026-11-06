@@ -52,6 +52,8 @@ class Song {
     this.playCount,
     this.fee = SongFee.free,
     this.maxQuality,
+    this.gainDb,
+    this.peak,
   });
 
   final String id;
@@ -78,6 +80,10 @@ class Song {
   /// 平台提供的最高音质（列表中显示 SQ / Hi-Res 标志）；不知道时为 null。
   final AudioQuality? maxQuality;
 
+  /// 平台在歌曲信息中给出的响度增益（dB）与峰值（线性，1 为满刻度），用于音量均衡与不削波的音量增强。
+  final double? gainDb;
+  final double? peak;
+
   /// 会员或付费歌曲（未登录、没有会员或没有购买时通常只能试听）。
   bool get vip => fee != SongFee.free;
 
@@ -101,6 +107,8 @@ class Song {
     playCount: playCount,
     fee: fee,
     maxQuality: maxQuality,
+    gainDb: gainDb,
+    peak: peak,
   );
 
   Map<String, dynamic> toJson() => {
@@ -116,6 +124,8 @@ class Song {
     'localPath': localPath,
     if (fee != SongFee.free) 'fee': fee.name,
     if (maxQuality != null) 'maxQuality': maxQuality!.name,
+    if (gainDb != null) 'gain': gainDb,
+    if (peak != null) 'peak': peak,
   };
 
   factory Song.fromJson(Map<String, dynamic> j) => Song(
@@ -132,6 +142,8 @@ class Song {
     // 旧版本只保存了 vip 标记。
     fee: SongFee.values.asNameMap()[j['fee']] ?? (j['vip'] == true ? SongFee.vip : SongFee.free),
     maxQuality: AudioQuality.values.asNameMap()[j['maxQuality']],
+    gainDb: (j['gain'] as num?)?.toDouble(),
+    peak: (j['peak'] as num?)?.toDouble(),
   );
 
   @override
@@ -480,7 +492,7 @@ enum AudioQuality {
 
 /// 播放地址。[url] 为空表示无法播放（无版权等）。
 class StreamInfo {
-  const StreamInfo({this.url, this.headers = const {}, this.trial = false, this.quality, this.gainDb, this.cover});
+  const StreamInfo({this.url, this.headers = const {}, this.trial = false, this.quality, this.gainDb, this.peak, this.cover});
 
   final String? url;
   final Map<String, String> headers;
@@ -489,6 +501,9 @@ class StreamInfo {
 
   /// 平台提供的响度增益（dB，类似 ReplayGain），用于音量均衡。
   final double? gainDb;
+
+  /// 平台提供的峰值（线性，1 为满刻度）：桌面端没有限幅器时，按它计算音量增强最多能提升多少而不削波。
+  final double? peak;
 
   /// 取地址时平台一并给出的封面（列表里没有封面的歌曲用它补上）。
   final String? cover;

@@ -66,6 +66,8 @@ class LxLibrarySource extends MusicSource {
     alias: s.alias,
     fee: s.fee,
     maxQuality: s.maxQuality,
+    gainDb: s.gainDb,
+    peak: s.peak,
   );
 
   /// 拆出歌曲所属的平台与该平台的歌曲（酷我歌曲保持原样）。

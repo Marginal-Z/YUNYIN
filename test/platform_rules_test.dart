@@ -70,6 +70,32 @@ void main() {
     expect(PlayerController.audioFilter(boostDb: 4), 'format=format=floatp,lavfi=[volume=4dB,alimiter=limit=0.944:attack=1:release=80:level=0]');
   });
 
+  test('没有限幅器时按峰值智能增强：提升后不超过满刻度，不知道峰值时不提升', () {
+    double out({required int db, required double? peak, double level = 1, double eq = 0}) =>
+        PlayerController.softwareBoost(boostDb: db, peak: peak, level: level, eqPeakDb: eq);
+    // 峰值 0.5（有 6 dB 余量）：+6 dB 几乎全部给出，结果不超过满刻度。
+    expect(out(db: 6, peak: 0.5), closeTo(1.94, 0.01));
+    expect(0.5 * out(db: 6, peak: 0.5), lessThanOrEqualTo(0.97));
+    // 峰值 0.25：+6 dB 全部给出（不超过设定值）。
+    expect(out(db: 6, peak: 0.25), closeTo(1.995, 0.01));
+    // 已经接近满刻度的母带：不提升。
+    expect(out(db: 10, peak: 0.99), 1);
+    // 音量均衡已经压低了电平（0.5）：可以多提升一些，乘积仍不超过满刻度。
+    expect(0.95 * 0.5 * out(db: 10, peak: 0.95, level: 0.5), lessThanOrEqualTo(0.97 + 1e-9));
+    // 均衡器有 +6 dB 提升时按提升后的峰值计算。
+    expect(out(db: 6, peak: 0.5, eq: 6), closeTo(1, 0.02));
+    // 不知道峰值、或者没有开增强：不提升。
+    expect(out(db: 6, peak: null), 1);
+    expect(out(db: 0, peak: 0.3), 1);
+  });
+
+  test('QQ 音乐歌曲带上平台的响度增益与峰值，随队列保存', () {
+    const song = Song(id: 'a', sourceId: 'qq', name: 'x', gainDb: -7.6, peak: 0.946);
+    final back = Song.fromJson(song.toJson());
+    expect(back.gainDb, -7.6);
+    expect(back.peak, 0.946);
+  });
+
   test('听歌统计：一天中的分布、平台分布、连续天数与听过的歌曲数', () {
     final stats = ListenStats();
     const a = Song(id: '1', sourceId: 'qq', name: 'a');

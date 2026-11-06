@@ -22,7 +22,7 @@ class AudioEffectsPage extends StatelessWidget {
     final p = Palette.of(context);
     final s = context.watch<AppSettings>();
     final unsupported = context.select<PlayerController, bool>((c) => c.eqUnsupported);
-    final mayClip = context.select<PlayerController, bool>((c) => c.boostMayClip);
+    final smartBoost = context.select<PlayerController, bool>((c) => c.smartBoost);
     final spatialUnsupported = context.select<PlayerController, bool>((c) => c.spatialUnsupported);
     final bassUnsupported = context.select<PlayerController, bool>((c) => c.bassUnsupported);
     final desktop = LayoutScope.isDesktop(context);
@@ -154,10 +154,10 @@ class AudioEffectsPage extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          mayClip
-              ? '当前设备的播放引擎没有可用的限幅器，音量增强只能直接提升音量，响亮的歌曲可能失真；建议调低增强或使用系统音量。'
+          smartBoost
+              ? '音量均衡按平台提供的响度信息让不同歌曲音量接近。当前设备的播放引擎没有限幅器，音量增强改为按平台提供的峰值智能提升：每首歌最多提升到接近满幅，不会削波破音；已经很响的歌曲提升较少，没有峰值信息的歌曲保持原音量。'
               : '音量均衡按平台提供的响度信息让不同歌曲音量接近。音量增强先提升增益，再经过限幅器压住峰值，响亮的歌曲也不会削波破音。',
-          style: ts(13, height: 1.5, color: mayClip ? p.accentText : p.text2),
+          style: ts(13, height: 1.5, color: p.text2),
         ),
       ],
     );

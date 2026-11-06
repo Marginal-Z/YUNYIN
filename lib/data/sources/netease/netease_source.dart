@@ -841,6 +841,7 @@ class NeteaseSource extends MusicSource {
       trial: trial,
       quality: quality,
       gainDb: (item?['gain'] as num?)?.toDouble(),
+      peak: (item?['peak'] as num?)?.toDouble(),
       headers: const {'User-Agent': _ua, 'Referer': 'https://music.163.com/'},
     );
   }

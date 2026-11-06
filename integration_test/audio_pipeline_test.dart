@@ -185,7 +185,7 @@ void main() {
     final filterSize = await native.getProperty('audio-resample-filter-size');
     final session = Platform.isAndroid ? await native.getProperty('audiotrack-session-id') : '';
     // ignore: avoid_print
-    print('boost position=${player.position.value} samplerate=$rate volume=$volume af=$af limiterUnsupported=${player.limiterUnsupported} session=$session filterSize=$filterSize mayClip=${player.boostMayClip}');
+    print('boost position=${player.position.value} samplerate=$rate volume=$volume af=$af limiterUnsupported=${player.limiterUnsupported} session=$session filterSize=$filterSize smartBoost=${player.smartBoost}');
 
     expect(player.position.value, greaterThan(const Duration(milliseconds: 2500)), reason: '打开音量增强后播放进度没有推进');
     expect(int.tryParse(rate) ?? 0, greaterThan(0), reason: '打开音量增强后没有解码出音频');
@@ -195,13 +195,14 @@ void main() {
       expect(int.tryParse(session) ?? 0, greaterThan(0), reason: '没有使用独立的音频会话');
       expect(af, isNot(contains('alimiter')));
     } else if (player.limiterUnsupported) {
-      // 精简版引擎没有限幅滤镜：自动去掉限幅器继续播放，音效页提示可能失真。
+      // 精简版引擎没有限幅滤镜：自动去掉限幅器继续播放，改为按峰值智能提升（测试音源没有峰值信息，不提升）。
       expect(af, isNot(contains('alimiter')));
-      expect(player.boostMayClip, isTrue);
+      expect(player.smartBoost, isTrue);
+      expect(volume, lessThanOrEqualTo(100), reason: '没有峰值信息时不提升播放器音量');
     } else {
       expect(af, contains('alimiter'));
       expect(af, contains('volume=6dB'));
-      expect(player.boostMayClip, isFalse);
+      expect(player.smartBoost, isFalse);
       // 增益在滤镜中完成，播放器音量不再额外提升（音量均衡与峰值余量只会让它低于 100）。
       expect(volume, lessThanOrEqualTo(100));
     }

@@ -342,12 +342,29 @@ class PlayerController extends ChangeNotifier {
 
   double get _effectiveVolume {
     final base = _systemVolumeOnly ? 1.0 : settings.volume;
-    // 音量增强由带限幅的音效链完成时（Android 系统音效、桌面端的限幅滤镜），播放器音量不再提升；
-    // 都不可用时才退回软件音量提升（可能削波，音效页会提示）。
-    final boost = _boostHandled ? 1.0 : math.pow(10, settings.volumeBoost / 20).toDouble();
     // 音量均衡强度：按比例应用响度增益（强度 0.5 时衰减量减半）。
     final level = levelFactor(gain: _gain, normalize: settings.normalize, strength: settings.normalizeStrength);
+    final boost = softwareBoost(
+      boostDb: _boostHandled ? 0 : settings.volumeBoost,
+      peak: _peak,
+      level: base * level * _eqHeadroom,
+      eqPeakDb: _eqApplied.isEmpty ? 0 : settings.eqGains.fold<double>(0, math.max),
+    );
     return (base * _fade * level * boost * _eqHeadroom * 100).clamp(0, 200).toDouble();
+  }
+
+  /// 当前歌曲的峰值（平台提供；不知道时为 null）。
+  double? _peak;
+
+  /// 没有限幅器时的音量增强（Windows / macOS 的精简版播放引擎、Android 系统音效不可用时）：
+  /// 按平台给出的峰值计算最多能提升多少而不超过满刻度（-0.26 dBFS），取它与设定的增强量中较小的一个。
+  /// 平台没有给出峰值的歌曲不提升（无法保证不削波）。[level] 为提升之前的电平系数，[eqPeakDb] 为均衡器最大提升。
+  @visibleForTesting
+  static double softwareBoost({required int boostDb, required double? peak, required double level, double eqPeakDb = 0}) {
+    if (boostDb <= 0 || peak == null || peak <= 0 || level <= 0) return 1;
+    final want = math.pow(10, boostDb / 20).toDouble();
+    final effectivePeak = peak * math.pow(10, math.max(0, eqPeakDb) / 20).toDouble() * level;
+    return math.min(want, math.max(1.0, 0.97 / effectivePeak));
   }
 
   // ── 均衡器 ──────────────────────────────────────────
@@ -404,8 +421,8 @@ class PlayerController extends ChangeNotifier {
 
   static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
 
-  /// 音量增强在当前设备上会不会削波（没有可用的限幅器）。
-  bool get boostMayClip => settings.volumeBoost > 0 && !_boostHandled;
+  /// 音量增强改为按峰值智能提升（没有可用的限幅器）：不会削波，但已经很响的歌曲提升不多。
+  bool get smartBoost => settings.volumeBoost > 0 && !_boostHandled;
 
   Timer? _fxTimer;
   String _fxApplied = '';
@@ -884,6 +901,7 @@ class PlayerController extends ChangeNotifier {
       if (settings.crossfade && playing) await _rampFade(0, 260);
       if (token != _loadToken) return;
       _gain = gainFactor(info.gainDb);
+      _peak = info.peak != null && info.peak! > 0 ? info.peak : null;
       _opening = true;
       await p.open(Media(info.url!, httpHeaders: info.headers), play: false);
       _openedAt = DateTime.now();

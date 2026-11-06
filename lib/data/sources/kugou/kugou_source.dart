@@ -1287,6 +1287,8 @@ class KugouSource extends MusicSource {
       trial: trial,
       headers: const {'User-Agent': _appUa},
       cover: _cover(transParam['union_cover'] as String?),
+      // volume_peak：这个文件的峰值（线性）。
+      peak: (j['volume_peak'] as num?)?.toDouble(),
     );
   }
 
