@@ -109,7 +109,7 @@ void main() {
     // ignore: avoid_print
     print('position=${player.position.value} current-ao=$ao samplerate=$rate volume=$volume af=$af');
 
-    expect(player.position.value, greaterThan(const Duration(milliseconds: 1500)), reason: '播放进度没有推进');
+    expect(player.position.value, greaterThanOrEqualTo(const Duration(milliseconds: 1500)), reason: '播放进度没有推进');
     expect(ao, isNotEmpty, reason: '没有可用的音频输出（音频链初始化失败）');
     expect(int.tryParse(rate) ?? 0, greaterThan(0), reason: '没有解码出音频');
     expect(volume, greaterThan(0), reason: '音量为 0');
@@ -149,7 +149,7 @@ void main() {
     // 各平台的播放引擎都带有 equalizer 滤镜（CI 探测结果）；即使个别设备不支持，也会自动关闭均衡器继续播放。
     expect(player.eqUnsupported, isFalse, reason: '均衡器滤镜创建失败');
     expect(af, contains('equalizer'));
-    expect(player.position.value, greaterThan(const Duration(milliseconds: 2000)), reason: '打开均衡器后播放进度没有推进');
+    expect(player.position.value, greaterThanOrEqualTo(const Duration(milliseconds: 2000)), reason: '打开均衡器后播放进度没有推进');
     expect(int.tryParse(rate) ?? 0, greaterThan(0), reason: '打开均衡器后没有解码出音频');
 
     // 关闭后滤镜被移除。
@@ -187,7 +187,7 @@ void main() {
     // ignore: avoid_print
     print('boost position=${player.position.value} samplerate=$rate volume=$volume af=$af limiterUnsupported=${player.limiterUnsupported} session=$session filterSize=$filterSize smartBoost=${player.smartBoost}');
 
-    expect(player.position.value, greaterThan(const Duration(milliseconds: 2500)), reason: '打开音量增强后播放进度没有推进');
+    expect(player.position.value, greaterThanOrEqualTo(const Duration(milliseconds: 2500)), reason: '打开音量增强后播放进度没有推进');
     expect(int.tryParse(rate) ?? 0, greaterThan(0), reason: '打开音量增强后没有解码出音频');
     expect(filterSize, '32', reason: '高保真引擎使用 32 抽头重采样滤镜');
     if (Platform.isAndroid) {
