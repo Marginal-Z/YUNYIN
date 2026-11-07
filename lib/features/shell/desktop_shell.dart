@@ -241,7 +241,7 @@ class _DesktopShellState extends State<DesktopShell> {
               ),
             ),
           // 播放条没有底板：后面的页面在底部渐隐。
-          AnimatedPositioned(duration: slide, curve: curve, left: wall ? 0 : 252, right: 0, bottom: 0, height: 118, child: const PlayerBarFade()),
+          AnimatedPositioned(duration: slide, curve: curve, left: wall ? 0 : 252, right: 0, bottom: 0, height: 150, child: const PlayerBarFade()),
           AnimatedPositioned(duration: slide, curve: curve, left: left, right: 28, bottom: 14, child: const DesktopPlayerBar()),
           // Windows：系统风格的最小化 / 最大化 / 关闭按钮固定在窗口右上角。
           if (useWindowsCaption) const Positioned(top: 0, right: 0, child: WindowsCaptionButtons()),

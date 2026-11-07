@@ -184,8 +184,9 @@ class PlayerBarFade extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [bg.withValues(alpha: 0), bg.withValues(alpha: 0.86), bg.withValues(alpha: 0.96)],
-            stops: const [0, 0.55, 1],
+            // 播放控件所在的下方 60% 几乎不透明，上方 40% 渐隐：控件后面不会透出列表文字。
+            colors: [bg.withValues(alpha: 0), bg.withValues(alpha: 0.97), bg],
+            stops: const [0, 0.4, 1],
           ),
         ),
       ),

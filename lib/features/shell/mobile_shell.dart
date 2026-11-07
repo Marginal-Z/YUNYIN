@@ -105,7 +105,7 @@ class _MobileShellState extends State<MobileShell> {
               left: rail ? railSpace - 8 : 0,
               right: 0,
               bottom: 0,
-              height: kLandscapeBarHeight + bottom + 24,
+              height: (kLandscapeBarHeight + bottom) / 0.6,
               child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const PlayerBarFade()),
             ),
             AnimatedPositioned(

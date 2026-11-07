@@ -96,9 +96,9 @@ class _SoftClipRRectState extends State<SoftClipRRect> {
         if (mask == null) return ClipRRect(borderRadius: widget.radius, child: widget.child);
         final w = mask.width / size.width, h = mask.height / size.height;
         // 遮罩只作用在自身矩形内：超出矩形的内容（例如放大后模糊的背景图）先用矩形裁掉（水平垂直的边没有锯齿）；
-        // 外面再包一层几乎不透明的 Opacity，让遮罩在独立图层里合成（否则 Impeller 上会擦掉卡片下面的阴影）。
+        // 外面再包一层几乎不透明的 Opacity（0.995：0.999 会被取整为完全不透明而不创建图层），让遮罩在独立图层里合成（否则 Impeller 上会擦掉卡片下面的阴影）。
         return Opacity(
-          opacity: 0.999,
+          opacity: 0.995,
           child: ClipRect(
             child: ShaderMask(
               blendMode: BlendMode.dstIn,
@@ -125,7 +125,7 @@ class IsolatedShaderMask extends StatelessWidget {
   Widget build(BuildContext context) {
     final mask = ShaderMask(shaderCallback: shaderCallback, blendMode: blendMode, child: child);
     // 只有桌面端的 OpenGL 渲染（Linux、Windows）有这个问题；其他平台不多加图层。
-    return kSoftClip ? Opacity(opacity: 0.999, child: mask) : mask;
+    return kSoftClip ? Opacity(opacity: 0.995, child: mask) : mask;
   }
 }
 
