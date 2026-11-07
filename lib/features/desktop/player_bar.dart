@@ -5,7 +5,6 @@ import '../../core/settings.dart';
 
 import '../../core/theme/palette.dart';
 import '../../core/ui/icons.dart';
-import '../../core/ui/box.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../player/player_controller.dart';
@@ -13,7 +12,7 @@ import '../common/actions.dart';
 import '../player/player_page.dart';
 import '../common/song_cover.dart';
 
-/// 桌面端底部玻璃播放条（高 76，圆角 38）。
+/// 桌面端底部播放条（高 76）：无边框、透明，没有底板、圆角与阴影，控件直接融入页面背景。
 class DesktopPlayerBar extends StatelessWidget {
   const DesktopPlayerBar({super.key, this.onPlayerPage = false});
 
@@ -27,12 +26,9 @@ class DesktopPlayerBar extends StatelessWidget {
     final song = player.current;
     final shuffle = player.mode == PlayMode.shuffle;
     final one = player.mode == PlayMode.repeatOne;
-    return Glass(
-      radius: 38,
+    return Container(
       height: 76,
-      legible: true,
       padding: const EdgeInsets.fromLTRB(12, 0, 20, 0),
-      shadows: onPlayerPage ? const [Shadow2(0, 10, 30, Color.fromRGBO(0, 0, 0, 0.12)), Shadow2(0, 1, 3, Color.fromRGBO(0, 0, 0, 0.08))] : null,
       child: Row(
         children: [
           SizedBox(
@@ -170,6 +166,28 @@ class DesktopPlayerBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 透明播放条后面的页面渐隐：页面内容滚到播放条下方时逐渐融入页面底色，播放控件始终清晰，又不需要底板。
+class PlayerBarFade extends StatelessWidget {
+  const PlayerBarFade({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = Palette.of(context).bg;
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [bg.withValues(alpha: 0), bg.withValues(alpha: 0.86), bg.withValues(alpha: 0.96)],
+            stops: const [0, 0.55, 1],
+          ),
+        ),
       ),
     );
   }

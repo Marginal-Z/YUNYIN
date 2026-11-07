@@ -297,11 +297,13 @@ class _LyricsLayout extends MultiChildRenderObjectWidget {
   final bool stagger;
 
   @override
-  _RenderLyrics createRenderObject(BuildContext context) => _RenderLyrics(active, anchor, scroll, jump, stagger);
+  _RenderLyrics createRenderObject(BuildContext context) =>
+      _RenderLyrics(active, anchor, scroll, jump, stagger)..pixelRatio = MediaQuery.devicePixelRatioOf(context);
 
   @override
   void updateRenderObject(BuildContext context, _RenderLyrics r) {
     r
+      ..pixelRatio = MediaQuery.devicePixelRatioOf(context)
       ..stagger = stagger
       ..jump = jump
       ..anchor = anchor
@@ -324,6 +326,10 @@ class _LineData extends ContainerBoxParentData<RenderBox> {
 /// 只移动绘制位置，不重新布局；视图外的行不绘制。
 class _RenderLyrics extends RenderBox with ContainerRenderObjectMixin<RenderBox, _LineData>, RenderBoxContainerDefaultsMixin<RenderBox, _LineData> {
   _RenderLyrics(this._active, this._anchor, this._scroll, this._jump, this._stagger);
+
+  /// 设备像素比：各行的绘制位置对齐到物理像素。各行按各自的弹簧位置移动，文字绘制时会落到整像素上，
+  /// 不对齐时相邻几行在不同的帧跳到下一个像素，看起来在抖。
+  double pixelRatio = 1;
 
   /// 弹簧：响应时间约 0.6 秒、轻微欠阻尼。
   static const _omega = 2 * math.pi / 0.62;
@@ -579,7 +585,8 @@ class _RenderLyrics extends RenderBox with ContainerRenderObjectMixin<RenderBox,
       final d = child.parentData! as _LineData;
       // 只绘制可见的行（上下各留一屏余量给放大与模糊）。
       if (d.y + child.size.height > -size.height * 0.5 && d.y < size.height * 1.5) {
-        context.paintChild(child, offset + d.offset);
+        final o = offset + d.offset;
+        context.paintChild(child, Offset((o.dx * pixelRatio).roundToDouble() / pixelRatio, (o.dy * pixelRatio).roundToDouble() / pixelRatio));
       }
       child = d.nextSibling;
     }
@@ -892,11 +899,14 @@ class _KaraokeText extends LeafRenderObjectWidget {
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderKaraoke(line, style, base, fill, progress, position, Directionality.of(context), MediaQuery.textScalerOf(context));
+      _RenderKaraoke(line, style, base, fill, progress, position, Directionality.of(context), MediaQuery.textScalerOf(context))
+        ..pixelRatio = MediaQuery.devicePixelRatioOf(context);
 
   @override
   void updateRenderObject(BuildContext context, _RenderKaraoke r) {
-    r.update(line, style, base, fill, progress, position, MediaQuery.textScalerOf(context));
+    r
+      ..pixelRatio = MediaQuery.devicePixelRatioOf(context)
+      ..update(line, style, base, fill, progress, position, MediaQuery.textScalerOf(context));
   }
 }
 
@@ -908,6 +918,9 @@ class _RenderKaraoke extends RenderBox {
       _lit = TextPainter(textDirection: dir, textScaler: scaler) {
     _setText();
   }
+
+  /// 设备像素比：逐字上浮的位移对齐到物理像素，文字与裁剪边缘一起移动，不会在相邻像素间来回跳。
+  double pixelRatio = 1;
 
   LyricLine _line;
   TextStyle _style;
@@ -1004,7 +1017,8 @@ class _RenderKaraoke extends RenderBox {
       final dur = w.duration.inMilliseconds;
       fills.add(dur <= 0 ? (ms >= 0 ? 1.0 : 0.0) : (ms / dur).clamp(0.0, 1.0));
       // 上浮比填色稍慢，长音持续上浮。
-      lifts.add(Curves.easeOutCubic.transform((ms / math.max(dur, 500)).clamp(0.0, 1.0)) * lift);
+      final up = Curves.easeOutCubic.transform((ms / math.max(dur, 500)).clamp(0.0, 1.0)) * lift;
+      lifts.add((up * pixelRatio).roundToDouble() / pixelRatio);
     }
     Rect clipOf(Rect r) => Rect.fromLTRB(r.left - 1, r.top - fontSize * 0.3, r.right + 1, r.bottom + fontSize * 0.3).shift(offset);
 

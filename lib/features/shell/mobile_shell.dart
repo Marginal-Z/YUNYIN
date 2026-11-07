@@ -21,6 +21,7 @@ import 'tab_bar.dart';
 import 'transitions.dart';
 import '../common/song_cover.dart';
 import '../../core/ui/motion.dart';
+import '../desktop/player_bar.dart';
 
 /// 移动端外壳：三个标签各自的导航栈 + 悬浮玻璃导航栏与迷你播放条。
 class MobileShell extends StatefulWidget {
@@ -98,6 +99,14 @@ class _MobileShellState extends State<MobileShell> {
               bottom: bottom,
               width: kLandscapeRailWidth,
               child: const Align(alignment: Alignment.topCenter, child: LandscapeNavRail()),
+            ),
+            // 横屏播放条没有底板：后面的页面在底部渐隐。
+            Positioned(
+              left: rail ? railSpace - 8 : 0,
+              right: 0,
+              bottom: 0,
+              height: kLandscapeBarHeight + bottom + 24,
+              child: AnimatedOpacity(opacity: showMini ? 1 : 0, duration: const Duration(milliseconds: 200), child: const PlayerBarFade()),
             ),
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),

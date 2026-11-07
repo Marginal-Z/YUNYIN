@@ -99,10 +99,9 @@ class LandscapePlayerBar extends StatelessWidget {
     final one = player.mode == PlayMode.repeatOne;
     final shuffle = player.mode == PlayMode.shuffle;
     final style = context.select<AppSettings, ProgressStyle>((s) => s.progressStyle);
-    return Glass(
-      radius: kLandscapeBarHeight / 2,
+    // 无边框、透明：没有底板与圆角，控件直接融入页面背景（页面在底部渐隐，见外壳）。
+    return Container(
       height: kLandscapeBarHeight,
-      legible: true,
       padding: const EdgeInsets.fromLTRB(8, 0, 12, 0),
       child: Row(
         children: [

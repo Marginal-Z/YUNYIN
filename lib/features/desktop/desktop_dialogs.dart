@@ -40,15 +40,16 @@ Future<T?> showDesktopPanel<T>(BuildContext context, {required WidgetBuilder bui
             radius: BorderRadius.circular(28),
             color: p.bg,
             shadows: const [Shadow2(0, 30, 70, Color.fromRGBO(0, 0, 0, 0.32))],
-            child: MediaQuery.removePadding(
-              context: ctx,
-              removeTop: true,
-              removeBottom: true,
-              child: LayoutScope(
-                desktop: false,
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: Builder(builder: builder),
+            // 面板里的页面按面板自己的尺寸排版（否则会按整个窗口的宽度计算边距，内容被挤成一条，看起来一片空白）。
+            child: LayoutBuilder(
+              builder: (context, c) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(size: c.biggest, padding: EdgeInsets.zero, viewPadding: EdgeInsets.zero, viewInsets: EdgeInsets.zero),
+                child: LayoutScope(
+                  desktop: false,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: Builder(builder: builder),
+                  ),
                 ),
               ),
             ),

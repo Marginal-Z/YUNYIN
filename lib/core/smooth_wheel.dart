@@ -61,15 +61,21 @@ abstract final class SmoothWheel {
     _last = now;
     final out = <ui.PointerData>[];
     final done = <int>[];
-    // 每帧滚动剩余位移的 (1 - e^(-dt/τ))；不足 1 像素时一次滚完。
+    // 每帧滚动剩余位移的 (1 - e^(-dt/τ))，取整到物理像素（余数留到下一帧）：内容每帧整像素移动，
+    // 与按整像素绘制的文字同步，不会出现文字与图片相对抖动。剩下不足 1 像素时结束。
     final f = 1 - math.exp(-dt / _tau);
     _pending.forEach((device, p) {
-      var sx = p.dx * f, sy = p.dy * f;
-      if (p.dx.abs() < 1) sx = p.dx;
-      if (p.dy.abs() < 1) sy = p.dy;
+      double step(double rest) {
+        final v = (rest * f).roundToDouble();
+        return v == 0 ? rest.roundToDouble() : v;
+      }
+
+      final sx = step(p.dx), sy = step(p.dy);
       p
         ..dx -= sx
         ..dy -= sy;
+      if (p.dx.abs() < 1) p.dx = 0;
+      if (p.dy.abs() < 1) p.dy = 0;
       if (sx != 0 || sy != 0) {
         final t = p.template!;
         out.add(
