@@ -537,35 +537,128 @@ class KugouSource extends MusicSource {
     return (j['data'] as Map?)?.cast<String, dynamic>() ?? const {};
   }
 
+  static const _webRelogin = Membership(
+    platform: '酷狗音乐',
+    title: '请重新登录',
+    relogin: true,
+    benefits: ['当前是网页登录 / Cookie 的凭据，酷狗客户端接口不认可：查不到会员，会员歌曲只能试听', '请退出后用“酷狗 App 扫码登录”'],
+  );
+
   @override
   Future<Membership?> membership() async {
     if (_account == null) return null;
+    if (!_appAccount) {
+      // 网页登录的凭据：能查到就显示；查不到时（通常如此）提示改用扫码登录。
+      try {
+        return kugouMembership(await _account2('/v1/get_union_vip', base: 'https://kugouvip.kugou.com', query: const {'busi_type': 'concept'}));
+      } catch (e) {
+        debugPrint('kugou vip (web): $e');
+        return _webRelogin;
+      }
+    }
     try {
       final d = await _account2('/v1/get_union_vip', base: 'https://kugouvip.kugou.com', query: const {'busi_type': 'concept'});
-      final list = (d['busi_vip'] as List? ?? const []).whereType<Map>().toList();
-      DateTime? day(Object? v) => DateTime.tryParse('${v ?? ''}'.trim().replaceFirst(' ', 'T'));
-      final active = list.where((v) => '${v['is_vip']}' == '1').toList()
-        ..sort((a, b) => (day(b['vip_end_time']) ?? DateTime(0)).compareTo(day(a['vip_end_time']) ?? DateTime(0)));
-      if (active.isNotEmpty) {
-        final v = active.first;
-        final svip = active.any((v) => v['product_type'] == 'svip');
-        return Membership(
-          platform: '酷狗音乐',
-          title: svip ? '豪华 VIP' : (v['product_type'] == 'tvip' ? '畅听 VIP' : 'VIP 会员'),
-          active: true,
-          expires: day(v['vip_end_time']),
-          benefits: svip ? const ['无损与 Hi-Res 音质', '播放与下载会员歌曲', '畅听 VIP 全部权益'] : const ['播放会员歌曲', '高品质音质'],
-        );
-      }
-      return const Membership(platform: '酷狗音乐', title: '未开通 VIP', benefits: ['免费歌曲可完整播放', '会员歌曲为试听片段']);
+      return kugouMembership(d);
     } catch (e) {
       debugPrint('kugou vip: $e');
+      final text = '$e'.replaceFirst('Exception: ', '');
       return Membership(
         platform: '酷狗音乐',
-        title: '已登录',
-        benefits: ['暂时查询不到会员信息：${'$e'.replaceFirst('Exception: ', '')}', '会员歌曲按账号权限播放'],
+        title: text.contains('重新扫码') ? '登录已失效' : '已登录',
+        relogin: text.contains('重新扫码'),
+        benefits: ['暂时查询不到会员信息：$text'],
       );
     }
+  }
+
+  /// 解析酷狗的会员信息（get_union_vip）：
+  /// - 顶层 user_type 的第 16 位为超级 VIP，vip_type 为 6 是豪华 VIP（酷狗主应用的会员）；
+  /// - busi_vip 中 product_type 为 tvip 的是畅听 VIP，svip 的是概念版 VIP（is_vip 为 1 表示生效）；
+  /// - 顶层 is_vip 为 1 或 vip_type 大于 0 时也是会员。
+  /// 此前只看 busi_vip、还把 svip 当成豪华 VIP，开通豪华 VIP 的账号会显示为“未开通”。
+  @visibleForTesting
+  static Membership kugouMembership(Map d) {
+    int n(Object? v) => int.tryParse('${v ?? ''}') ?? 0;
+    DateTime? day(Object? v) {
+      final t = '${v ?? ''}'.trim();
+      if (t.isEmpty || t.startsWith('0000')) return null;
+      final seconds = int.tryParse(t);
+      if (seconds != null && seconds > 1000000000) return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+      return DateTime.tryParse(t.replaceFirst(' ', 'T'));
+    }
+
+    final products = (d['busi_vip'] as List? ?? const []).whereType<Map>().toList();
+    Map? product(String type) => products.where((p) => p['product_type'] == type && n(p['is_vip']) == 1).firstOrNull;
+    final userType = n(d['user_type']);
+    final vipType = n(d['vip_type']);
+    final superVip = userType > 0 && userType & 16 != 0;
+    final deluxe = vipType == 6;
+    final music = product('tvip');
+    final concept = product('svip');
+    final other = products.where((p) => n(p['is_vip']) == 1).firstOrNull;
+    final top = n(d['is_vip']) == 1 || vipType > 0;
+    final (String? title, DateTime? expires) = superVip
+        ? ('超级 VIP', day(d['su_vip_end_time']) ?? day(d['vip_end_time']))
+        : deluxe
+        ? ('豪华 VIP', day(d['vip_end_time']))
+        : music != null
+        ? ('畅听 VIP', day(music['vip_end_time']))
+        : top
+        ? ('VIP 会员', day(d['vip_end_time']))
+        : concept != null
+        ? ('概念版 VIP', day(concept['vip_end_time']))
+        : other != null
+        ? ('VIP 会员', day(other['vip_end_time']))
+        : (null, null);
+    if (title == null) return const Membership(platform: '酷狗音乐', title: '未开通 VIP', benefits: ['免费歌曲可完整播放', '会员歌曲为试听片段']);
+    return Membership(
+      platform: '酷狗音乐',
+      title: title,
+      active: true,
+      expires: expires,
+      benefits: superVip || deluxe ? const ['无损与 Hi-Res 音质', '播放与下载会员歌曲', '畅听 VIP 全部权益'] : const ['播放会员歌曲', '高品质音质'],
+    );
+  }
+
+  @override
+  Future<String> diagnose() async {
+    final out = StringBuffer('酷狗账号诊断（${DateTime.now().toIso8601String().substring(0, 19)}）\n');
+    final a = _account;
+    if (a == null) return '$out未登录';
+    final id = a['KugooID'] ?? '';
+    out.writeln('账号：${id.length > 4 ? '${id.substring(0, 2)}***${id.substring(id.length - 2)}' : '***'}，${_appAccount ? '酷狗 App 扫码登录（客户端凭据）' : '网页登录 / Cookie（网页凭据，客户端接口不认可）'}');
+    out.writeln('设备：${(_dfid ?? '').isEmpty ? '未注册' : '已注册'}');
+    Future<void> step(String name, Future<String> Function() run) async {
+      try {
+        out.writeln('$name：${await run()}');
+      } catch (e) {
+        out.writeln('$name：失败 $e');
+      }
+    }
+
+    await step('会员接口', () async {
+      final j = await _app('/v1/get_union_vip', base: 'https://kugouvip.kugou.com', query: const {'busi_type': 'concept'});
+      final d = j['data'] is Map ? j['data'] as Map : const {};
+      final busi = [for (final p in (d['busi_vip'] as List? ?? const []).whereType<Map>()) '${p['product_type']}=${p['is_vip']}'].join(',');
+      return 'status=${j['status']} error_code=${j['error_code'] ?? j['errcode'] ?? ''} is_vip=${d['is_vip']} vip_type=${d['vip_type']} user_type=${d['user_type']} busi_vip=[$busi] → ${'${j['status']}' == '1' ? kugouMembership(d).title : '-'}';
+    });
+    // 一首 VIP 歌曲（周杰伦《晴天》）：各音质的结果。
+    const ids = (hash: 'b3a52a7a958bf0aed0ebfba2e9a818b7', audio: '32100650', album: '966846');
+    for (final q in const ['128', '320', 'flac']) {
+      await step('播放接口 $q', () async {
+        final j = await _urlRequest(ids, q);
+        final urls = [j['url'], j['backupUrl']].expand((v) => v is List ? v : [v]).whereType<String>().where((u) => u.isNotEmpty);
+        return 'status=${j['status']} errcode=${j['errcode'] ?? j['error_code'] ?? ''} fail_process=${j['fail_process'] ?? ''} 试听=${j['hash_offset'] is Map ? '是' : '否'} 地址=${urls.isEmpty ? '无' : '有'}';
+      });
+    }
+    return out.toString();
+  }
+
+  /// 只拿到试听片段时告诉用户原因。
+  String? get _trialNote {
+    if (_account == null) return '用酷狗 App 扫码登录有会员的账号后可以播放完整版';
+    if (!_appAccount) return '当前是网页登录的凭据，无法播放完整的会员歌曲，请退出后用“酷狗 App 扫码登录”';
+    return '酷狗没有给出完整版：可能需要 VIP，或登录已失效。可在“我的 → 会员卡片 → 账号诊断”中查看原因';
   }
 
   /// 账号下的全部歌单（自建、“我喜欢”、收藏的歌单与专辑）。
@@ -1236,7 +1329,7 @@ class KugouSource extends MusicSource {
     }
     if (hasTrial) {
       final j = await _urlRequest(ids, '128', freePart: true);
-      final info = _urlInfo(j, AudioQuality.standard, trial: true);
+      final info = _urlInfo(j, AudioQuality.standard, trial: true, note: _trialNote);
       if (info != null) return info;
     }
     final why = [if (lastCode != null) '错误码 $lastCode', if (lastMessage.isNotEmpty) lastMessage].join('，');
@@ -1272,7 +1365,7 @@ class KugouSource extends MusicSource {
     );
   }
 
-  static StreamInfo? _urlInfo(Map<String, dynamic> j, AudioQuality quality, {bool trial = false}) {
+  static StreamInfo? _urlInfo(Map<String, dynamic> j, AudioQuality quality, {bool trial = false, String? note}) {
     if ('${j['status']}' != '1') return null;
     final urls = [
       for (final value in [j['url'], j['backupUrl']].expand((v) => v is List ? v : [v]))
@@ -1285,6 +1378,7 @@ class KugouSource extends MusicSource {
       url: urls.firstWhere((u) => u.startsWith('https://'), orElse: () => urls.first),
       quality: ext == 'flac' && quality.index < AudioQuality.lossless.index ? AudioQuality.lossless : quality,
       trial: trial,
+      note: note,
       headers: const {'User-Agent': _appUa},
       cover: _cover(transParam['union_cover'] as String?),
       // volume_peak：这个文件的峰值（线性）。

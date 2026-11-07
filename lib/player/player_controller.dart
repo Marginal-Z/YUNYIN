@@ -127,7 +127,9 @@ class PlayerController extends ChangeNotifier {
         );
     _player = p;
     _subs.addAll([
+      // 只在状态真正变化时通知：播放引擎会重复报告相同的状态，每次通知都会让监听播放器的页面整页重建。
       p.stream.playing.listen((v) {
+        if (v == playing) return;
         playing = v;
         notifyListeners();
       }),
@@ -138,11 +140,12 @@ class PlayerController extends ChangeNotifier {
         if ((v - position.value).abs() >= const Duration(milliseconds: 250) || v < position.value) position.value = v;
       }),
       p.stream.duration.listen((v) {
-        if (_opening || v == Duration.zero) return;
+        if (_opening || v == Duration.zero || v == duration) return;
         duration = v;
         notifyListeners();
       }),
       p.stream.buffering.listen((v) {
+        if (v == buffering) return;
         buffering = v;
         notifyListeners();
       }),
@@ -893,7 +896,7 @@ class PlayerController extends ChangeNotifier {
       }
       return;
     }
-    if (info.trial) _notices.add(const PlayerNotice('当前为试听片段'));
+    if (info.trial) _notices.add(PlayerNotice('当前为试听片段', message: info.note));
     final p = _player!;
     // 每次等待之后都检查是否已经切到别的歌：快速连续切歌时，较早的请求不能在之后打开自己的地址，
     // 否则界面显示的是新歌，实际播放的却是上一首。

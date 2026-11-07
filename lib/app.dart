@@ -110,7 +110,7 @@ class YunyinApp extends StatelessWidget {
   Widget _shell(BuildContext context, Widget child, AppSettings s, Palette light, Palette dark) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // 默认纯白背景下卡片改为浅灰底（见 Palette.onWhite）；封面取色与自定义图片背景保持原样。
-    final p = isDark ? dark : (s.background == BackgroundMode.glow ? _onWhite(light) : light);
+    final p = isDark || s.uiStyle == UiStyle.neumorphic ? (isDark ? dark : light) : (s.background == BackgroundMode.glow ? _onWhite(light) : light);
     final width = MediaQuery.sizeOf(context).width;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
@@ -121,7 +121,8 @@ class YunyinApp extends StatelessWidget {
       child: PaletteScope(
         palette: p,
         child: GlassScope(
-          enabled: s.glass,
+          // 新拟态风格不使用毛玻璃（不模糊背景，绘制开销也小得多）。
+          enabled: s.glass && s.uiStyle == UiStyle.glass,
           material: s.glassMaterial,
           child: LayoutScope(
             desktop: AdaptiveScale.desktopOf(context) ?? width >= kDesktopBreakpoint,

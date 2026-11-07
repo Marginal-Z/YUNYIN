@@ -35,19 +35,11 @@ class _Frame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final desktop = LayoutScope.isDesktop(context);
     return AdaptivePage(
       chrome: Chrome.navOnly,
-      mobileTop: 78,
-      overlay: [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
-        ),
-      ],
-      children: [
-        PageTitle(title, subtitle: subtitle, size: desktop ? 40 : 36),
+      mobileTop: 22,
+            children: [
+        PageHeader(title, subtitle: subtitle),
         const SizedBox(height: 12),
         ...children,
         const SizedBox(height: 24),

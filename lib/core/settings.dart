@@ -103,6 +103,16 @@ enum HomeLayout {
   final String description;
 }
 
+/// 界面风格。
+enum UiStyle {
+  glass('液态玻璃', '半透明玻璃与背景光晕'),
+  neumorphic('新拟态', '同色柔和凸起，干净、不模糊，更省电');
+
+  const UiStyle(this.label, this.description);
+  final String label;
+  final String description;
+}
+
 /// 均衡器的 10 个频段（Hz）。
 const kEqBands = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
@@ -175,6 +185,9 @@ class AppSettings extends ChangeNotifier {
 
   /// 播放页背景按封面取色。
   bool coverColors = true;
+
+  /// 界面风格：液态玻璃或新拟态。
+  UiStyle uiStyle = UiStyle.glass;
 
   /// 液态玻璃材质。
   GlassMaterial glassMaterial = GlassMaterial.clear;
@@ -273,7 +286,13 @@ class AppSettings extends ChangeNotifier {
 
   final Map<(bool, AccentColor), Palette> _palettes = {};
 
-  Palette palette(bool dark) => _palettes.putIfAbsent((dark, accent), () => dark ? Palette.dark(accent) : Palette.light(accent));
+  final Map<(bool, AccentColor), Palette> _neumorphic = {};
+
+  /// 当前界面风格下的色板（新拟态为同色柔和凸起的变体）。按主题色缓存，色板对象不变时不会让整棵树重建。
+  Palette palette(bool dark) {
+    final base = _palettes.putIfAbsent((dark, accent), () => dark ? Palette.dark(accent) : Palette.light(accent));
+    return uiStyle == UiStyle.neumorphic ? _neumorphic.putIfAbsent((dark, accent), base.neumorphicVariant) : base;
+  }
 
   T? _read<T>(String key) {
     final value = _p.get(key);
@@ -319,6 +338,7 @@ class AppSettings extends ChangeNotifier {
     progressStyle = ps != null
         ? ProgressStyle.values[ps.clamp(0, ProgressStyle.values.length - 1)]
         : (_read<bool>('waveProgress') ?? true ? ProgressStyle.wave : ProgressStyle.line);
+    uiStyle = _enumValue('uiStyle', UiStyle.values, UiStyle.glass);
     volumeBoost = (_read<int>('volumeBoost') ?? 0).clamp(0, maxVolumeBoost);
     hifiEngine = _read<bool>('hifiEngine') ?? true;
     spatial = _number('spatial', 0, 0, 1);
@@ -527,6 +547,12 @@ class AppSettings extends ChangeNotifier {
   void setVolumeBoost(int db) {
     volumeBoost = db.clamp(0, maxVolumeBoost);
     _p.setInt('volumeBoost', volumeBoost);
+    notifyListeners();
+  }
+
+  void setUiStyle(UiStyle v) {
+    uiStyle = v;
+    _p.setInt('uiStyle', v.index);
     notifyListeners();
   }
 

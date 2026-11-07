@@ -21,7 +21,10 @@ class AppBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mode = context.select<AppSettings, BackgroundMode>((s) => s.background);
+    // 新拟态风格的凸起效果依赖与卡片同色的纯色背景。
+    final neumorphic = context.select<AppSettings, bool>((s) => s.uiStyle == UiStyle.neumorphic);
+    final chosen = context.select<AppSettings, BackgroundMode>((s) => s.background);
+    final mode = neumorphic ? BackgroundMode.glow : chosen;
     final Widget bg = switch (mode) {
       BackgroundMode.glow => const _Plain(),
       BackgroundMode.cover => _CoverBackground(scale: scale),
@@ -47,7 +50,7 @@ class _Plain extends StatelessWidget {
 }
 
 /// 默认纯色背景的颜色。
-Color plainBackground(Palette p) => p.isDark ? p.bg : const Color(0xFFFFFFFF);
+Color plainBackground(Palette p) => p.isDark || p.neumorphic ? p.bg : const Color(0xFFFFFFFF);
 
 /// 封面取色背景：底色与三团光晕取自当前歌曲封面，切歌时平滑过渡；没有歌曲时使用默认纯色。
 class _CoverBackground extends StatefulWidget {

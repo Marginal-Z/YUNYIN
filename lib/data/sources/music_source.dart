@@ -90,6 +90,9 @@ abstract class MusicSource extends ChangeNotifier {
   /// 当前账号的会员信息；未登录或平台不提供时返回 null。
   Future<Membership?> membership() async => null;
 
+  /// 账号诊断：依次请求会员、取地址等接口，返回各接口的结果码（不含登录凭据），用于排查会员歌曲只能试听等问题。
+  Future<String> diagnose() async => '$name：没有可诊断的账号接口';
+
   // ── 发现 ──────────────────────────────────────────
   Future<HomeFeed> homeFeed() => throw const SourceUnsupported('首页推荐');
   Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) => throw const SourceUnsupported('推荐歌单');

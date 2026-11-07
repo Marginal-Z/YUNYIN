@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/palette.dart';
@@ -287,11 +288,110 @@ class _MembershipCard extends StatelessWidget {
                   ],
                 ),
               ],
-              if (m != null && !m.active) ...[const SizedBox(height: 8), Text('开通会员后可播放会员歌曲与更高音质。', style: ts(13, color: const Color(0xD9FFFFFF)))],
+              if (m != null && !m.active && !m.relogin) ...[const SizedBox(height: 8), Text('开通会员后可播放会员歌曲与更高音质。', style: ts(13, color: const Color(0xD9FFFFFF)))],
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  if (m?.relogin ?? false) ...[
+                    _CardButton(
+                      label: '重新扫码登录',
+                      icon: YIcons.qr,
+                      onTap: () async {
+                        await source.logout();
+                        if (context.mounted) go(context, LoginRoute());
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  _CardButton(label: '账号诊断', icon: YIcons.info, onTap: () => _diagnose(context, source)),
+                ],
+              ),
             ],
           ),
         );
       },
     );
   }
+}
+
+/// 会员卡片上的半透明小按钮。
+class _CardButton extends StatelessWidget {
+  const _CardButton({required this.label, required this.icon, required this.onTap});
+
+  final String label;
+  final YIconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      scale: 0.94,
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(color: const Color(0x33FFFFFF), borderRadius: BorderRadius.circular(17)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            YIcon(icon, size: 16, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(label, style: ts(13, weight: w600, color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 账号诊断：依次请求平台的会员与取地址接口，显示各接口的结果码，可以复制后发给开发者。
+Future<void> _diagnose(BuildContext context, MusicSource source) async {
+  final report = source.diagnose();
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      final p = Palette.of(ctx);
+      return AlertDialog(
+        backgroundColor: p.dialog,
+        title: Text('${source.name}账号诊断', style: ts(18, weight: w700, color: p.text)),
+        content: SizedBox(
+          width: 460,
+          child: FutureBuilder<String>(
+            future: report,
+            builder: (ctx, snap) {
+              if (!snap.hasData && !snap.hasError) {
+                return const SizedBox(height: 120, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+              }
+              final text = snap.data ?? '诊断失败：${snap.error}';
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('结果中不包含登录凭据。会员歌曲只能试听时，把它复制给开发者即可定位原因。', style: ts(12.5, height: 1.4, color: p.text2)),
+                  const SizedBox(height: 10),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 320),
+                    child: SingleChildScrollView(
+                      child: SelectableText(text, style: ts(12.5, height: 1.5, color: p.text)),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('关闭')),
+          TextButton(
+            onPressed: () async {
+              final text = await report.catchError((Object e) => '诊断失败：$e');
+              await Clipboard.setData(ClipboardData(text: text));
+              if (ctx.mounted) Toast.show(ctx, '已复制诊断结果', icon: YIcons.check);
+            },
+            child: const Text('复制'),
+          ),
+        ],
+      );
+    },
+  );
 }

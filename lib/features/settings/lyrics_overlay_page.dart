@@ -28,16 +28,9 @@ class LyricsOverlayPage extends StatelessWidget {
     final color = s.lyricsDisplayColor;
     return AdaptivePage(
       chrome: Chrome.navOnly,
-      mobileTop: 78,
-      overlay: [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
-        ),
-      ],
-      children: [
-        PageTitle(_android ? '桌面与状态栏歌词' : '桌面歌词', size: desktop ? 40 : 34),
+      mobileTop: 22,
+            children: [
+        PageHeader(_android ? '桌面与状态栏歌词' : '桌面歌词'),
         const SizedBox(height: 14),
         // 预览：深色底板上的当前句与下一句。
         Container(

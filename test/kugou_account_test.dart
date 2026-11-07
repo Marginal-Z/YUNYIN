@@ -34,7 +34,8 @@ void main() {
     final again = KugouSource(dio: offline);
     await again.init();
     expect(again.loggedIn, isTrue);
-    expect((await again.membership())?.title, '已登录', reason: '查不到会员信息时仍显示已登录');
+    final offlineVip = await again.membership();
+    expect(offlineVip?.relogin, isTrue, reason: '网页登录的凭据查不到会员时提示改用扫码登录');
     await again.logout();
     final third = KugouSource();
     await third.init();
@@ -133,7 +134,7 @@ void main() {
 
     final vip = await kg.membership();
     expect(vip?.active, isTrue);
-    expect(vip?.title, '豪华 VIP');
+    expect(vip?.title, '概念版 VIP', reason: 'busi_vip 中的 svip 是概念版 VIP（豪华 VIP 看顶层 vip_type 6）');
     expect(vip?.expires, DateTime(2027, 1, 2));
     dio.close();
   });

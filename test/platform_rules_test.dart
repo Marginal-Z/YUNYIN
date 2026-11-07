@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yunyin/data/listen_stats.dart';
 import 'package:yunyin/data/models.dart';
+import 'package:yunyin/data/sources/kugou/kugou_source.dart';
 import 'package:yunyin/data/sources/netease/netease_source.dart';
 import 'package:yunyin/data/sources/qq/qq_source.dart';
 import 'package:yunyin/player/player_controller.dart';
@@ -112,5 +113,44 @@ void main() {
     expect(stats.longestStreak, 1);
     expect(stats.since(7), const Duration(minutes: 4));
     expect(stats.activeIn(30), 1);
+  });
+
+  test('酷狗会员：顶层 vip_type 6 为豪华 VIP，user_type 第 16 位为超级 VIP，busi_vip 中 tvip 为畅听、svip 为概念版', () {
+    expect(KugouSource.kugouMembership({'vip_type': 6, 'vip_end_time': '2027-01-01 00:00:00', 'busi_vip': []}).title, '豪华 VIP');
+    expect(KugouSource.kugouMembership({'vip_type': 6, 'vip_end_time': '2027-01-01 00:00:00'}).expires, DateTime(2027));
+    expect(KugouSource.kugouMembership({'user_type': 16 | 1, 'vip_type': 6}).title, '超级 VIP');
+    expect(
+      KugouSource.kugouMembership({
+        'busi_vip': [
+          {'product_type': 'tvip', 'is_vip': 1, 'vip_end_time': '2026-12-31 23:59:59'},
+        ],
+      }).title,
+      '畅听 VIP',
+    );
+    expect(
+      KugouSource.kugouMembership({
+        'busi_vip': [
+          {'product_type': 'svip', 'is_vip': '1'},
+        ],
+      }).title,
+      '概念版 VIP',
+    );
+    expect(KugouSource.kugouMembership({'is_vip': 1}).active, isTrue);
+    final none = KugouSource.kugouMembership({
+      'vip_type': 0,
+      'busi_vip': [
+        {'product_type': 'svip', 'is_vip': 0},
+      ],
+    });
+    expect(none.active, isFalse);
+  });
+
+  test('QQ 音乐会员：8 元 / 12 元档、家庭与体验会员都算已开通', () {
+    expect(QQMusicSource.qqMembership({'svip': 1, 'identity': {}})!.title, '超级会员');
+    expect(QQMusicSource.qqMembership({'identity': {'eight': 1, 'eightEnd': '2027-02-01'}})!.title, '绿钻');
+    expect(QQMusicSource.qqMembership({'identity': {'twelve': 1}})!.title, '豪华绿钻');
+    expect(QQMusicSource.qqMembership({'identity': {'GroupVipFlag': 1}})!.active, isTrue);
+    expect(QQMusicSource.qqMembership({'identity': {'vip': 0, 'level': 3}})!.active, isFalse);
+    expect(QQMusicSource.qqMembership({}), isNull);
   });
 }

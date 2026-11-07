@@ -14,6 +14,7 @@ import '../../core/ui/feedback.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
+import '../../core/update/updater.dart';
 import '../../data/downloads.dart';
 import '../../data/models.dart';
 import '../../player/player_controller.dart';
@@ -29,15 +30,8 @@ class SettingsPage extends StatelessWidget {
     if (LayoutScope.isDesktop(context)) return const _DesktopSettings();
     return MobilePage(
       chrome: Chrome.navOnly,
-      top: 78,
-      overlay: [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
-        ),
-      ],
-      children: const [PageTitle('设置'), SizedBox(height: 16), SettingsEntries(), GroupLabel('关于'), AboutEntry()],
+      top: 22,
+            children: const [PageHeader('设置', subtitle: '管理播放体验与应用偏好'), SizedBox(height: 14), SettingsEntries(), GroupLabel('关于'), AboutEntry()],
     );
   }
 }
@@ -50,7 +44,16 @@ class AboutEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return CardList(
       indent: 56,
-      children: [SettingsRow(icon: YIcons.info, tile: TileColor.blue, title: '关于云音', value: '协议与版本', onTap: () => go(context, SettingsMoreRoute()))],
+      children: [
+        SettingsRow(
+          icon: YIcons.info,
+          tile: TileColor.blue,
+          title: '关于云音',
+          height: 68,
+          subtitle: '版本 v${context.select<UpdateManager, String>((u) => u.current)} · 协议 · 开源许可',
+          onTap: () => go(context, SettingsMoreRoute()),
+        ),
+      ],
     );
   }
 }
@@ -241,7 +244,7 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(_RingPainter old) => old.inner != inner || old.outer != outer;
 }
 
-/// 设置首页的入口列表：每一项进入一个二级页面。
+/// 设置首页：外观与主题，以及“播放与音频”“个性化”“系统与数据”三组入口（每一项进入一个二级页面）。
 class SettingsEntries extends StatelessWidget {
   const SettingsEntries({super.key});
 
@@ -249,55 +252,81 @@ class SettingsEntries extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = context.watch<AppSettings>();
     final lx = context.watch<LxSources>();
+    final today = context.select<ListenStats, int>((st) => st.today.inMinutes);
     final android = !kIsWeb && Platform.isAndroid;
     final mode = switch (s.themeMode) {
-      ThemeMode.light => '浅色',
-      ThemeMode.dark => '深色',
+      ThemeMode.light => '浅色模式',
+      ThemeMode.dark => '深色模式',
       ThemeMode.system => '跟随系统',
     };
-    return CardList(
-      indent: 56,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SettingsRow(
-          icon: YIcons.play,
-          tile: TileColor.red,
-          title: '播放',
-          value: '${s.quality.label} · ${s.crossfade ? '淡入淡出' : '直接切换'}',
-          onTap: () => go(context, PlaybackSettingsRoute()),
+        CardList(
+          indent: 64,
+          children: [
+            SettingsRow(
+              icon: YIcons.sparkle,
+              tile: TileColor.values[s.accent.index],
+              title: '外观与主题',
+              subtitle: '${s.uiStyle.label} · $mode · ${s.accent.label}',
+              onTap: () => go(context, AppearanceRoute()),
+            ),
+          ],
         ),
-        SettingsRow(
-          icon: YIcons.sliders,
-          tile: TileColor.graphite,
-          title: '音效',
-          value: [
-            if (s.eqEnabled) '均衡器 · ${s.eqPreset.label}',
-            if (s.normalize) '音量均衡',
-            if (s.volumeBoost > 0) '+${s.volumeBoost} dB',
-          ].join(' · ').ifEmpty('关闭'),
-          onTap: () => go(context, AudioEffectsRoute()),
+        const GroupLabel('播放与音频'),
+        CardList(
+          indent: 64,
+          children: [
+            SettingsRow(
+              icon: YIcons.play,
+              tile: TileColor.red,
+              title: '播放设置',
+              subtitle: '${s.quality.label} · ${s.crossfade ? '淡入淡出' : '直接切换'} · 播放行为',
+              onTap: () => go(context, PlaybackSettingsRoute()),
+            ),
+            SettingsRow(
+              icon: YIcons.sliders,
+              tile: TileColor.orange,
+              title: '音效设置',
+              subtitle: [
+                s.eqEnabled ? '均衡器 · ${s.eqPreset.label}' : '均衡器关闭',
+                if (s.normalize) '音量均衡',
+                if (s.volumeBoost > 0) '+${s.volumeBoost} dB',
+                if (s.hifiEngine) '高保真',
+              ].join(' · '),
+              onTap: () => go(context, AudioEffectsRoute()),
+            ),
+          ],
         ),
-        SettingsRow(
-          icon: YIcons.lyrics,
-          tile: TileColor.orange,
-          title: android ? '桌面与状态栏歌词' : '桌面歌词',
-          value: [if (s.desktopLyrics) '桌面', if (s.statusBarLyrics) '状态栏'].join(' · ').ifEmpty('关闭'),
-          onTap: () => go(context, LyricsOverlayRoute()),
+        const GroupLabel('个性化'),
+        CardList(
+          indent: 64,
+          children: [
+            SettingsRow(
+              icon: YIcons.lyrics,
+              tile: TileColor.teal,
+              title: android ? '桌面与状态栏歌词' : '桌面歌词',
+              subtitle: [if (s.desktopLyrics) '桌面歌词已开启', if (android && s.statusBarLyrics) '状态栏歌词已开启'].join(' · ').ifEmpty(android ? '桌面歌词 · 状态栏歌词' : '置顶的歌词条'),
+              onTap: () => go(context, LyricsOverlayRoute()),
+            ),
+          ],
         ),
-        SettingsRow(
-          icon: YIcons.sparkle,
-          tile: TileColor.values[s.accent.index],
-          title: '外观',
-          value: '$mode · ${s.accent.label}',
-          onTap: () => go(context, AppearanceRoute()),
-        ),
-        SettingsRow(icon: YIcons.code, tile: TileColor.teal, title: '洛雪音源', value: lxSummary(lx), onTap: () => go(context, LxSourcesRoute())),
-        SettingsRow(icon: YIcons.download, tile: TileColor.blue, title: '下载与缓存', onTap: () => go(context, StorageSettingsRoute())),
-        SettingsRow(
-          icon: YIcons.equalizer,
-          tile: TileColor.teal,
-          title: '听歌统计',
-          value: context.select<ListenStats, int>((st) => st.today.inMinutes) > 0 ? '今日 ${context.select<ListenStats, int>((st) => st.today.inMinutes)} 分钟' : null,
-          onTap: () => go(context, StatsRoute()),
+        const GroupLabel('系统与数据'),
+        CardList(
+          indent: 64,
+          children: [
+            SettingsRow(icon: YIcons.code, tile: TileColor.blue, title: '洛雪音源', value: lxSummary(lx), height: 68, onTap: () => go(context, LxSourcesRoute())),
+            SettingsRow(icon: YIcons.download, tile: TileColor.blue, title: '下载与缓存', subtitle: '管理下载 · 缓存清理', onTap: () => go(context, StorageSettingsRoute())),
+            SettingsRow(
+              icon: YIcons.stats,
+              tile: TileColor.teal,
+              title: '听歌统计',
+              value: today > 0 ? '今日 $today 分钟' : null,
+              height: 68,
+              onTap: () => go(context, StatsRoute()),
+            ),
+          ],
         ),
       ],
     );
@@ -313,19 +342,11 @@ class SettingsSubPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final desktop = LayoutScope.isDesktop(context);
     return AdaptivePage(
       chrome: Chrome.navOnly,
-      mobileTop: 78,
-      overlay: [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
-        ),
-      ],
-      children: [
-        PageTitle(title, size: desktop ? 40 : 36),
+      mobileTop: 22,
+            children: [
+        PageHeader(title),
         const SizedBox(height: 16),
         ...children,
       ],
@@ -504,7 +525,7 @@ class _DesktopSettings extends StatelessWidget {
   Widget build(BuildContext context) {
     return DesktopPage(
       children: [
-        const PageTitle('设置', size: 40),
+        const PageTitle('设置', subtitle: '管理播放体验与应用偏好', size: 40),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,7 +534,7 @@ class _DesktopSettings extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const GroupLabel('设置', top: 14),
+                  const SizedBox(height: 14),
                   const SettingsEntries(),
                   const GroupLabel('关于'),
                   const AboutEntry(),

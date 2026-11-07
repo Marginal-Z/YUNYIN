@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/icons.dart';
+import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../core/update/updater.dart';
 import '../common/layout.dart';
@@ -23,29 +24,25 @@ class SettingsMorePage extends StatelessWidget {
     final p = Palette.of(context);
     final s = context.watch<AppSettings>();
     final updater = context.watch<UpdateManager>();
-    final desktop = LayoutScope.isDesktop(context);
     Future<void> open(String url) => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     return AdaptivePage(
       chrome: Chrome.navOnly,
-      mobileTop: 78,
-      overlay: [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
+      mobileTop: 22,
+            children: [
+        PageHeader('关于云音', subtitle: '音乐 · 生活 · 云音'),
+        const SizedBox(height: 18),
+        Center(
+          child: Column(
+            children: [
+              const AppLogo(size: 88, gradient: true),
+              const SizedBox(height: 14),
+              Text('云音', style: ts(24, weight: w700, color: p.text)),
+              const SizedBox(height: 4),
+              Text(updater.current.isEmpty ? '' : '版本 v${updater.current}', style: ts(14, color: p.text2)),
+            ],
+          ),
         ),
-      ],
-      children: [
-        PageTitle('关于', size: desktop ? 40 : 36),
-        const GroupLabel('隐私与权限', top: 18),
-        CardList(
-          indent: 56,
-          children: [
-            SettingsRow(icon: YIcons.shield, tile: TileColor.graphite, title: '隐私政策', onTap: () => go(context, AboutRoute(AboutPage.privacy))),
-            SettingsRow(icon: YIcons.lock, tile: TileColor.teal, title: '权限管理', onTap: () => go(context, AboutRoute(AboutPage.permissions))),
-          ],
-        ),
-        const GroupLabel('关于云音'),
+        const GroupLabel('应用与更新'),
         CardList(
           indent: 56,
           children: [
@@ -74,19 +71,37 @@ class SettingsMorePage extends StatelessWidget {
               title: '启动时检查更新',
               trailing: YSwitch(value: s.autoUpdate, label: '启动时检查更新', onChanged: (v) => s.setFlag('autoUpdate', v)),
             ),
+          ],
+        ),
+        const GroupLabel('隐私与权限'),
+        CardList(
+          indent: 56,
+          children: [
+            SettingsRow(icon: YIcons.shield, tile: TileColor.teal, title: '隐私政策', onTap: () => go(context, AboutRoute(AboutPage.privacy))),
+            SettingsRow(icon: YIcons.lock, tile: TileColor.red, title: '权限管理', onTap: () => go(context, AboutRoute(AboutPage.permissions))),
+          ],
+        ),
+        const GroupLabel('协议与开源'),
+        CardList(
+          indent: 56,
+          children: [
             SettingsRow(icon: YIcons.document, tile: TileColor.orange, title: '用户协议', onTap: () => go(context, AboutRoute(AboutPage.agreement))),
             SettingsRow(
               icon: YIcons.code,
-              tile: TileColor.graphite,
+              tile: TileColor.teal,
               title: '开源许可',
               onTap: () async {
                 final info = await PackageInfo.fromPlatform();
                 if (context.mounted) showLicensePage(context: context, applicationName: '云音', applicationVersion: info.version);
               },
             ),
-            SettingsRow(icon: YIcons.feedback, tile: TileColor.red, title: '意见反馈', onTap: () => go(context, AboutRoute(AboutPage.feedback))),
-            SettingsRow(icon: YIcons.code, tile: TileColor.graphite, title: '项目主页', value: 'GitHub', onTap: () => open(kRepoUrl)),
+            SettingsRow(icon: YIcons.share, tile: TileColor.blue, title: '项目主页', value: 'GitHub', onTap: () => open(kRepoUrl)),
           ],
+        ),
+        const GroupLabel('意见反馈'),
+        CardList(
+          indent: 56,
+          children: [SettingsRow(icon: YIcons.feedback, tile: TileColor.graphite, title: '意见反馈', onTap: () => go(context, AboutRoute(AboutPage.feedback)))],
         ),
       ],
     );

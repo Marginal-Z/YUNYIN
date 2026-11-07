@@ -110,13 +110,8 @@ class _StatsPageState extends State<StatsPage> {
 
     return AdaptivePage(
       chrome: Chrome.navOnly,
-      mobileTop: 78,
+      mobileTop: 22,
       overlay: [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
-        ),
         Positioned(
           right: 16,
           top: 20,
@@ -124,7 +119,7 @@ class _StatsPageState extends State<StatsPage> {
         ),
       ],
       children: [
-        PageTitle('听歌统计', subtitle: '只统计实际播放的时长', size: desktop ? 40 : 36),
+        PageHeader('听歌统计', subtitle: '只统计实际播放的时长'),
         const SizedBox(height: 14),
         Segmented(labels: [for (final v in StatsPeriod.values) v.label], index: _period.index, onChanged: (v) => setState(() => _period = StatsPeriod.values[v])),
         const SizedBox(height: 16),

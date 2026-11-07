@@ -957,7 +957,7 @@ class QQMusicSource extends MusicSource {
         }
         if (trial == null && infos.length > wanted.length) {
           final u = await url(wanted.length);
-          if (u != null) trial = StreamInfo(url: u, quality: AudioQuality.standard, trial: true, gainDb: song.gainDb, peak: song.peak);
+          if (u != null) trial = StreamInfo(url: u, quality: AudioQuality.standard, trial: true, gainDb: song.gainDb, peak: song.peak, note: _trialNote);
         }
       } catch (e) {
         lastError = e;
@@ -1467,34 +1467,53 @@ class QQMusicSource extends MusicSource {
     notifyListeners();
   }
 
+  /// 登录凭据里有续期需要的 refresh_key / refresh_token（1.1.20 之前登录的账号没有保存）。
+  bool get _canRefresh => '${_cred['refresh_key'] ?? ''}'.isNotEmpty || '${_cred['refresh_token'] ?? ''}'.isNotEmpty;
+
+  /// 登录凭据是否仍然有效（查询登录用户信息，与 QQ 音乐客户端的检查方式相同）。
+  Future<bool> _loginValid() async {
+    try {
+      await _android('music.UserInfo.userInfoServer', 'GetLoginUserInfo', {});
+      return true;
+    } on QQApiException {
+      return false;
+    }
+  }
+
+  /// 会员详情：先按安卓客户端请求，不通过时按电脑客户端请求。
+  Future<Map<String, dynamic>> _vipInfo() async {
+    try {
+      return await _android('VipLogin.VipLoginInter', 'vip_login_base', {});
+    } catch (e) {
+      debugPrint('qq vip (android): $e');
+      return _one('VipLogin.VipLoginInter', 'vip_login_base', {});
+    }
+  }
+
+  static const _relogin = Membership(
+    platform: 'QQ 音乐',
+    title: '登录已失效',
+    relogin: true,
+    benefits: ['登录凭据已过期且无法自动续期（旧版本登录的账号没有保存续期信息）', '请退出后重新扫码登录 QQ 音乐'],
+  );
+
   @override
   Future<Membership?> membership() async {
     if (_uin == null) return null;
     if (_keyExpiresSoon) await _refreshCredential();
-    // 会员详情（豪华绿钻 / 绿钻、等级与到期日），取不到时用下面的旧接口。
     try {
-      final d = await _one('VipLogin.VipLoginInter', 'vip_login_base', {});
-      final id = d['identity'] as Map? ?? const {};
-      int f(Object? v) => int.tryParse('${v ?? 0}') ?? 0;
-      DateTime? day(Object? v) => DateTime.tryParse('${v ?? ''}'.trim().replaceFirst(' ', 'T'));
-      final level = f(id['level']);
-      final svip = f(d['svip']) == 1;
-      final huge = f(id['HugeVip']) == 1;
-      final green = f(id['vip']) == 1;
-      final expire = f((d['userinfo'] as Map?)?['expire']);
-      if (svip || huge || green) {
-        return Membership(
-          platform: 'QQ 音乐',
-          title: svip ? '超级会员' : (huge ? '豪华绿钻' : '绿钻'),
-          active: true,
-          level: level > 0 ? 'Lv.$level' : null,
-          expires: day(id['HugeVipEnd']) ?? (expire > 0 ? DateTime.fromMillisecondsSinceEpoch(expire * 1000) : null),
-          benefits: svip || huge ? const ['臻品母带与 Hi-Res 音质', '播放与下载会员歌曲', '绿钻全部权益'] : const ['无损音质', '播放与下载会员歌曲'],
-        );
-      }
-      if (d.isNotEmpty) return Membership(platform: 'QQ 音乐', title: '未开通绿钻', active: false, level: level > 0 ? 'Lv.$level' : null, benefits: const ['免费歌曲可完整播放', '会员歌曲为 60 秒试听']);
+      final m = qqMembership(await _vipInfo());
+      if (m != null) return m;
     } catch (e) {
       debugPrint('qq vip_login_base: $e');
+      // 查询失败多半是凭据过期：续期一次再查；不能续期时提示重新登录。
+      if (await _refreshCredential()) {
+        try {
+          final m = qqMembership(await _vipInfo());
+          if (m != null) return m;
+        } catch (_) {}
+      }
+      if (!await _loginValid()) return _relogin;
     }
     final d = await _one('userInfo.VipQueryServer', 'SRFVipQuery_V2', {
       'uin_list': [_uin],
@@ -1529,6 +1548,89 @@ class QQMusicSource extends MusicSource {
     }
     return Membership(platform: 'QQ 音乐', title: '未开通会员', level: level > 0 ? '曾为 Lv.$level' : null);
   }
+
+  /// 解析 vip_login_base 的会员信息。QQ 音乐现在有多种会员档位：
+  /// svip（超级会员）、identity.HugeVip（豪华绿钻）、identity.twelve（12 元档豪华绿钻）、identity.eight（8 元档绿钻）、
+  /// identity.vip（绿钻）、GroupVipFlag（家庭会员）、ExpVip（体验会员）、ChildVip（儿童会员）。任何一种生效都可以播放会员歌曲。
+  /// 返回 null 表示接口没有返回会员信息。
+  @visibleForTesting
+  static Membership? qqMembership(Map d) {
+    if (d.isEmpty) return null;
+    final id = d['identity'] as Map? ?? const {};
+    int f(Object? v) => int.tryParse('${v ?? 0}') ?? 0;
+    DateTime? day(Object? v) => DateTime.tryParse('${v ?? ''}'.trim().replaceFirst(' ', 'T'));
+    final level = f(id['level']);
+    final expire = f((d['userinfo'] as Map?)?['expire']);
+    final tiers = <(bool, String, Object?)>[
+      (f(d['svip']) == 1, '超级会员', null),
+      (f(id['HugeVip']) == 1, '豪华绿钻', id['HugeVipEnd']),
+      (f(id['twelve']) == 1, '豪华绿钻', id['twelveEnd']),
+      (f(id['vip']) == 1, '绿钻', null),
+      (f(id['eight']) == 1, '绿钻', id['eightEnd']),
+      (f(id['GroupVipFlag']) == 1, '家庭会员', id['GroupVipEnd']),
+      (f(id['ExpVip']) == 1, '体验会员', null),
+      (f(id['ChildVip']) == 1, '儿童会员', null),
+    ];
+    final active = tiers.where((t) => t.$1).firstOrNull;
+    if (active == null) {
+      return Membership(platform: 'QQ 音乐', title: '未开通绿钻', level: level > 0 ? 'Lv.$level' : null, benefits: const ['免费歌曲可完整播放', '会员歌曲为 60 秒试听']);
+    }
+    final premium = active.$2 == '超级会员' || active.$2 == '豪华绿钻';
+    return Membership(
+      platform: 'QQ 音乐',
+      title: active.$2,
+      active: true,
+      level: level > 0 ? 'Lv.$level' : null,
+      expires: day(active.$3) ?? day(id['HugeVipEnd']) ?? (expire > 0 ? DateTime.fromMillisecondsSinceEpoch(expire * 1000) : null),
+      benefits: premium ? const ['臻品母带与 Hi-Res 音质', '播放与下载会员歌曲', '绿钻全部权益'] : const ['无损音质', '播放与下载会员歌曲'],
+    );
+  }
+
+  /// 已登录却只拿到试听片段时告诉用户原因。
+  String? get _trialNote {
+    if (_uin == null) return '登录 QQ 音乐后可以播放完整版';
+    if (!_canRefresh) return 'QQ 音乐的登录信息来自旧版本、已无法续期，请退出后重新扫码登录';
+    return '没有取到完整版：可能需要绿钻，或登录已失效。可在“我的 → 会员卡片 → 账号诊断”中查看原因';
+  }
+
+  @override
+  Future<String> diagnose() async {
+    final out = StringBuffer('QQ 音乐账号诊断（${DateTime.now().toIso8601String().substring(0, 19)}）\n');
+    if (_uin == null) return '$out未登录';
+    final uin = _uin!;
+    out.writeln('账号：${uin.length > 4 ? '${uin.substring(0, 2)}***${uin.substring(uin.length - 2)}' : '***'}，登录类型 $_loginType，凭据前缀 ${(_key ?? '').length >= 6 ? _key!.substring(0, 6) : '?'}…');
+    out.writeln('续期信息：${_canRefresh ? '有' : '没有（旧版本登录）'}，musickey 到期：${_keyExpiry?.toIso8601String().substring(0, 16) ?? '未知'}');
+    Future<void> step(String name, Future<String> Function() run) async {
+      try {
+        out.writeln('$name：${await run()}');
+      } catch (e) {
+        out.writeln('$name：失败 $e');
+      }
+    }
+
+    await step('登录状态（安卓）', () async => await _loginValid() ? '有效' : '无效');
+    await step('续期', () async => await _refreshCredential() ? '成功' : '未续期（不需要、不能续期或 10 分钟内已尝试）');
+    await step('会员（安卓）', () async {
+      final d = await _android('VipLogin.VipLoginInter', 'vip_login_base', {});
+      final id = d['identity'] as Map? ?? const {};
+      return 'svip=${d['svip']} vip=${id['vip']} HugeVip=${id['HugeVip']} eight=${id['eight']} twelve=${id['twelve']} group=${id['GroupVipFlag']} exp=${id['ExpVip']} → ${qqMembership(d)?.title}';
+    });
+    await step('会员（电脑）', () async {
+      final d = await _one('VipLogin.VipLoginInter', 'vip_login_base', {});
+      return '→ ${qqMembership(d)?.title}';
+    });
+    // 一首绿钻歌曲（汪苏泷《晴》），按三种客户端方式取 320k 与试听文件。
+    const mid = '001ypoXf0qaYi6', media = '002GSaqZ4Y1iBN';
+    for (final style in _vkeyStyles) {
+      await step('取地址（$style）', () async {
+        final d = await _vkeyRequest(style, mid, ['M800$media.mp3', 'M500$media.mp3', 'RS02$media.mp3']);
+        final infos = (d['midurlinfo'] as List? ?? const []).cast<Map>();
+        return [for (final i in infos) '${'${i['filename']}'.substring(0, 4)}:${'${i['purl'] ?? ''}'.isEmpty ? '无（${i['result']}）' : '有'}'].join(' ');
+      });
+    }
+    return out.toString();
+  }
+
 }
 
 extension on String {

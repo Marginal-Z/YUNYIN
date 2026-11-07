@@ -492,7 +492,7 @@ enum AudioQuality {
 
 /// 播放地址。[url] 为空表示无法播放（无版权等）。
 class StreamInfo {
-  const StreamInfo({this.url, this.headers = const {}, this.trial = false, this.quality, this.gainDb, this.peak, this.cover});
+  const StreamInfo({this.url, this.headers = const {}, this.trial = false, this.quality, this.gainDb, this.peak, this.cover, this.note});
 
   final String? url;
   final Map<String, String> headers;
@@ -507,6 +507,9 @@ class StreamInfo {
 
   /// 取地址时平台一并给出的封面（列表里没有封面的歌曲用它补上）。
   final String? cover;
+
+  /// 给用户的说明（例如只拿到试听片段的原因：登录已失效、需要会员）。
+  final String? note;
 }
 
 /// 二维码登录凭据。
@@ -527,7 +530,19 @@ class QrTicket {
 
 /// 平台会员信息（个人中心显示）。
 class Membership {
-  const Membership({required this.platform, required this.title, this.active = false, this.level, this.expires, this.benefits = const []});
+  const Membership({
+    required this.platform,
+    required this.title,
+    this.active = false,
+    this.level,
+    this.expires,
+    this.benefits = const [],
+    this.relogin = false,
+  });
+
+  /// 登录凭据已失效或来自旧的登录方式（例如酷狗网页登录、旧版本保存的 QQ 凭据无法续期），
+  /// 需要重新扫码登录才能查询会员与播放会员歌曲。
+  final bool relogin;
 
   /// 平台名称，例如“网易云音乐”。
   final String platform;

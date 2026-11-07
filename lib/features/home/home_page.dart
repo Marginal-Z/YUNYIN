@@ -164,8 +164,9 @@ class _HomeBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final source = context.read<SourceManager>().current;
-    final player = context.watch<PlayerController>();
-    final recent = player.history.take(4).toList();
+    // 只在最近播放的前几首变化时重建（不随播放 / 暂停、缓冲等状态整页重建）。
+    context.select<PlayerController, String>((c) => [for (final s in c.history.take(4)) s.key].join('|'));
+    final recent = context.read<PlayerController>().history.take(4).toList();
     final daily = dailyPlaylist(source, feed.daily);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

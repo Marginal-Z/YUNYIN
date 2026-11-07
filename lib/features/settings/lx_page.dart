@@ -95,19 +95,11 @@ class _LxSourcesPageState extends State<LxSourcesPage> {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final lx = context.watch<LxSources>();
-    final desktop = LayoutScope.isDesktop(context);
     return AdaptivePage(
       chrome: Chrome.none,
-      mobileTop: 78,
-      overlay: [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
-        ),
-      ],
-      children: [
-        PageTitle('洛雪音源', subtitle: '导入洛雪音乐格式的自定义音源', size: desktop ? 40 : 36),
+      mobileTop: 22,
+            children: [
+        PageHeader('洛雪音源', subtitle: '导入洛雪音乐格式的自定义音源'),
         const SizedBox(height: 10),
         Text(
           '洛雪曲库是独立的平台模式（在个人中心切换）：可以浏览启用的音源所支持平台的曲库，播放时按顺序用这里启用的音源获取地址（可同时启用多个）。'

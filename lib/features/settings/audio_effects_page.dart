@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
-import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../player/player_controller.dart';
@@ -25,20 +24,12 @@ class AudioEffectsPage extends StatelessWidget {
     final smartBoost = context.select<PlayerController, bool>((c) => c.smartBoost);
     final spatialUnsupported = context.select<PlayerController, bool>((c) => c.spatialUnsupported);
     final bassUnsupported = context.select<PlayerController, bool>((c) => c.bassUnsupported);
-    final desktop = LayoutScope.isDesktop(context);
     final android = !kIsWeb && Platform.isAndroid;
     return AdaptivePage(
       chrome: Chrome.navOnly,
-      mobileTop: 78,
-      overlay: [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
-        ),
-      ],
-      children: [
-        PageTitle('音效', subtitle: '音质引擎、均衡器与音量', size: desktop ? 40 : 36),
+      mobileTop: 22,
+            children: [
+        PageHeader('音效', subtitle: '音质引擎、均衡器与音量'),
         const GroupLabel('音质引擎'),
         CardList(
           indent: 14,

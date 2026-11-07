@@ -24,16 +24,9 @@ class AppearancePage extends StatelessWidget {
     const scales = [0.85, 1.0, 1.15];
     return AdaptivePage(
       chrome: Chrome.navOnly,
-      mobileTop: 78,
-      overlay: [
-        Positioned(
-          left: 16,
-          top: 20,
-          child: GlassButton(YIcons.back, label: '返回', onTap: () => context.read<AppNav>().pop()),
-        ),
-      ],
-      children: [
-        PageTitle('外观', size: desktop ? 40 : 36),
+      mobileTop: 22,
+            children: [
+        PageHeader('外观'),
         const SizedBox(height: 8),
         // 图标预览：跟随主题色时与系统中的应用图标一致。
         YCard(
@@ -62,6 +55,24 @@ class AppearancePage extends StatelessWidget {
         ),
         const GroupLabel('主题'),
         AppearanceGroup(desktop: desktop),
+        const GroupLabel('界面风格'),
+        CardList(
+          indent: 14,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Segmented(labels: [for (final u in UiStyle.values) u.label], index: s.uiStyle.index, onChanged: (i) => s.setUiStyle(UiStyle.values[i])),
+                  const SizedBox(height: 8),
+                  Text(s.uiStyle.description, style: ts(13, height: 1.45, color: p.text2)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (s.uiStyle == UiStyle.glass) ...[
         const GroupLabel('液态玻璃'),
         CardList(
           indent: 14,
@@ -124,6 +135,7 @@ class AppearancePage extends StatelessWidget {
             ],
           ],
         ),
+        ],
         const GroupLabel('播放样式'),
         YCard(
           child: Padding(

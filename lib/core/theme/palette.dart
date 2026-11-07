@@ -112,7 +112,11 @@ class Palette {
     required this.tagPlainText,
     required this.buttonInsetHighlight,
     this.playerAccent,
+    this.neumorphic = false,
   });
+
+  /// 新拟态风格：卡片与背景同色，用左上高光、右下暗影的柔和双向阴影表现凸起。
+  final bool neumorphic;
 
   /// 播放页控件的强调色（封面取色时为封面的主色调，否则为 null，使用主题色）。
   final Color? playerAccent;
@@ -208,6 +212,7 @@ class Palette {
     Color? trackFill,
     Color? playerAccent,
   }) => Palette(
+    neumorphic: neumorphic,
     isDark: isDark,
     accent: accent,
     bg: bg,
@@ -352,8 +357,82 @@ class Palette {
     buttonInsetHighlight: buttonInsetHighlight,
   );
 
+  /// 新拟态风格：背景、卡片、按钮同色，凸起靠左上高光与右下暗影表现；去掉背景光晕与毛玻璃色调。
+  Palette neumorphicVariant() => Palette(
+    neumorphic: true,
+    isDark: isDark,
+    accent: accent,
+    bg: isDark ? const Color(0xFF2A2E35) : const Color(0xFFE9EEF5),
+    glows: const [],
+    playerBg: playerBg,
+    playerGlows: playerGlows,
+    text: text,
+    text2: text2,
+    text3: text3,
+    text4: text4,
+    muted: muted,
+    danger: danger,
+    separator: isDark ? const Color.fromRGBO(255, 255, 255, 0.06) : const Color.fromRGBO(163, 177, 198, 0.28),
+    card: isDark ? const Color(0xFF2A2E35) : const Color(0xFFE9EEF5),
+    cardShadow: isDark ? const [Shadow2(-5, -5, 12, Color.fromRGBO(255, 255, 255, 0.055)), Shadow2(6, 6, 14, Color.fromRGBO(0, 0, 0, 0.5))] : const [Shadow2(-6, -6, 14, Color.fromRGBO(255, 255, 255, 0.95)), Shadow2(7, 7, 16, Color.fromRGBO(163, 177, 198, 0.62))],
+    chip: isDark ? const Color(0xFF2A2E35) : const Color(0xFFE9EEF5),
+    chipShadow: isDark ? const [Shadow2(-3, -3, 7, Color.fromRGBO(255, 255, 255, 0.05)), Shadow2(3, 3, 8, Color.fromRGBO(0, 0, 0, 0.45))] : const [Shadow2(-3, -3, 7, Color.fromRGBO(255, 255, 255, 0.9)), Shadow2(4, 4, 9, Color.fromRGBO(163, 177, 198, 0.55))],
+    chipSelected: chipSelected,
+    chipSelectedText: chipSelectedText,
+    glass: isDark ? const Color(0xF22A2E35) : const Color(0xF2E9EEF5),
+    glassBorder: const Color(0x00000000),
+    glassInset: const [],
+    glassShadow: isDark ? const [Shadow2(-5, -5, 12, Color.fromRGBO(255, 255, 255, 0.05)), Shadow2(6, 6, 14, Color.fromRGBO(0, 0, 0, 0.5))] : const [Shadow2(-6, -6, 14, Color.fromRGBO(255, 255, 255, 0.95)), Shadow2(6, 6, 14, Color.fromRGBO(163, 177, 198, 0.6))],
+    glassButtonShadow: isDark ? const [Shadow2(-3, -3, 8, Color.fromRGBO(255, 255, 255, 0.05)), Shadow2(4, 4, 10, Color.fromRGBO(0, 0, 0, 0.5))] : const [Shadow2(-4, -4, 9, Color.fromRGBO(255, 255, 255, 0.95)), Shadow2(4, 4, 10, Color.fromRGBO(163, 177, 198, 0.6))],
+    sidebar: isDark ? const Color(0xFF2A2E35) : const Color(0xFFE9EEF5),
+    sidebarShadow: isDark ? const [Shadow2(6, 0, 16, Color.fromRGBO(0, 0, 0, 0.4))] : const [Shadow2(6, 0, 16, Color.fromRGBO(163, 177, 198, 0.45))],
+    sidebarActive: sidebarActive,
+    navActive: navActive,
+    navActiveInset: navActiveInset,
+    track: track,
+    trackFill: trackFill,
+    playerText2: playerText2,
+    lyricDim: lyricDim,
+    lyricActive: lyricActive,
+    primaryButton: primaryButton,
+    primaryButtonText: primaryButtonText,
+    segmentTrack: isDark ? const Color(0xFF23272D) : const Color(0xFFDCE3EC),
+    segmentSelected: isDark ? const Color(0xFF323741) : const Color(0xFFF2F5F9),
+    field: isDark ? const Color(0xFF23272D) : const Color(0xFFDDE4ED),
+    coverShadow: coverShadow,
+    secondaryShadow: secondaryShadow,
+    clearButton: clearButton,
+    sheet: isDark ? const Color(0xFF2A2E35) : const Color(0xFFE9EEF5),
+    skeleton: isDark ? const Color(0xFF33373F) : const Color(0xFFDCE3EC),
+    dialog: isDark ? const Color(0xF22A2E35) : const Color(0xF5E9EEF5),
+    translucentButton: translucentButton,
+    lyricsCard: lyricsCard,
+    scrim: scrim,
+    swatchRingInner: isDark ? const Color(0xFF2A2E35) : const Color(0xFFE9EEF5),
+    swatchRingOuter: swatchRingOuter,
+    dailyGradient: dailyGradient,
+    dailyLabelBg: dailyLabelBg,
+    dailyLabel: dailyLabel,
+    dailyDesc: dailyDesc,
+    highlightInset: highlightInset,
+    albumGradient: albumGradient,
+    albumLabel: albumLabel,
+    albumDesc: albumDesc,
+    artistGradient: artistGradient,
+    tagHot: tagHot,
+    tagHotText: tagHotText,
+    tagNew: tagNew,
+    tagNewText: tagNewText,
+    tagUp: tagUp,
+    tagUpText: tagUpText,
+    tagPlain: tagPlain,
+    tagPlainText: tagPlainText,
+    buttonInsetHighlight: buttonInsetHighlight,
+  );
+
   /// 文字颜色整体变淡（例如无法播放的歌曲行）。比给整行套 Opacity 少一次离屏绘制。
   Palette dimmed(double opacity) => Palette(
+    neumorphic: neumorphic,
     isDark: isDark,
     accent: accent,
     bg: bg,
@@ -600,10 +679,10 @@ class Palette {
   );
 
   /// 卡片的内描边（深色模式：inset 0 0 0 1px rgba(255,255,255,0.07)）。
-  List<Shadow2> get cardInset => isDark ? const [Shadow2(0, 0, 0, Color.fromRGBO(255, 255, 255, 0.07), spread: 1)] : const [];
+  List<Shadow2> get cardInset => neumorphic ? const [] : isDark ? const [Shadow2(0, 0, 0, Color.fromRGBO(255, 255, 255, 0.07), spread: 1)] : const [];
 
   /// 胶囊/圆形白色按钮的内描边（深色模式）。
-  List<Shadow2> get chipInset => isDark ? const [Shadow2(0, 0, 0, Color.fromRGBO(255, 255, 255, 0.08), spread: 1)] : const [];
+  List<Shadow2> get chipInset => neumorphic ? const [] : isDark ? const [Shadow2(0, 0, 0, Color.fromRGBO(255, 255, 255, 0.08), spread: 1)] : const [];
 
   /// 玻璃小按钮（44px 圆）的内阴影：没有 14px 的内发光。
   List<Shadow2> get glassButtonInset => glassInset.take(2).toList();

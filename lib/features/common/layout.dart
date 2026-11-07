@@ -1,11 +1,15 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/palette.dart';
 import '../../core/ui/glow_background.dart';
 import '../../core/ui/app_background.dart';
 import '../shell/nav.dart';
+import '../../core/ui/widgets.dart';
+import '../../core/ui/text.dart';
+import '../../core/ui/icons.dart';
 
 /// 当前是桌面布局还是移动布局。
 class LayoutScope extends InheritedWidget {
@@ -309,3 +313,39 @@ class SliverCard extends StatelessWidget {
 
 /// CSS blur 对应 Flutter [BoxShadow.blurRadius]（sigma = blur/2）。
 double cssBlurRadius(double blur) => blur <= 1 ? 0 : (blur / 2 - 0.5) / 0.57735;
+
+/// 二级页面的页头：移动端返回按钮与标题在同一行，副标题在标题下方；桌面端（顶栏已有返回）为大标题。
+class PageHeader extends StatelessWidget {
+  const PageHeader(this.title, {super.key, this.subtitle});
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final desktop = LayoutScope.isDesktop(context);
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(title, style: ts(desktop ? 40 : 30, weight: w700, em: -0.02, height: 1.15, color: p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(subtitle!, style: ts(desktop ? 15 : 14, color: p.text2), maxLines: 2, overflow: TextOverflow.ellipsis),
+        ],
+      ],
+    );
+    if (desktop) return text;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          GlassButton(YIcons.back, size: 48, label: '返回', onTap: () => context.read<AppNav>().pop()),
+          const SizedBox(width: 16),
+          Expanded(child: text),
+        ],
+      ),
+    );
+  }
+}

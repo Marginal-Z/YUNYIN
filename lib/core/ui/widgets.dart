@@ -1066,6 +1066,7 @@ class SettingsRow extends StatelessWidget {
     this.icon,
     this.tile,
     required this.title,
+    this.subtitle,
     this.value,
     this.trailing,
     this.onTap,
@@ -1077,6 +1078,9 @@ class SettingsRow extends StatelessWidget {
   final YIconData? icon;
   final TileColor? tile;
   final String title;
+
+  /// 标题下方的说明（较小的次级文字），有它时行高增加到 68。
+  final String? subtitle;
   final String? value;
   final Widget? trailing;
   final VoidCallback? onTap;
@@ -1088,20 +1092,31 @@ class SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final showChevron = chevron ?? (onTap != null && trailing == null);
+    final titleText = Text(
+      title,
+      style: ts(16, weight: subtitle == null ? FontWeight.w400 : w600, color: titleColor ?? p.text),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
     final row = SizedBox(
-      height: height,
+      height: subtitle == null ? height : math.max(height, 68),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Row(
           children: [
-            if (icon != null) ...[IconTile(icon!, tile ?? TileColor.blue), const SizedBox(width: 12)],
+            if (icon != null) ...[IconTile(icon!, tile ?? TileColor.blue), SizedBox(width: subtitle == null ? 12 : 14)],
             Expanded(
-              child: Text(
-                title,
-                style: ts(16, color: titleColor ?? p.text),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: subtitle == null
+                  ? titleText
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        titleText,
+                        const SizedBox(height: 3),
+                        Text(subtitle!, style: ts(13, color: p.text2), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
             ),
             if (value != null) ...[
               const SizedBox(width: 12),
@@ -1136,8 +1151,8 @@ class GroupLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(14, top, 0, 8),
-      child: Text(text, style: ts(13, color: Palette.of(context).text2)),
+      padding: EdgeInsets.fromLTRB(6, top + 4, 0, 10),
+      child: Text(text, style: ts(17, weight: w700, color: Palette.of(context).text)),
     );
   }
 }
