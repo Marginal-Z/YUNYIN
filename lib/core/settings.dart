@@ -106,7 +106,7 @@ enum HomeLayout {
 
 /// 界面风格。
 enum UiStyle {
-  glass('液态玻璃', '半透明玻璃与背景光晕'),
+  glass('默认', '背景光晕与半透明卡片，可在下方开启液态玻璃效果'),
   neumorphic('新拟态', '同色柔和凸起，干净、不模糊，更省电');
 
   const UiStyle(this.label, this.description);

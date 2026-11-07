@@ -16,6 +16,7 @@ import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
 import '../comments/comments_page.dart';
+import '../desktop/desktop_dialogs.dart';
 import '../player/desktop_player.dart';
 import '../player/lyrics_page.dart';
 import '../player/player_page.dart';
@@ -25,7 +26,14 @@ import 'layout.dart';
 import 'sheet_route.dart';
 import 'song_cover.dart';
 
-void go(BuildContext context, AppRoute route) => context.read<AppNav>().push(route);
+void go(BuildContext context, AppRoute route) {
+  // 桌面端的设置是弹出面板（面板内的设置子页面在面板自己的导航栈中打开）。
+  if (route is SettingsRoute && LayoutScope.isDesktop(context)) {
+    showDesktopSettings(context);
+    return;
+  }
+  context.read<AppNav>().push(route);
+}
 
 void openPlaylist(BuildContext context, PlaylistInfo p) {
   if (p.kind == PlaylistKind.album) {
@@ -89,10 +97,15 @@ void openQueue(BuildContext context) {
 }
 
 void openComments(BuildContext context, Song song) {
+  // 桌面端评论在弹出面板中显示。
+  if (LayoutScope.isDesktop(context)) {
+    showDesktopComments(context, song);
+    return;
+  }
   Navigator.of(
     context,
     rootNavigator: true,
-  ).push(LayoutScope.isDesktop(context) ? fadeRoute(CommentsPage(song: song)) : MaterialPageRoute(builder: (_) => CommentsPage(song: song)));
+  ).push(MaterialPageRoute(builder: (_) => CommentsPage(song: song)));
 }
 
 Future<void> playAll(BuildContext context, List<Song> songs, {bool shuffle = false, String? title, int start = 0}) async {

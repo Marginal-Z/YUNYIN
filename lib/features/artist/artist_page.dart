@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/theme/cover_colors.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/cover.dart';
@@ -194,21 +195,61 @@ class _HotSongs extends StatelessWidget {
   }
 }
 
-class _Hero extends StatelessWidget {
+/// 歌手卡片：底色取自歌手照片（浅色模式为柔和的浅色，深色模式为深色），没有照片时使用默认配色。
+class _Hero extends StatefulWidget {
   const _Hero({required this.artist});
 
   final ArtistInfo artist;
 
   @override
+  State<_Hero> createState() => _HeroState();
+}
+
+class _HeroState extends State<_Hero> {
+  CoverColors? _colors;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_Hero old) {
+    super.didUpdateWidget(old);
+    if (old.artist.avatar != widget.artist.avatar) _load();
+  }
+
+  Future<void> _load() async {
+    final c = await CoverColors.of(widget.artist.avatar);
+    if (mounted) setState(() => _colors = c);
+  }
+
+  /// 把取到的颜色调成卡片底色：保留色相，按深浅模式固定亮度、压低饱和度，文字在上面始终清晰。
+  static Color _tone(Color c, {required bool dark, required double lightness}) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl.withSaturation((hsl.saturation * (dark ? 0.6 : 0.75)).clamp(0.12, 0.6)).withLightness(lightness).toColor();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
+    final artist = widget.artist;
     final art = artist.avatar == null || artist.avatar!.isEmpty;
+    final c = _colors;
+    final colors = c == null
+        ? p.artistGradient
+        : [
+            _tone(c.vibrant, dark: p.isDark, lightness: p.isDark ? 0.24 : 0.9),
+            _tone(c.secondary, dark: p.isDark, lightness: p.isDark ? 0.18 : 0.82),
+          ];
+    final glow = c == null ? const Color.fromRGBO(255, 140, 90, 0.28) : _tone(c.vibrant, dark: p.isDark, lightness: 0.5).withValues(alpha: 0.3);
     return YBox(
       clip: true,
       height: 232,
       radius: BorderRadius.circular(34),
-      gradient: CssGradient(150, colors: p.artistGradient),
-      shadows: const [Shadow2(0, 18, 40, Color.fromRGBO(255, 140, 90, 0.28))],
+      gradient: CssGradient(150, colors: colors),
+      shadows: [Shadow2(0, 18, 40, glow)],
       insets: [Shadow2(0, 1, 0, p.highlightInset)],
       child: Stack(
         children: [

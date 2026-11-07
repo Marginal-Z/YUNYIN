@@ -233,12 +233,12 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
   @override
   void didUpdateWidget(_MobilePlaylist old) {
     super.didUpdateWidget(old);
-    if (old.playlist.cover != widget.playlist.cover) _loadTone();
+    if (_heroImage(old.playlist) != _heroImage(widget.playlist)) _loadTone();
   }
 
   /// 底色取自封面：饱和度与亮度限制在适合放白色文字的范围内。
   Future<void> _loadTone() async {
-    final c = await CoverColors.of(widget.playlist.cover);
+    final c = await CoverColors.of(_heroImage(widget.playlist));
     if (!mounted || c == null) return;
     final hsl = HSLColor.fromColor(c.dominant.computeLuminance() > 0.02 ? c.dominant : c.vibrant);
     // 饱和度与亮度都压低：白色文字在任何封面底色上都有足够对比度。
@@ -379,6 +379,15 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
     );
   }
 
+  /// 沉浸式页头的图片：榜单（封面多为小尺寸的榜单图）与没有封面的歌单用第一首歌的专辑封面，
+  /// 其他歌单用歌单封面的大尺寸版本，整屏显示也清晰。
+  static String? _heroImage(PlaylistInfo playlist) {
+    final first = playlist.tracks?.map((s) => s.coverUrl).nonNulls.firstOrNull;
+    final cover = playlist.cover;
+    if (cover == null || cover.isEmpty || playlist.kind == PlaylistKind.chart) return first ?? cover;
+    return hiResCover(cover);
+  }
+
   Widget _hero(BuildContext context, double heroH, Color tone) {
     final playlist = widget.playlist;
     final desc = (playlist.description ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -399,7 +408,7 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
                 stops: [0, 0.55, 1],
               ).createShader(r),
               blendMode: BlendMode.dstIn,
-              child: CoverImage(playlist.cover, imageSize: 900),
+              child: CoverImage(_heroImage(playlist), imageSize: 900),
             ),
           ),
           Positioned(

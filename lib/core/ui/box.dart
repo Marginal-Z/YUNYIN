@@ -1,11 +1,72 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../settings.dart';
 import '../theme/palette.dart';
+import 'cover.dart';
 import 'liquid_glass_filter.dart';
+
+/// 桌面端（Linux 的 OpenGL、Windows 的 ANGLE）渲染时没有多重采样，圆角裁剪的边缘是锯齿；
+/// 画出的圆角矩形本身是抗锯齿的。这两个平台上圆角裁剪改用画出来的圆角遮罩（见 [SoftClipRRect]）。
+final bool kSoftClip = !kIsWeb && (defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.windows);
+
+/// 抗锯齿的圆角裁剪：把内容按一张画好的圆角遮罩（屏幕分辨率，抗锯齿）合成，而不是用会产生锯齿的裁剪。
+/// 遮罩按尺寸缓存。不能包含背景滤镜（遮罩图层里的背景滤镜取不到页面内容）。
+class SoftClipRRect extends StatelessWidget {
+  const SoftClipRRect({super.key, required this.radius, required this.child});
+
+  final BorderRadius radius;
+  final Widget child;
+
+  static final _masks = <String, ui.Image>{};
+
+  static ui.Image _mask(Size size, BorderRadius radius, double dpr) {
+    final w = (size.width * dpr).ceil().clamp(1, 8192), h = (size.height * dpr).ceil().clamp(1, 8192);
+    final key = '$w×$h|${radius.topLeft.x}|${radius.topRight.x}|${radius.bottomRight.x}|${radius.bottomLeft.x}|$dpr';
+    final hit = _masks.remove(key);
+    if (hit != null) return _masks[key] = hit;
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawRRect(radius.toRRect(Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble())).scaleRadii().multiply(dpr), Paint()..color = const Color(0xFFFFFFFF));
+    final picture = recorder.endRecording();
+    final image = picture.toImageSync(w, h);
+    picture.dispose();
+    _masks[key] = image;
+    while (_masks.length > 48) {
+      _masks.remove(_masks.keys.first)!.dispose();
+    }
+    return image;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (rect) {
+        final mask = _mask(rect.size, radius, dpr);
+        return ImageShader(mask, TileMode.clamp, TileMode.clamp, Matrix4.diagonal3Values(1 / dpr, 1 / dpr, 1).storage);
+      },
+      child: child,
+    );
+  }
+}
+
+extension on RRect {
+  /// 圆角半径按倍数缩放（矩形本身已是物理像素）。
+  RRect multiply(double k) => RRect.fromLTRBAndCorners(
+    left,
+    top,
+    right,
+    bottom,
+    topLeft: tlRadius * k,
+    topRight: trRadius * k,
+    bottomRight: brRadius * k,
+    bottomLeft: blRadius * k,
+  );
+}
 
 /// CSS 的 blur 半径对应高斯 sigma = blur / 2。
 double cssSigma(double blur) => blur / 2;
@@ -255,7 +316,13 @@ class YBox extends StatelessWidget {
             : BackdropFilter(filter: _glassFilter, child: content),
       );
     } else if (clip) {
-      content = ClipRRect(borderRadius: radius, child: content);
+      final c = child;
+      if (kSoftClip && c is CoverImage && padding == null && alignment == null && color == null && gradient == null && insets.isEmpty && border == null) {
+        // 只有一张封面：直接把图片画成抗锯齿的圆角矩形，不需要裁剪或遮罩图层。
+        content = CoverImage(c.url, imageSize: c.imageSize, radius: radius);
+      } else {
+        content = kSoftClip ? SoftClipRRect(radius: radius, child: content) : ClipRRect(borderRadius: radius, child: content);
+      }
     }
     if (shadows.isNotEmpty) {
       content = CustomPaint(

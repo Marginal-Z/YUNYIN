@@ -17,6 +17,7 @@ import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
 import '../common/actions.dart';
+import '../desktop/desktop_dialogs.dart';
 import '../desktop/player_bar.dart';
 import '../desktop/window_controls.dart';
 import '../player/player_page.dart';
@@ -353,7 +354,7 @@ class _Sidebar extends StatelessWidget {
                     ),
                   ),
                 ),
-                YIconButton(YIcons.sliders, size: 36, iconSize: 20, color: p.text3, label: '设置', onTap: () => open(SettingsRoute())),
+                YIconButton(YIcons.sliders, size: 36, iconSize: 20, color: p.text3, label: '设置', onTap: () => showDesktopSettings(context)),
               ],
             ),
           ),

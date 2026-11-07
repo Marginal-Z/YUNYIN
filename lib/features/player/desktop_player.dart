@@ -7,8 +7,11 @@ import '../../core/ui/glow_background.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
+import '../../data/sources/music_source.dart';
+import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
 import '../common/actions.dart';
+import '../desktop/desktop_dialogs.dart';
 import '../desktop/player_bar.dart';
 import '../desktop/window_controls.dart';
 import 'artwork.dart';
@@ -26,6 +29,7 @@ class DesktopPlayerPage extends StatelessWidget {
     final player = context.watch<PlayerController>();
     final song = player.current;
     final style = context.select<AppSettings, PlayerStyle>((s) => s.playerStyle);
+    final sources = context.read<SourceManager>();
     return Material(
       type: MaterialType.transparency,
       child: GlowBackground.player(
@@ -76,7 +80,24 @@ class DesktopPlayerPage extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 108),
+                      const SizedBox(width: 12),
+                      if (song != null && sources.byId(song.sourceId).supports(SourceFeature.comments))
+                        YIconButton(
+                          YIcons.comment,
+                          size: 40,
+                          iconSize: 21,
+                          color: p.text,
+                          label: '评论',
+                          onTap: () => showDesktopComments(context, song),
+                        ),
+                      YIconButton(
+                        YIcons.fullscreen,
+                        size: 40,
+                        iconSize: 20,
+                        color: p.text,
+                        label: '全屏歌词',
+                        onTap: song == null ? null : () => openDesktopLyrics(context),
+                      ),
                       YIconButton(
                         YIcons.more,
                         size: 40,

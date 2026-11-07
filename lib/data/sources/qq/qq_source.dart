@@ -578,6 +578,34 @@ class QQMusicSource extends MusicSource {
 
   @override
   Future<List<PlaylistInfo>> categoryPlaylists(String categoryId, {int offset = 0, int limit = 30}) async {
+    // 分类歌单使用 QQ 音乐网页分类页的接口（每个分类约一千个歌单）；旧的按标签接口对大多数分类返回空列表
+    // 或其他分类的歌单，只用于“推荐”与新接口没有结果时。
+    if (categoryId != _recommendTag) {
+      final d = await _one('playlist.PlayListCategoryServer', 'get_category_content', {
+        'titleid': int.parse(categoryId),
+        'caller': '0',
+        'category_id': int.parse(categoryId),
+        'size': limit,
+        'page': offset ~/ limit,
+        'use_page': 1,
+      });
+      final items = ((d['content'] as Map?)?['v_item'] as List? ?? const []).whereType<Map>();
+      final lists = [
+        for (final item in items)
+          if (item['basic'] case final Map b)
+            PlaylistInfo(
+              id: 'diss:${b['tid']}',
+              sourceId: sourceId,
+              name: '${b['title'] ?? ''}',
+              cover: _https('${(b['cover'] as Map?)?['big_url'] ?? (b['cover'] as Map?)?['medium_url'] ?? (b['cover'] as Map?)?['default_url'] ?? ''}').ifEmpty(null),
+              playCount: (b['play_cnt'] as num?)?.toInt() ?? 0,
+              trackCount: (b['song_cnt'] as num?)?.toInt() ?? 0,
+              creator: '${(b['creator'] as Map?)?['nick'] ?? ''}'.ifEmpty(null),
+              description: b['desc'] as String?,
+            ),
+      ];
+      if (lists.isNotEmpty || offset > 0) return lists;
+    }
     final d = await _one('playlist.PlayListPlazaServer', 'get_playlist_by_tag', {
       'id': int.parse(categoryId),
       'sin': offset,

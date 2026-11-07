@@ -103,8 +103,14 @@ class _PressableState extends State<Pressable> with SingleTickerProviderStateMix
       label: widget.semanticLabel,
       child: MouseRegion(
         cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-        onEnter: widget.hoverColor == null ? null : (_) => setState(() => _hover = true),
-        onExit: widget.hoverColor == null ? null : (_) => setState(() => _hover = false),
+        // 始终跟踪悬停：悬停色可能在悬停期间变成 null（例如点按后成为选中项），
+        // 只在有悬停色时监听会漏掉离开事件，之后恢复悬停色时底色一直留着。
+        onEnter: (_) {
+          if (!_hover) setState(() => _hover = true);
+        },
+        onExit: (_) {
+          if (_hover || _down) setState(() => _hover = _down = false);
+        },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: enabled ? (_) => _set(true) : null,

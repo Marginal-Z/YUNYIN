@@ -464,32 +464,100 @@ class _CoverStack extends StatelessWidget {
   }
 }
 
-/// 私人雷达卡片（桌面端首页右侧）。
-class RadarCard extends StatelessWidget {
-  const RadarCard({super.key, this.onTap});
+/// 私人雷达卡片（桌面端首页右侧）：登录后用雷达歌单里歌曲的封面（模糊背景 + 叠放的封面），未登录时显示插画。
+class RadarCard extends StatefulWidget {
+  const RadarCard({super.key, this.onTap, this.load, this.cacheKey});
 
   final VoidCallback? onTap;
+
+  /// 读取雷达歌单的歌曲；为 null（未登录）时显示插画。
+  final Future<List<Song>> Function()? load;
+  final String? cacheKey;
+
+  @override
+  State<RadarCard> createState() => _RadarCardState();
+}
+
+class _RadarCardState extends State<RadarCard> {
+  List<String> _covers = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  @override
+  void didUpdateWidget(RadarCard old) {
+    super.didUpdateWidget(old);
+    if (old.cacheKey != widget.cacheKey) _start();
+  }
+
+  void _start() {
+    final key = widget.cacheKey;
+    final cached = key == null ? null : DataCache.lookup(key);
+    if (cached != null && cached.$1 is List<String>) {
+      _covers = cached.$1 as List<String>;
+      return;
+    }
+    _covers = const [];
+    final load = widget.load;
+    if (load == null) return;
+    load().then((songs) {
+      final covers = {for (final s in songs) ?s.coverUrl}.take(4).toList();
+      if (key != null) DataCache.put(key, covers);
+      if (mounted && widget.cacheKey == key) setState(() => _covers = covers);
+    }, onError: (Object e) => debugPrint('radar: $e'));
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
+    final background = _covers.firstOrNull;
+    final stack = _covers.length > 1 ? _covers.sublist(1) : const <String>[];
+    final onCover = background != null;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
     return Pressable(
-      onTap: onTap,
+      onTap: widget.onTap,
       scale: 0.99,
       child: YBox(
         clip: true,
         height: 208,
         radius: BorderRadius.circular(30),
-        gradient: CssGradient(150, colors: p.albumGradient),
-        shadows: const [Shadow2(0, 16, 34, Color.fromRGBO(20, 145, 127, 0.20))],
+        gradient: onCover ? null : CssGradient(150, colors: p.albumGradient),
+        color: onCover ? p.skeleton : null,
+        shadows: onCover ? const [Shadow2(0, 16, 34, Color.fromRGBO(0, 0, 0, 0.22))] : const [Shadow2(0, 16, 34, Color.fromRGBO(20, 145, 127, 0.20))],
         insets: [Shadow2(0, 1, 0, p.highlightInset)],
         child: Stack(
           children: [
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: CustomPaint(size: const Size(170, 208), painter: _RadarArt()),
-            ),
+            if (onCover) ...[
+              Positioned.fill(
+                child: RepaintBoundary(
+                  child: ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28, tileMode: TileMode.clamp),
+                    child: Transform.scale(scale: 1.3, child: CoverImage(background, imageSize: (120 * dpr).round())),
+                  ),
+                ),
+              ),
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [Color(0x99000000), Color(0x52000000), Color(0x29000000)],
+                      stops: [0, 0.55, 1],
+                    ),
+                  ),
+                ),
+              ),
+              if (stack.isNotEmpty) Positioned(right: 18, top: 0, bottom: 0, width: 150, child: _CoverStack(covers: stack, size: 92)),
+            ] else
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: CustomPaint(size: const Size(170, 208), painter: _RadarArt()),
+              ),
             Padding(
               padding: const EdgeInsets.all(28),
               child: Column(
@@ -497,15 +565,15 @@ class RadarCard extends StatelessWidget {
                 children: [
                   Text(
                     'RADAR',
-                    style: ts(12, weight: w600, em: 0.12, color: p.albumDesc),
+                    style: ts(12, weight: w600, em: 0.12, color: onCover ? const Color(0xD9FFFFFF) : p.albumDesc),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '私人雷达',
-                    style: ts(28, weight: w700, em: -0.02, height: 1.12, color: p.text),
+                    style: ts(28, weight: w700, em: -0.02, height: 1.12, color: onCover ? Colors.white : p.text),
                   ),
                   const SizedBox(height: 6),
-                  Text('按你的口味发现新歌', style: ts(14, color: p.albumDesc)),
+                  Text('按你的口味发现新歌', style: ts(14, color: onCover ? const Color(0xD9FFFFFF) : p.albumDesc)),
                 ],
               ),
             ),

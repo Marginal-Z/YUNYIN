@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -42,15 +43,25 @@ class Cover extends StatelessWidget {
 
 /// 填满父级的封面图像本体。
 class CoverImage extends StatelessWidget {
-  const CoverImage(this.url, {super.key, this.imageSize = 400});
+  const CoverImage(this.url, {super.key, this.imageSize = 400, this.radius});
 
   final String? url;
   final int imageSize;
 
+  /// 指定时把图片直接画成抗锯齿的圆角矩形（见 [kSoftClip]），由 [YBox] 在需要时设置。
+  final BorderRadius? radius;
+
   @override
   Widget build(BuildContext context) {
     final u = url;
-    if (u == null || u.isEmpty) return const _Placeholder();
+    final r = radius;
+    if (u == null || u.isEmpty) return r == null ? const _Placeholder() : SoftClipRRect(radius: r, child: const _Placeholder());
+    if (r != null) {
+      final ImageProvider provider = isLocalPath(u)
+          ? ResizeImage(FileImage(File(u.startsWith('file://') ? Uri.parse(u).toFilePath() : u)), width: imageSize, policy: ResizeImagePolicy.fit)
+          : CachedNetworkImageProvider(_sized(u, imageSize), maxWidth: _px(imageSize));
+      return _ShapedImage(provider: provider, radius: r);
+    }
     if (isLocalPath(u)) {
       return Image.file(
         File(u.startsWith('file://') ? Uri.parse(u).toFilePath() : u),
@@ -62,13 +73,9 @@ class CoverImage extends StatelessWidget {
         errorBuilder: (_, _, _) => const _Placeholder(),
       );
     }
-    // 网易云图片服务按 param 返回对应尺寸的缩略图；取 50 的倍数以提高缓存命中率。
-    final px = ((imageSize / 50).ceil() * 50).clamp(50, 1200);
-    // 早先缓存的网易云地址可能带有缩成 140×140 的处理参数：去掉后按显示尺寸请求。
-    final base = u.contains('music.126.net') && u.contains('thumbnail=') ? u.substring(0, u.indexOf('?')) : u;
-    final sized = base.contains('music.126.net') && !base.contains('?') ? '$base?param=${px}y$px' : base;
+    final px = _px(imageSize);
     return CachedNetworkImage(
-      imageUrl: sized,
+      imageUrl: _sized(u, imageSize),
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
@@ -81,6 +88,126 @@ class CoverImage extends StatelessWidget {
       errorWidget: (_, _, _) => const _Placeholder(),
     );
   }
+}
+
+/// 网易云图片服务按 param 返回对应尺寸的缩略图；取 50 的倍数以提高缓存命中率。
+int _px(int imageSize) => ((imageSize / 50).ceil() * 50).clamp(50, 1200);
+
+String _sized(String u, int imageSize) {
+  final px = _px(imageSize);
+  // 早先缓存的网易云地址可能带有缩成 140×140 的处理参数：去掉后按显示尺寸请求。
+  final base = u.contains('music.126.net') && u.contains('thumbnail=') ? u.substring(0, u.indexOf('?')) : u;
+  return base.contains('music.126.net') && !base.contains('?') ? '$base?param=${px}y$px' : base;
+}
+
+/// 把图片按 cover 方式画进抗锯齿的圆角矩形（图片着色器 + 圆角矩形几何，不用裁剪）。加载前与失败时显示占位图。
+class _ShapedImage extends StatefulWidget {
+  const _ShapedImage({required this.provider, required this.radius});
+
+  final ImageProvider provider;
+  final BorderRadius radius;
+
+  @override
+  State<_ShapedImage> createState() => _ShapedImageState();
+}
+
+class _ShapedImageState extends State<_ShapedImage> with SingleTickerProviderStateMixin {
+  ImageStream? _stream;
+  ImageInfo? _info;
+  // 加载失败时保持占位图。
+  late final ImageStreamListener _listener = ImageStreamListener(_onImage, onError: (_, _) {});
+  late final AnimationController _fade = AnimationController(vsync: this, duration: const Duration(milliseconds: 140));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(_ShapedImage old) {
+    super.didUpdateWidget(old);
+    if (old.provider != widget.provider) _resolve();
+  }
+
+  void _resolve() {
+    final stream = widget.provider.resolve(createLocalImageConfiguration(context));
+    if (stream.key == _stream?.key) return;
+    _stream?.removeListener(_listener);
+    _stream = stream..addListener(_listener);
+  }
+
+  void _onImage(ImageInfo info, bool sync) {
+    if (!mounted) {
+      info.dispose();
+      return;
+    }
+    final first = _info == null;
+    setState(() {
+      _info?.dispose();
+      _info = info;
+    });
+    // 已在内存中的图片直接显示；新加载的图片淡入。换图时不再淡入（保留旧图直到新图就绪）。
+    if (sync || !first) {
+      _fade.value = 1;
+    } else {
+      _fade.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _stream?.removeListener(_listener);
+    _info?.dispose();
+    _fade.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final info = _info;
+    final placeholder = SoftClipRRect(radius: widget.radius, child: const _Placeholder());
+    if (info == null) return placeholder;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_fade.value < 1) placeholder,
+        AnimatedBuilder(
+          animation: _fade,
+          builder: (context, _) => CustomPaint(painter: _ShapedImagePainter(info.image, widget.radius, _fade.value)),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShapedImagePainter extends CustomPainter {
+  _ShapedImagePainter(this.image, this.radius, this.opacity);
+
+  final ui.Image image;
+  final BorderRadius radius;
+  final double opacity;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final iw = image.width.toDouble(), ih = image.height.toDouble();
+    // BoxFit.cover：等比放大到铺满，居中裁去多余部分。
+    final scale = size.width / iw > size.height / ih ? size.width / iw : size.height / ih;
+    final dx = (size.width - iw * scale) / 2, dy = (size.height - ih * scale) / 2;
+    final matrix = Matrix4.identity()
+      ..translateByDouble(dx, dy, 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1);
+    final paint = Paint()
+      ..isAntiAlias = true
+      ..filterQuality = FilterQuality.medium
+      ..color = Color.fromRGBO(0, 0, 0, opacity)
+      ..shader = ImageShader(image, TileMode.clamp, TileMode.clamp, matrix.storage, filterQuality: FilterQuality.medium);
+    canvas.drawRRect(radius.toRRect(Offset.zero & size), paint);
+  }
+
+  @override
+  bool shouldRepaint(_ShapedImagePainter old) => old.image != image || old.radius != radius || old.opacity != opacity;
 }
 
 /// 没有封面（或封面加载失败）时的占位图：柔和的渐变底色上一个音符图标，而不是一块空白。
@@ -133,3 +260,12 @@ class Avatar extends StatelessWidget {
 
 /// 本地文件路径（导入的本地音乐封面）。
 bool isLocalPath(String u) => u.startsWith('/') || u.startsWith('file://') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(u);
+
+/// 把平台封面地址换成大尺寸版本（沉浸式页头整屏显示时使用）：QQ 音乐 T00xR300x300 → 800，
+/// QQ 音乐歌单封面 /300 → /600，酷狗 /400/ → /800/。其他地址原样返回（网易云按 imageSize 请求）。
+String hiResCover(String url) {
+  if (url.contains('y.gtimg.cn')) return url.replaceFirstMapped(RegExp(r'T00(\d)R\d+x\d+'), (m) => 'T00${m[1]}R800x800');
+  if (url.contains('qpic.y.qq.com')) return url.replaceFirst(RegExp(r'/(150|300)(\?|$)'), '/600\$2');
+  if (url.contains('kugou.com') || url.contains('kgimg.com')) return url.replaceFirst(RegExp(r'/(150|240|400|480)/'), '/800/');
+  return url;
+}

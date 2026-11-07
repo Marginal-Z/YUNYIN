@@ -102,6 +102,8 @@ class DesktopHomePage extends StatelessWidget {
                         child: RadarCard(
                           // 网易云“私人雷达”歌单需要登录；未登录时引导登录。
                           onTap: () => source.loggedIn ? go(context, PlaylistRoute(kRadarPlaylistId, sourceId: source.id)) : go(context, LoginRoute()),
+                          load: source.loggedIn ? () async => (await source.playlist(kRadarPlaylistId)).tracks ?? const [] : null,
+                          cacheKey: source.loggedIn ? 'radar:${source.user?.id}' : null,
                         ),
                       ),
                     ],
