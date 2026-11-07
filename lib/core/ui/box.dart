@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -13,52 +14,100 @@ import 'liquid_glass_filter.dart';
 /// 画出的圆角矩形本身是抗锯齿的。这两个平台上圆角裁剪改用画出来的圆角遮罩（见 [SoftClipRRect]）。
 final bool kSoftClip = !kIsWeb && (defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.windows);
 
-/// 抗锯齿的圆角裁剪：把内容按一张画好的圆角遮罩（屏幕分辨率，抗锯齿）合成，而不是用会产生锯齿的裁剪。
-/// 遮罩按尺寸缓存。不能包含背景滤镜（遮罩图层里的背景滤镜取不到页面内容）。
-class SoftClipRRect extends StatelessWidget {
+/// 抗锯齿的圆角裁剪：把内容按一张圆角遮罩（屏幕分辨率）合成，而不是用会产生锯齿的裁剪。遮罩的四个圆角
+/// 按像素中心到圆心的距离算出覆盖率（精确的抗锯齿），其余部分不透明；按尺寸缓存，生成前的一两帧用普通裁剪。
+/// 不能包含背景滤镜（遮罩图层里的背景滤镜取不到页面内容）。
+class SoftClipRRect extends StatefulWidget {
   const SoftClipRRect({super.key, required this.radius, required this.child});
 
   final BorderRadius radius;
   final Widget child;
 
   static final _masks = <String, ui.Image>{};
+  static final _pending = <String, Future<ui.Image>>{};
 
-  static ui.Image _mask(Size size, BorderRadius radius, double dpr) {
-    final w = (size.width * dpr).ceil().clamp(1, 8192), h = (size.height * dpr).ceil().clamp(1, 8192);
-    final key = '$w×$h|${radius.topLeft.x}|${radius.topRight.x}|${radius.bottomRight.x}|${radius.bottomLeft.x}|$dpr';
-    final hit = _masks.remove(key);
-    if (hit != null) return _masks[key] = hit;
-    final recorder = ui.PictureRecorder();
-    Canvas(recorder)
-        .drawRRect(radius.toRRect(Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble())).scaleRadii().multiply(dpr), Paint()..color = const Color(0xFFFFFFFF));
-    final picture = recorder.endRecording();
-    final image = picture.toImageSync(w, h);
-    picture.dispose();
-    _masks[key] = image;
-    while (_masks.length > 48) {
-      _masks.remove(_masks.keys.first)!.dispose();
+  @override
+  State<SoftClipRRect> createState() => _SoftClipRRectState();
+}
+
+class _SoftClipRRectState extends State<SoftClipRRect> {
+  static Future<ui.Image> _build(int w, int h, List<double> radii) {
+    final px = Uint8List(w * h * 4)..fillRange(0, w * h * 4, 255);
+    // radii：左上、右上、右下、左下（物理像素）。
+    for (var c = 0; c < 4; c++) {
+      final r = radii[c].clamp(0.0, math.min(w, h) / 2);
+      if (r <= 0) continue;
+      final n = r.ceil();
+      for (var j = 0; j < n; j++) {
+        for (var i = 0; i < n; i++) {
+          // 角内的像素中心（以角为原点，向内为正）。
+          final dx = r - (i + 0.5), dy = r - (j + 0.5);
+          final d = math.sqrt(dx * dx + dy * dy);
+          final cover = (r - d + 0.5).clamp(0.0, 1.0);
+          if (cover >= 1) continue;
+          final x = c == 0 || c == 3 ? i : w - 1 - i;
+          final y = c == 0 || c == 1 ? j : h - 1 - j;
+          final o = (y * w + x) * 4;
+          final a = (cover * 255).round();
+          px[o] = a;
+          px[o + 1] = a;
+          px[o + 2] = a;
+          px[o + 3] = a;
+        }
+      }
     }
-    return image;
+    final done = Completer<ui.Image>();
+    ui.decodeImageFromPixels(px, w, h, ui.PixelFormat.rgba8888, done.complete);
+    return done.future;
+  }
+
+  ui.Image? _mask(Size size, double dpr) {
+    final w = (size.width * dpr).round().clamp(1, 8192), h = (size.height * dpr).round().clamp(1, 8192);
+    final r = widget.radius;
+    final radii = [r.topLeft.x * dpr, r.topRight.x * dpr, r.bottomRight.x * dpr, r.bottomLeft.x * dpr];
+    final key = '$w×$h|${radii.join('|')}';
+    final masks = SoftClipRRect._masks;
+    final hit = masks.remove(key);
+    if (hit != null) return masks[key] = hit;
+    if (!SoftClipRRect._pending.containsKey(key)) {
+      SoftClipRRect._pending[key] = _build(w, h, radii).then((image) {
+        SoftClipRRect._pending.remove(key);
+        masks[key] = image;
+        while (masks.length > 48) {
+          masks.remove(masks.keys.first)!.dispose();
+        }
+        return image;
+      });
+    }
+    SoftClipRRect._pending[key]!.then((_) {
+      if (mounted) setState(() {});
+    });
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    // 遮罩只作用在自身矩形内：超出矩形的内容（例如放大后模糊的背景图）先用矩形裁掉（水平垂直的边没有锯齿）。
-    // 外面再包一层几乎不透明的 Opacity，让遮罩在独立图层里合成：否则 Impeller 上遮罩的 dstIn 会把卡片下面
-    // 已经画好的阴影也一并擦掉（圆角外露出窗口底色）。
-    return Opacity(
-      opacity: 0.999,
-      child: ClipRect(
-        child: ShaderMask(
-          blendMode: BlendMode.dstIn,
-          shaderCallback: (rect) {
-            final mask = _mask(rect.size, radius, dpr);
-            return ImageShader(mask, TileMode.clamp, TileMode.clamp, Matrix4.diagonal3Values(1 / dpr, 1 / dpr, 1).storage);
-          },
-          child: child,
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, c) {
+        // 只在尺寸确定（紧约束）时使用遮罩：松约束下内容的实际尺寸要到布局后才知道。
+        final size = c.biggest;
+        final mask = c.isTight && !size.isEmpty ? _mask(size, dpr) : null;
+        if (mask == null) return ClipRRect(borderRadius: widget.radius, child: widget.child);
+        final w = mask.width / size.width, h = mask.height / size.height;
+        // 遮罩只作用在自身矩形内：超出矩形的内容（例如放大后模糊的背景图）先用矩形裁掉（水平垂直的边没有锯齿）；
+        // 外面再包一层几乎不透明的 Opacity，让遮罩在独立图层里合成（否则 Impeller 上会擦掉卡片下面的阴影）。
+        return Opacity(
+          opacity: 0.999,
+          child: ClipRect(
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (_) => ImageShader(mask, TileMode.clamp, TileMode.clamp, Matrix4.diagonal3Values(1 / w, 1 / h, 1).storage),
+              child: widget.child,
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -77,12 +126,6 @@ class IsolatedShaderMask extends StatelessWidget {
     opacity: 0.999,
     child: ShaderMask(shaderCallback: shaderCallback, blendMode: blendMode, child: child),
   );
-}
-
-extension on RRect {
-  /// 圆角半径按倍数缩放（矩形本身已是物理像素）。
-  RRect multiply(double k) =>
-      RRect.fromLTRBAndCorners(left, top, right, bottom, topLeft: tlRadius * k, topRight: trRadius * k, bottomRight: brRadius * k, bottomLeft: blRadius * k);
 }
 
 /// CSS 的 blur 半径对应高斯 sigma = blur / 2。

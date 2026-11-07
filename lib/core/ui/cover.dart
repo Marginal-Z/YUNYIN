@@ -277,15 +277,14 @@ class _ShapedImageState extends State<_ShapedImage> with SingleTickerProviderSta
     final info = _info;
     final placeholder = SoftClipRRect(radius: widget.radius, child: const _Placeholder());
     if (info == null) return placeholder;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (_fade.value < 1) placeholder,
-        AnimatedBuilder(
-          animation: _fade,
-          builder: (context, _) => CustomPaint(painter: _ShapedImagePainter(info.image, widget.radius, _fade.value)),
-        ),
-      ],
+    // 淡入结束后不再保留占位图（否则每张封面下面一直多画一层）。
+    return AnimatedBuilder(
+      animation: _fade,
+      builder: (context, _) {
+        final paint = CustomPaint(painter: _ShapedImagePainter(info.image, widget.radius, _fade.value));
+        if (_fade.value >= 1) return paint;
+        return Stack(fit: StackFit.expand, children: [placeholder, paint]);
+      },
     );
   }
 }
