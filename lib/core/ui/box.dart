@@ -43,13 +43,16 @@ class SoftClipRRect extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    return ShaderMask(
-      blendMode: BlendMode.dstIn,
-      shaderCallback: (rect) {
-        final mask = _mask(rect.size, radius, dpr);
-        return ImageShader(mask, TileMode.clamp, TileMode.clamp, Matrix4.diagonal3Values(1 / dpr, 1 / dpr, 1).storage);
-      },
-      child: child,
+    // 遮罩只作用在自身矩形内：超出矩形的内容（例如放大后模糊的背景图）先用矩形裁掉（水平垂直的边没有锯齿）。
+    return ClipRect(
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) {
+          final mask = _mask(rect.size, radius, dpr);
+          return ImageShader(mask, TileMode.clamp, TileMode.clamp, Matrix4.diagonal3Values(1 / dpr, 1 / dpr, 1).storage);
+        },
+        child: child,
+      ),
     );
   }
 }
@@ -320,6 +323,8 @@ class YBox extends StatelessWidget {
       if (kSoftClip && c is CoverImage && padding == null && alignment == null && color == null && gradient == null && insets.isEmpty && border == null) {
         // 只有一张封面：直接把图片画成抗锯齿的圆角矩形，不需要裁剪或遮罩图层。
         content = CoverImage(c.url, imageSize: c.imageSize, radius: radius);
+      } else if (kSoftClip && c is Cover && padding == null && alignment == null && color == null && gradient == null && insets.isEmpty && border == null) {
+        // 封面自己已经画成圆角：不再套一层遮罩（旋转时遮罩图层的边缘会显出细线）。
       } else {
         content = kSoftClip ? SoftClipRRect(radius: radius, child: content) : ClipRRect(borderRadius: radius, child: content);
       }
