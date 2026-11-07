@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/lyric_fonts.dart';
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/text.dart';
@@ -110,9 +111,15 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
   int _jump = 0;
   Timer? _resume;
 
+  void _onFont() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
+    // 霞鹜文楷下载并载入后重建，换成新字体。
+    LyricFonts.instance.addListener(_onFont);
     _player = context.read<PlayerController>();
     _player.position.addListener(_onPosition);
   }
@@ -123,6 +130,7 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
     _resume?.cancel();
     _fling.dispose();
     _scroll.dispose();
+    LyricFonts.instance.removeListener(_onFont);
     super.dispose();
   }
 
@@ -194,6 +202,7 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
     final lyrics = context.select<PlayerController, Lyrics>((c) => c.lyrics);
     final showTr = context.select<AppSettings, bool>((s) => s.showTranslation);
     final scale = context.select<AppSettings, double>((s) => s.lyricScale);
+    final font = context.select<AppSettings, LyricFont>((s) => s.lyricFont);
     if (!identical(lyrics, _lyrics)) {
       _lyrics = lyrics;
       _items = _itemsOf(lyrics);
@@ -208,7 +217,7 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
       _jump++;
     }
     final size = (widget.desktop ? 44.0 : 32.0) * scale;
-    final base = ts(size, weight: w700, em: -0.015, height: 1.3);
+    final base = lyricTextStyle(font, size, em: -0.015, height: 1.3);
     if (lyrics.lines.isEmpty) {
       return Align(
         alignment: widget.desktop ? Alignment.centerLeft : Alignment.topLeft,

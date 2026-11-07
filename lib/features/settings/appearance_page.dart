@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/settings.dart';
+import '../../core/lyric_fonts.dart';
 import '../../core/theme/palette.dart';
+import '../../core/ui/feedback.dart';
 import '../../core/ui/app_background.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
@@ -229,6 +231,7 @@ class AppearancePage extends StatelessWidget {
                 onChanged: (i) => s.setLyricScale(scales[i]),
               ),
             ),
+            const _LyricFontPicker(),
             SettingsRow(
               title: '显示歌词翻译',
               trailing: YSwitch(value: s.showTranslation, label: '显示歌词翻译', onChanged: (v) => s.setFlag('showTranslation', v)),
@@ -386,4 +389,86 @@ class _StylePreview extends CustomPainter {
 
   @override
   bool shouldRepaint(_StylePreview old) => old.style != style || old.dark != dark || old.accent != accent;
+}
+
+/// 歌词字体样式：每个选项用自己的字体显示示例；霞鹜文楷第一次选择时下载。
+class _LyricFontPicker extends StatelessWidget {
+  const _LyricFontPicker();
+
+  Future<void> _pick(BuildContext context, AppSettings s, LyricFont f) async {
+    if (f == LyricFont.wenkai && !LyricFonts.instance.loaded) {
+      try {
+        await LyricFonts.instance.download();
+      } catch (e) {
+        if (context.mounted) Toast.show(context, errorText(e), icon: YIcons.info);
+        return;
+      }
+    }
+    s.setLyricFont(f);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final s = context.watch<AppSettings>();
+    return ListenableBuilder(
+      listenable: LyricFonts.instance,
+      builder: (context, _) {
+        final fonts = LyricFonts.instance;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('歌词字体', style: ts(16, color: p.text)),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 86,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: LyricFont.values.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                  itemBuilder: (context, i) {
+                    final f = LyricFont.values[i];
+                    final selected = s.lyricFont == f;
+                    final downloading = f == LyricFont.wenkai && fonts.progress != null;
+                    final needsDownload = f == LyricFont.wenkai && !fonts.loaded;
+                    return Pressable(
+                      onTap: downloading ? null : () => _pick(context, s, f),
+                      scale: 0.95,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 92,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: selected ? p.accentText.withValues(alpha: 0.10) : p.field,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: selected ? p.accentText : const Color(0x00000000), width: 1.5),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('歌词', style: lyricTextStyle(f, 22, color: selected ? p.accentText : p.text), maxLines: 1),
+                            const SizedBox(height: 6),
+                            Text(
+                              downloading ? '下载 ${(fonts.progress! * 100).round()}%' : (needsDownload ? '${f.label} · 下载' : f.label),
+                              style: ts(12, weight: w600, color: selected ? p.accentText : p.text2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(fonts.error ?? s.lyricFont.description, style: ts(12.5, height: 1.4, color: fonts.error != null ? p.danger : p.text2)),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }

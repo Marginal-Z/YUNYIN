@@ -1,3 +1,4 @@
+import 'lyric_fonts.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -280,6 +281,9 @@ class AppSettings extends ChangeNotifier {
 
   /// 歌词字号倍数（0.85 / 1.0 / 1.15）。
   double lyricScale = 1.0;
+
+  /// 歌词字体样式。
+  LyricFont lyricFont = LyricFont.system;
   String? downloadDir;
   double volume = 0.65;
   List<String> searchHistory = [];
@@ -377,6 +381,7 @@ class AppSettings extends ChangeNotifier {
     if (background == BackgroundMode.image && backgroundImage == null) background = BackgroundMode.glow;
     skippedUpdate = _read<String>('skippedUpdate');
     lyricScale = _number('lyricScale', 1, 0.5, 2);
+    lyricFont = _enumValue('lyricFont', LyricFont.values, LyricFont.system);
     downloadDir = _read<String>('downloadDir');
     volume = _number('volume', 0.65, 0, 1);
     searchHistory = _read<List<String>>('searchHistory') ?? [];
@@ -596,6 +601,12 @@ class AppSettings extends ChangeNotifier {
       backgroundImage = image;
       _p.setString('backgroundImage', image);
     }
+    notifyListeners();
+  }
+
+  void setLyricFont(LyricFont v) {
+    lyricFont = v;
+    _p.setInt('lyricFont', v.index);
     notifyListeners();
   }
 

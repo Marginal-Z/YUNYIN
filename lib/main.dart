@@ -15,6 +15,7 @@ import 'core/widget_bridge.dart';
 import 'data/listen_stats.dart';
 import 'core/ui/liquid_glass_filter.dart';
 import 'core/update/updater.dart';
+import 'core/lyric_fonts.dart';
 import 'core/settings.dart';
 import 'core/smooth_wheel.dart';
 import 'debug/benchmark.dart';
@@ -75,6 +76,8 @@ Future<void> main(List<String> args) async {
   });
   final settings = AppSettings();
   await settings.init();
+  // 已下载的歌词字体（霞鹜文楷）在后台载入，不拖慢启动。
+  unawaited(LyricFonts.instance.init());
   final local = LocalLibrary();
   await local.init();
   final drives = CloudDrives();

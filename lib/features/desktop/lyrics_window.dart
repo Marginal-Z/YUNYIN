@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../core/lyric_fonts.dart';
 import '../../core/lyrics_overlay.dart';
 import '../../core/settings.dart';
 import '../../core/ui/icons.dart';
@@ -45,6 +46,7 @@ class DesktopLyricsWindow with WindowListener {
     overlay.addListener(w._push);
     player.addListener(w._push);
     settings.addListener(w._sync);
+    LyricFonts.instance.addListener(w._push);
     w._sync();
     return w;
   }
@@ -89,6 +91,9 @@ class DesktopLyricsWindow with WindowListener {
     'color': _settings.lyricsDisplayColor.toARGB32(),
     'opacity': _settings.lyricsOpacity,
     'locked': _settings.lyricsLocked,
+    'font': _settings.lyricFont.index,
+    // 歌词窗口是独立的界面，下载的字体要按文件路径自己载入。
+    'fontFile': LyricFonts.instance.filePath,
   };
 
   void _sync() {
@@ -209,7 +214,17 @@ class _LyricsAppState extends State<_LyricsApp> with WindowListener {
     _channel.invokeMethod<Map>('ready').then((s) => s == null ? null : _apply(s)).catchError((Object e) => debugPrint('desktop lyrics: $e'));
   }
 
+  LyricFont _font = LyricFont.system;
+
   void _apply(Map<dynamic, dynamic> s) {
+    final font = LyricFont.values[((s['font'] as num?)?.toInt() ?? 0).clamp(0, LyricFont.values.length - 1)];
+    final file = s['fontFile'] as String?;
+    if (font == LyricFont.wenkai && file != null) {
+      loadFontFile(LyricFonts.family, file).then((_) {
+        if (mounted) setState(() {});
+      }).catchError((Object e) => debugPrint('desktop lyrics font: $e'));
+    }
+    _font = font;
     final locked = s['locked'] == true;
     if (locked != _locked) {
       _locked = locked;
@@ -290,7 +305,7 @@ class _LyricsAppState extends State<_LyricsApp> with WindowListener {
                             key: ValueKey('${_state['line']}'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: ts(30, weight: w700, color: color.withValues(alpha: opacity)).copyWith(shadows: shadow),
+                            style: lyricTextStyle(_font, 30, color: color.withValues(alpha: opacity)).copyWith(shadows: shadow),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -298,7 +313,7 @@ class _LyricsAppState extends State<_LyricsApp> with WindowListener {
                           '${_state['line'] ?? ''}'.trim().isEmpty ? '桌面歌词' : '${_state['next'] ?? ''}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: ts(17, weight: w500, color: Colors.white.withValues(alpha: 0.9 * opacity)).copyWith(shadows: shadow),
+                          style: lyricTextStyle(_font, 17, weight: w500, color: Colors.white.withValues(alpha: 0.9 * opacity)).copyWith(shadows: shadow),
                         ),
                       ],
                     ),
