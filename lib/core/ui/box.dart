@@ -112,7 +112,7 @@ class _SoftClipRRectState extends State<SoftClipRRect> {
   }
 }
 
-/// 放在独立图层中合成的 [ShaderMask]：Impeller 上 ShaderMask 的混合（dstIn 渐隐、srcATop 闪光）会作用到
+/// 放在独立图层中合成的 [ShaderMask]：桌面端 Impeller（OpenGL）上 ShaderMask 的混合（dstIn 渐隐、srcATop 闪光）会作用到
 /// 它下面已经画好的内容（背景被擦掉或盖上一层），外面套一层几乎不透明的 Opacity 让它在自己的图层里合成。
 class IsolatedShaderMask extends StatelessWidget {
   const IsolatedShaderMask({super.key, required this.shaderCallback, this.blendMode = BlendMode.modulate, this.child});
@@ -122,10 +122,11 @@ class IsolatedShaderMask extends StatelessWidget {
   final Widget? child;
 
   @override
-  Widget build(BuildContext context) => Opacity(
-    opacity: 0.999,
-    child: ShaderMask(shaderCallback: shaderCallback, blendMode: blendMode, child: child),
-  );
+  Widget build(BuildContext context) {
+    final mask = ShaderMask(shaderCallback: shaderCallback, blendMode: blendMode, child: child);
+    // 只有桌面端的 OpenGL 渲染（Linux、Windows）有这个问题；其他平台不多加图层。
+    return kSoftClip ? Opacity(opacity: 0.999, child: mask) : mask;
+  }
 }
 
 /// CSS 的 blur 半径对应高斯 sigma = blur / 2。
