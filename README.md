@@ -23,9 +23,9 @@
 
 **平台模式**
 
-| 网易云音乐 | QQ 音乐 | 酷狗音乐 | 照片墙首页 |
+| 网易云音乐 | QQ 音乐 | 酷狗音乐 | 深色模式 |
 | :---: | :---: | :---: | :---: |
-| <img src="website/shots/mobile-home.webp" width="200"> | <img src="website/shots/mobile-home-qq.webp" width="200"> | <img src="website/shots/mobile-home-kugou.webp" width="200"> | <img src="website/shots/mobile-home-wall.webp" width="200"> |
+| <img src="website/shots/mobile-home.webp" width="200"> | <img src="website/shots/mobile-home-qq.webp" width="200"> | <img src="website/shots/mobile-home-kugou.webp" width="200"> | <img src="website/shots/mobile-home-dark.webp" width="200"> |
 
 **播放样式与歌词**
 
@@ -39,7 +39,7 @@
 | :---: | :---: |
 | <img src="website/shots/desktop-home.webp" width="420"> | <img src="website/shots/desktop-player-dark.webp" width="420"> |
 
-> 截图均为应用的真实渲染画面（桌面端截图模式 `YUNYIN_SHOTS` 自动生成；黑胶样式为播放页组件按手机尺寸渲染，歌曲与歌词为示例内容）。
+> 截图均为应用的真实渲染画面（截图模式 `YUNYIN_SHOTS` 自动生成，未登录状态；界面风格为默认风格搭配「柔和」玻璃）。
 
 ## 特性
 

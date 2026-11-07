@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/text_decode.dart';
 import '../../models.dart';
 import '../music_source.dart';
+import '../net_retry.dart';
 import '../netease/netease_source.dart' show parseLrc;
 
 /// 酷狗音乐播放源：搜索、热搜、排行榜、歌单、专辑、歌手、评论、封面与歌词来自酷狗公开接口。
@@ -20,7 +21,7 @@ import '../netease/netease_source.dart' show parseLrc;
 class KugouSource extends MusicSource {
   KugouSource({Dio? dio})
     : _dio =
-          dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15), responseType: ResponseType.plain));
+          dio ?? withRetry(Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15), responseType: ResponseType.plain)));
 
   static const sourceId = 'kugou';
   static const _api = 'https://mobiles.kugou.com/api/v3';

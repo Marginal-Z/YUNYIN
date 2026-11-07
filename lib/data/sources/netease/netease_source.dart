@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/text_decode.dart';
 import '../../models.dart';
 import '../music_source.dart';
+import '../net_retry.dart';
 import 'netease_crypto.dart';
 
 class NeteaseApiException implements Exception {
@@ -28,12 +29,14 @@ class NeteaseSource extends MusicSource {
   static const _prefsProfile = 'netease.profile';
   static const _ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 12),
-      receiveTimeout: const Duration(seconds: 20),
-      responseType: ResponseType.plain,
-      validateStatus: (s) => s != null && s < 500,
+  final Dio _dio = withRetry(
+    Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 12),
+        receiveTimeout: const Duration(seconds: 20),
+        responseType: ResponseType.plain,
+        validateStatus: (s) => s != null && s < 500,
+      ),
     ),
   );
 

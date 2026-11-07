@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models.dart';
 import '../music_source.dart';
+import '../net_retry.dart';
 import '../netease/netease_source.dart' show parseLrc;
 
 class QQApiException implements Exception {
@@ -25,12 +26,14 @@ class QQMusicSource extends MusicSource {
   QQMusicSource({Dio? dio})
     : _dio =
           dio ??
-          Dio(
-            BaseOptions(
-              connectTimeout: const Duration(seconds: 10),
-              receiveTimeout: const Duration(seconds: 15),
-              responseType: ResponseType.plain,
-              headers: {'Referer': 'https://y.qq.com/', 'User-Agent': _ua},
+          withRetry(
+            Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 10),
+                receiveTimeout: const Duration(seconds: 15),
+                responseType: ResponseType.plain,
+                headers: {'Referer': 'https://y.qq.com/', 'User-Agent': _ua},
+              ),
             ),
           );
 
@@ -629,8 +632,13 @@ class QQMusicSource extends MusicSource {
 
   @override
   Future<HomeFeed> homeFeed() async {
-    final results = await Future.wait([_top(62, num: 30), recommendPlaylists(limit: 12)]);
-    return HomeFeed(daily: results[0] as List<Song>, playlists: results[1] as List<PlaylistInfo>);
+    // 歌单取不到时仍显示飙升榜（两者同时请求，此前其中一个失败整个首页都显示失败）。
+    final playlists = recommendPlaylists(limit: 12).catchError((Object e) {
+      debugPrint('qq home playlists: $e');
+      return const <PlaylistInfo>[];
+    });
+    final daily = await _top(62, num: 30);
+    return HomeFeed(daily: daily, playlists: await playlists);
   }
 
   @override
