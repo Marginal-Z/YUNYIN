@@ -29,7 +29,8 @@ class SoftClipRRect extends StatelessWidget {
     final hit = _masks.remove(key);
     if (hit != null) return _masks[key] = hit;
     final recorder = ui.PictureRecorder();
-    Canvas(recorder).drawRRect(radius.toRRect(Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble())).scaleRadii().multiply(dpr), Paint()..color = const Color(0xFFFFFFFF));
+    Canvas(recorder)
+        .drawRRect(radius.toRRect(Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble())).scaleRadii().multiply(dpr), Paint()..color = const Color(0xFFFFFFFF));
     final picture = recorder.endRecording();
     final image = picture.toImageSync(w, h);
     picture.dispose();
@@ -44,14 +45,19 @@ class SoftClipRRect extends StatelessWidget {
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     // 遮罩只作用在自身矩形内：超出矩形的内容（例如放大后模糊的背景图）先用矩形裁掉（水平垂直的边没有锯齿）。
-    return ClipRect(
-      child: ShaderMask(
-        blendMode: BlendMode.dstIn,
-        shaderCallback: (rect) {
-          final mask = _mask(rect.size, radius, dpr);
-          return ImageShader(mask, TileMode.clamp, TileMode.clamp, Matrix4.diagonal3Values(1 / dpr, 1 / dpr, 1).storage);
-        },
-        child: child,
+    // 外面再包一层几乎不透明的 Opacity，让遮罩在独立图层里合成：否则 Impeller 上遮罩的 dstIn 会把卡片下面
+    // 已经画好的阴影也一并擦掉（圆角外露出窗口底色）。
+    return Opacity(
+      opacity: 0.999,
+      child: ClipRect(
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) {
+            final mask = _mask(rect.size, radius, dpr);
+            return ImageShader(mask, TileMode.clamp, TileMode.clamp, Matrix4.diagonal3Values(1 / dpr, 1 / dpr, 1).storage);
+          },
+          child: child,
+        ),
       ),
     );
   }
@@ -59,16 +65,8 @@ class SoftClipRRect extends StatelessWidget {
 
 extension on RRect {
   /// 圆角半径按倍数缩放（矩形本身已是物理像素）。
-  RRect multiply(double k) => RRect.fromLTRBAndCorners(
-    left,
-    top,
-    right,
-    bottom,
-    topLeft: tlRadius * k,
-    topRight: trRadius * k,
-    bottomRight: brRadius * k,
-    bottomLeft: blRadius * k,
-  );
+  RRect multiply(double k) =>
+      RRect.fromLTRBAndCorners(left, top, right, bottom, topLeft: tlRadius * k, topRight: trRadius * k, bottomRight: brRadius * k, bottomLeft: blRadius * k);
 }
 
 /// CSS 的 blur 半径对应高斯 sigma = blur / 2。
