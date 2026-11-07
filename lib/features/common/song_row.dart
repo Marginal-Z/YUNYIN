@@ -83,16 +83,14 @@ class SongRow extends StatelessWidget {
         leading = SizedBox(
           width: 28,
           child: Center(
-            child: isCurrent ? NowPlayingBars(color: p.accentText, playing: playing) : Text('${number ?? ''}', style: ts(14, color: p.text2, tabular: true)),
+            child: isCurrent ? NowPlayingBars(color: p.accentText, playing: playing) : _Number(number, style: ts(14, color: p.text2, tabular: true)),
           ),
         );
       case SongLead.rank:
         leading = SizedBox(
           width: 28,
-          child: Text(
-            '${number ?? ''}',
-            textAlign: TextAlign.center,
-            style: ts(20, weight: w700, color: (number ?? 99) <= 3 ? p.accentText : p.muted),
+          child: Center(
+            child: _Number(number, style: ts(20, weight: w700, color: (number ?? 99) <= 3 ? p.accentText : p.muted)),
           ),
         );
       case SongLead.none:
@@ -291,11 +289,9 @@ class DesktopSongRow extends StatelessWidget {
                   SongCover(song, size: 40, radius: 8)
                 else
                   SizedBox(
-                    width: 28,
+                    width: 36,
                     child: Center(
-                      child: isCurrent
-                          ? NowPlayingBars(color: p.accentText, playing: playing)
-                          : Text('${number ?? ''}', style: ts(14, color: p.text2, tabular: true)),
+                      child: isCurrent ? NowPlayingBars(color: p.accentText, playing: playing) : _Number(number, style: ts(14, color: p.text2, tabular: true)),
                     ),
                   ),
                 const SizedBox(width: 14),
@@ -368,7 +364,7 @@ class DesktopTableHeader extends StatelessWidget {
         child: Row(
           children: [
             SizedBox(
-              width: 28,
+              width: 36,
               child: Text('#', textAlign: TextAlign.center, style: s),
             ),
             const SizedBox(width: 14),
@@ -452,4 +448,18 @@ class _Dim extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => dim ? PaletteScope(palette: Palette.of(context).dimmed(0.45), child: child) : child;
+}
+
+/// 序号：始终一行，位数多时按宽度缩小（三位、四位序号不会折成两行）。
+class _Number extends StatelessWidget {
+  const _Number(this.number, {required this.style});
+
+  final int? number;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Text('${number ?? ''}', maxLines: 1, softWrap: false, style: style),
+  );
 }

@@ -199,6 +199,119 @@ class _BlurredImageState extends State<BlurredImage> {
   }
 }
 
+/// 封面的倒影：把封面上下翻转，只取靠近封面的 [fraction] 高度，自上而下从 [opacity] 渐隐到透明，预先画成一张图。
+/// 屏幕上只是直接画这张图，不需要遮罩图层与裁剪（遮罩图层在桌面端 OpenGL 渲染下边缘会多出一行未遮住的像素），开销也更低。
+class ReflectionImage extends StatefulWidget {
+  const ReflectionImage({super.key, required this.url, required this.size, this.fraction = 0.3, this.opacity = 0x55 / 255, this.radius = 0, this.imageSize = 400});
+
+  final String? url;
+  final double size;
+  final double fraction;
+  final double opacity;
+  final double radius;
+  final int imageSize;
+
+  @override
+  State<ReflectionImage> createState() => _ReflectionImageState();
+}
+
+class _ReflectionImageState extends State<ReflectionImage> {
+  ImageStream? _stream;
+  ui.Image? _source;
+  ui.Image? _image;
+  double _builtDpr = 0;
+  late final ImageStreamListener _listener = ImageStreamListener((info, _) {
+    if (!mounted) return;
+    setState(() {
+      _source?.dispose();
+      _source = info.image.clone();
+      _image?.dispose();
+      _image = null;
+    });
+    info.dispose();
+  }, onError: (_, _) {});
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(ReflectionImage old) {
+    super.didUpdateWidget(old);
+    if (old.url != widget.url || old.imageSize != widget.imageSize) _resolve();
+    if (old.size != widget.size || old.fraction != widget.fraction || old.opacity != widget.opacity || old.radius != widget.radius) {
+      _image?.dispose();
+      _image = null;
+    }
+  }
+
+  void _resolve() {
+    final u = widget.url;
+    if (u == null || u.isEmpty) return;
+    final ImageProvider provider = isLocalPath(u)
+        ? ResizeImage(FileImage(File(u.startsWith('file://') ? Uri.parse(u).toFilePath() : u)), width: widget.imageSize, policy: ResizeImagePolicy.fit)
+        : CachedNetworkImageProvider(_sized(u, widget.imageSize), maxWidth: _px(widget.imageSize));
+    final stream = provider.resolve(createLocalImageConfiguration(context));
+    if (stream.key == _stream?.key) return;
+    _stream?.removeListener(_listener);
+    _stream = stream..addListener(_listener);
+  }
+
+  ui.Image _render(ui.Image src, double dpr) {
+    final w = (widget.size * dpr).round().clamp(1, 2048), h = (widget.size * widget.fraction * dpr).round().clamp(1, 2048);
+    final full = widget.size * dpr;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final bounds = Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble());
+    canvas.saveLayer(bounds, Paint());
+    // 翻转后的封面（与封面一样按 cover 铺满正方形），圆角与封面一致。
+    canvas.save();
+    canvas.translate(0, full);
+    canvas.scale(1, -1);
+    canvas.clipRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, full, full), Radius.circular(widget.radius * dpr)));
+    final iw = src.width.toDouble(), ih = src.height.toDouble();
+    final side = iw < ih ? iw : ih;
+    canvas.drawImageRect(src, Rect.fromLTWH((iw - side) / 2, (ih - side) / 2, side, side), Rect.fromLTWH(0, 0, full, full), Paint()..filterQuality = FilterQuality.medium);
+    canvas.restore();
+    // 自上而下渐隐（这张图在屏幕外合成，混合只作用在它自己身上）。
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = ui.Gradient.linear(Offset.zero, Offset(0, h.toDouble()), [Color.fromRGBO(0, 0, 0, widget.opacity), const Color(0x00000000)]),
+    );
+    canvas.restore();
+    final picture = recorder.endRecording();
+    final image = picture.toImageSync(w, h);
+    picture.dispose();
+    return image;
+  }
+
+  @override
+  void dispose() {
+    _stream?.removeListener(_listener);
+    _source?.dispose();
+    _image?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = widget.size, h = widget.size * widget.fraction;
+    final src = _source;
+    if (src == null) return SizedBox(width: w, height: h);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    if (_image == null || _builtDpr != dpr) {
+      _image?.dispose();
+      _image = _render(src, dpr);
+      _builtDpr = dpr;
+    }
+    return RawImage(image: _image, width: w, height: h, fit: BoxFit.fill, filterQuality: FilterQuality.medium);
+  }
+}
+
 /// 网易云图片服务按 param 返回对应尺寸的缩略图；取 50 的倍数以提高缓存命中率。
 int _px(int imageSize) => ((imageSize / 50).ceil() * 50).clamp(50, 1200);
 

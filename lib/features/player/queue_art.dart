@@ -307,31 +307,7 @@ class _Reflected extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        SizedBox(
-          width: size,
-          height: size * 0.3,
-          child: ClipRect(
-            child: IsolatedShaderMask(
-              shaderCallback: (rect) => const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x55000000), Color(0x00000000)],
-              ).createShader(rect),
-              blendMode: BlendMode.dstIn,
-              child: OverflowBox(
-                alignment: Alignment.topCenter,
-                maxHeight: size,
-                child: Transform.flip(
-                  flipY: true,
-                  child: ClipRRect(
-                    borderRadius: r,
-                    child: SizedBox(width: size, height: size, child: image),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        ReflectionImage(url: song.coverUrl, size: size, radius: size * 0.05, imageSize: (size * dpr).round().clamp(200, 900)),
       ],
     );
   }
