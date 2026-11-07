@@ -16,6 +16,7 @@ import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
 import '../../player/player_controller.dart';
+import '../../core/ui/box.dart';
 
 /// 滚动歌词（Apple Music 风格）。
 ///
@@ -241,7 +242,7 @@ class _LyricsViewState extends State<LyricsView> with SingleTickerProviderStateM
         onVerticalDragStart: _onDragStart,
         onVerticalDragUpdate: _onDragUpdate,
         onVerticalDragEnd: _onDragEnd,
-        child: ShaderMask(
+        child: IsolatedShaderMask(
           shaderCallback: (r) => const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,

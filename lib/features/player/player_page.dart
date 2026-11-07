@@ -260,7 +260,7 @@ class PlayerPage extends StatelessWidget {
             onTap: () => openLyrics(context),
             onLongPress: () => pickPlayerStyle(context),
             scale: 1,
-            child: ShaderMask(
+            child: IsolatedShaderMask(
               shaderCallback: (r) => const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,

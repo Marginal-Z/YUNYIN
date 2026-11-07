@@ -24,6 +24,7 @@ import '../common/layout.dart';
 import '../common/song_row.dart';
 import '../library/local_import.dart';
 import '../shell/nav.dart';
+import '../../core/ui/box.dart';
 
 /// 加载歌单 / 专辑 / 电台 / 我喜欢 / 最近播放 / 已下载，统一成 [PlaylistInfo]。
 Future<PlaylistInfo> loadCollection(BuildContext context, AppRoute route) async {
@@ -400,7 +401,7 @@ class _MobilePlaylistState extends State<_MobilePlaylist> {
             right: 0,
             top: 0,
             height: heroH,
-            child: ShaderMask(
+            child: IsolatedShaderMask(
               shaderCallback: (r) => const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,

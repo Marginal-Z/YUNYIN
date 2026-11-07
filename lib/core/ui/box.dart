@@ -63,6 +63,22 @@ class SoftClipRRect extends StatelessWidget {
   }
 }
 
+/// 放在独立图层中合成的 [ShaderMask]：Impeller 上 ShaderMask 的混合（dstIn 渐隐、srcATop 闪光）会作用到
+/// 它下面已经画好的内容（背景被擦掉或盖上一层），外面套一层几乎不透明的 Opacity 让它在自己的图层里合成。
+class IsolatedShaderMask extends StatelessWidget {
+  const IsolatedShaderMask({super.key, required this.shaderCallback, this.blendMode = BlendMode.modulate, this.child});
+
+  final ShaderCallback shaderCallback;
+  final BlendMode blendMode;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) => Opacity(
+    opacity: 0.999,
+    child: ShaderMask(shaderCallback: shaderCallback, blendMode: blendMode, child: child),
+  );
+}
+
 extension on RRect {
   /// 圆角半径按倍数缩放（矩形本身已是物理像素）。
   RRect multiply(double k) =>

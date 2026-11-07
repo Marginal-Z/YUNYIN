@@ -311,7 +311,7 @@ class _Reflected extends StatelessWidget {
           width: size,
           height: size * 0.3,
           child: ClipRect(
-            child: ShaderMask(
+            child: IsolatedShaderMask(
               shaderCallback: (rect) => const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -427,7 +427,7 @@ class _QueueWallState extends State<QueueWall> {
           final layout = _layoutFor(queue, c.maxWidth);
           final index = player.index.clamp(0, queue.length - 1);
           _focus(queue[index], layout.rects[index]);
-          return ShaderMask(
+          return IsolatedShaderMask(
             // 上下边缘渐隐。
             shaderCallback: (r) => const LinearGradient(
               begin: Alignment.topCenter,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/palette.dart';
+import 'box.dart';
 
 /// 骨架屏：按页面内容的真实形状排布的占位块，上面有一道从左向右扫过的柔和高光。
 ///
@@ -37,7 +38,7 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
         builder: (context, child) {
           // 高光带宽约为组件宽度的 40%，从左外侧扫到右外侧，末尾停顿一会儿。
           final t = Curves.easeInOutSine.transform((_c.value * 1.25).clamp(0.0, 1.0));
-          return ShaderMask(
+          return IsolatedShaderMask(
             blendMode: BlendMode.srcATop,
             shaderCallback: (r) => LinearGradient(
               begin: Alignment.centerLeft,

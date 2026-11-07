@@ -179,7 +179,7 @@ class _CommentsPageState extends State<CommentsPage> {
               children: [
                 Positioned.fill(
                   // 顶部的标题与按钮固定不动：滚上去的评论在标题下方渐隐，文字不会叠在一起。
-                  child: ShaderMask(
+                  child: IsolatedShaderMask(
                     blendMode: BlendMode.dstIn,
                     shaderCallback: (r) {
                       final h = math.max(1.0, r.height);
