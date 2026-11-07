@@ -557,7 +557,7 @@ class _RadarCardState extends State<RadarCard> {
                     style: ts(28, weight: w700, em: -0.02, height: 1.12, color: onCover ? Colors.white : p.text),
                   ),
                   const SizedBox(height: 6),
-                  Text('按你的口味发现新歌', style: ts(14, color: onCover ? const Color(0xD9FFFFFF) : p.albumDesc)),
+                  Text(widget.load == null ? '登录后按你的口味发现新歌' : '按你的口味发现新歌', style: ts(14, color: onCover ? const Color(0xD9FFFFFF) : p.albumDesc)),
                 ],
               ),
             ),

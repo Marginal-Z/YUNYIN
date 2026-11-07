@@ -486,11 +486,16 @@ class Avatar extends StatelessWidget {
 /// 本地文件路径（导入的本地音乐封面）。
 bool isLocalPath(String u) => u.startsWith('/') || u.startsWith('file://') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(u);
 
-/// 把平台封面地址换成大尺寸版本（沉浸式页头整屏显示时使用）：QQ 音乐 T00xR300x300 → 800，
-/// QQ 音乐歌单封面 /300 → /600，酷狗 /400/ → /800/。其他地址原样返回（网易云按 imageSize 请求）。
+/// 把平台封面地址换成大尺寸版本（沉浸式页头整屏显示时使用）：QQ 音乐专辑与歌手 T00xR300x300 → 800
+/// （榜单 T003 最大只有 500），QQ 音乐歌单封面 /300 → /600，酷狗 /400/ → /800/。其他地址原样返回（网易云按 imageSize 请求）。
 String hiResCover(String url) {
-  if (url.contains('y.gtimg.cn')) return url.replaceFirstMapped(RegExp(r'T00(\d)R\d+x\d+'), (m) => 'T00${m[1]}R800x800');
-  if (url.contains('qpic.y.qq.com')) return url.replaceFirst(RegExp(r'/(150|300)(\?|$)'), '/600\$2');
+  if (url.contains('y.gtimg.cn')) {
+    return url.replaceFirstMapped(RegExp(r'T00(\d)R\d+x\d+'), (m) => m[1] == '3' ? 'T003R500x500' : 'T00${m[1]}R800x800');
+  }
+  // qpic 只有 150 / 300 / 600 / 0 几种尺寸（500、800 返回 400）。
+  if (url.contains('qpic.y.qq.com') || url.contains('p.qpic.cn')) {
+    return url.replaceFirstMapped(RegExp(r'/(150|300)(\?|$)'), (m) => '/600${m[2]}');
+  }
   if (url.contains('kugou.com') || url.contains('kgimg.com')) return url.replaceFirst(RegExp(r'/(150|240|400|480)/'), '/800/');
   return url;
 }

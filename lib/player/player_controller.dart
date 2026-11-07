@@ -789,6 +789,7 @@ class PlayerController extends ChangeNotifier {
   void _onOpenFailed() {
     final song = current;
     if (song == null) return;
+    if (_retryFresh()) return;
     _opening = false;
     buffering = false;
     notifyListeners();
@@ -809,6 +810,7 @@ class PlayerController extends ChangeNotifier {
     if (_opening || !_playRequested) return;
     // 刚打开就“播放结束”且几乎没有播放：多半是地址失效或网络错误，提示一次后再切到下一首，而不是连续跳过好几首。
     if (DateTime.now().difference(_openedAt) < const Duration(seconds: 2) && position.value < const Duration(seconds: 1)) {
+      if (_retryFresh()) return;
       final token = _loadToken;
       _notices.add(const PlayerNotice('这首歌无法播放', message: '播放地址暂时不可用，已切到下一首。'));
       Future<void>.delayed(const Duration(milliseconds: 800), () {
@@ -825,6 +827,51 @@ class PlayerController extends ChangeNotifier {
       // （对已经播放结束的媒体直接跳转会一直停在缓冲状态）。
       _load(autoplay: false);
     }
+  }
+
+  /// 预先取好的下一首播放地址：当前歌曲开始播放 10 秒后（快速连续切歌时不取）向平台取下一首的地址，
+  /// 切到下一首时直接交给播放器，省去取地址的等待（洛雪音源要等好几秒）。地址只在 8 分钟内使用，避免过期。
+  ({Song song, AudioQuality quality, StreamInfo info, DateTime at})? _prefetched;
+  Timer? _prefetchTimer;
+
+  /// 当前歌曲使用的是预先取好的地址（打不开时重新取一次，而不是提示失败）。
+  bool _usedPrefetch = false;
+
+  StreamInfo? _takePrefetched(Song song) {
+    final p = _prefetched;
+    if (p == null || p.song != song) return null;
+    _prefetched = null;
+    if (p.quality != settings.quality || DateTime.now().difference(p.at) > const Duration(minutes: 8)) return null;
+    return p.info;
+  }
+
+  void _schedulePrefetch(int token) {
+    _prefetchTimer?.cancel();
+    _prefetchTimer = Timer(const Duration(seconds: 10), () => _prefetchNext(token));
+  }
+
+  Future<void> _prefetchNext(int token) async {
+    if (_disposed || token != _loadToken || _queue.length < 2) return;
+    final pos = _order.indexOf(_index);
+    if (pos < 0) return;
+    final song = _queue[_order[(pos + 1) % _order.length]];
+    if (song.localPath != null || localLookup?.call(song)?.localPath != null) return;
+    final quality = settings.quality;
+    try {
+      final info = await resolveStream(sources.byId(song.sourceId), song, quality);
+      if (_disposed || token != _loadToken) return;
+      _prefetched = (song: song, quality: quality, info: info, at: DateTime.now());
+    } catch (e) {
+      debugPrint('prefetch ${song.name}: $e');
+    }
+  }
+
+  /// 预先取好的地址打不开（已过期）：重新向平台取地址再播放一次。
+  bool _retryFresh() {
+    if (!_usedPrefetch) return false;
+    _usedPrefetch = false;
+    _load(autoplay: _playRequested);
+    return true;
   }
 
   Future<void> _load({required bool autoplay, bool keepPosition = false}) async {
@@ -851,10 +898,12 @@ class PlayerController extends ChangeNotifier {
       final source = sources.byId(song.sourceId);
       _loadLyrics(source, song, token);
       final local = song.localPath ?? localLookup?.call(song)?.localPath;
+      final early = local == null ? _takePrefetched(song) : null;
+      _usedPrefetch = early != null;
       if (local != null) {
         info = StreamInfo(url: local);
       } else {
-        info = await resolveStream(source, song, settings.quality);
+        info = early ?? await resolveStream(source, song, settings.quality);
       }
     } catch (e) {
       if (token != _loadToken) return;
@@ -929,6 +978,7 @@ class PlayerController extends ChangeNotifier {
         }
         if (token != _loadToken) return;
         if (_eqApplied.isNotEmpty) _watchEq(token, resume);
+        _schedulePrefetch(token);
       }
     } catch (error) {
       if (token != _loadToken) return;
@@ -1148,6 +1198,7 @@ class PlayerController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _loadToken++;
+    _prefetchTimer?.cancel();
     for (final s in _subs) {
       s.cancel();
     }

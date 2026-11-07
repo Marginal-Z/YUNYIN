@@ -436,7 +436,8 @@ class _AsyncViewState<T> extends State<AsyncView<T>> {
       switchInCurve: Curves.easeOut,
       switchOutCurve: Curves.easeIn,
       transitionBuilder: (child, animation) => child.key == const ValueKey('data') ? child : FadeTransition(opacity: animation, child: child),
-      layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, children: [?current, ...previous]),
+      // 约束原样传给内容：默认的宽松约束会让没有固定宽度的内容（例如发现页的新碟横幅）缩成文字宽度并居中。
+      layoutBuilder: (current, previous) => Stack(alignment: Alignment.topCenter, fit: StackFit.passthrough, children: [?current, ...previous]),
       child: child,
     );
   }

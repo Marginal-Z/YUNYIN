@@ -133,6 +133,9 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   final source = ctx().read<SourceManager>().current;
   await player.setVolume(0);
   settings.setThemeMode(ThemeMode.light);
+  // 官网截图使用「柔和」玻璃：「清透」玻璃几乎不模糊，迷你播放栏与导航栏下方的列表文字会清楚地透出来，
+  // 静态截图里看起来像文字叠在一起。「清透」效果单独截一张（mobile-home-clear）。
+  settings.setGlassMaterial(GlassMaterial.regular);
 
   Future<void> shot(String name, {int settle = 2500}) async {
     await wait(settle);
@@ -200,16 +203,16 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   await tour('mobile', _mobile, dark: false);
   await tour('mobile', _mobile, dark: true);
 
-  // 「柔和」玻璃材质与封面取色背景。
+  // 「清透」玻璃材质与封面取色背景。
   settings.setThemeMode(ThemeMode.light);
-  settings.setGlassMaterial(GlassMaterial.regular);
+  settings.setGlassMaterial(GlassMaterial.clear);
   _spec.value = _mobile;
   home();
-  await shot('mobile-home-regular', settle: 3000);
+  await shot('mobile-home-clear', settle: 3000);
   openPlayer(ctx());
-  await shot('mobile-player-regular', settle: 3000);
+  await shot('mobile-player-clear', settle: 3000);
   navKey.currentState!.pop();
-  settings.setGlassMaterial(GlassMaterial.clear);
+  settings.setGlassMaterial(GlassMaterial.regular);
   settings.setBackground(BackgroundMode.cover);
   home();
   await shot('mobile-home-cover', settle: 3500);

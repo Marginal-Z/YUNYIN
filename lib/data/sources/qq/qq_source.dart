@@ -1078,36 +1078,50 @@ class QQMusicSource extends MusicSource {
   ///
   /// 不同客户端方式给出的播放凭证只在部分服务器上有效：安卓客户端的新版凭证在 aqqmusic、isure、ws 上返回 403，
   /// 只有 sjy6 等新域名可以下载；此前直接使用列表中的第一个服务器，地址打不开，播放没有声音。
-  /// 这里按顺序（上次可用的、https、其余）各请求 2 个字节，取第一个返回 200 / 206 的。
+  /// 这里同时向各个服务器请求 2 个字节，取最先返回 200 / 206 的（同一服务器的 http 地址通常最先返回）。
+  /// 此前逐个请求，前面的服务器拒绝或文件不存在时要依次等完全部服务器，切歌要等好几秒。
+  ///
+  /// 优先使用 http：播放器打开 https 地址时每次连接都要重新握手，打开一首歌要连接三次（读文件头、读文件尾的标签、
+  /// 回到开头），https 比 http 多等一秒多。
   Future<String?> _reachable(String purl, Map d) async {
     final listed = [for (final s in (d['sip'] as List? ?? const [])) '$s', ...?_sipCache, 'https://sjy6.stream.qqmusic.qq.com/', 'https://isure.stream.qqmusic.qq.com/'];
     final hosts = <String>{
       ?_goodSip,
-      ...listed.where((s) => s.startsWith('https://')),
-      ...listed.map((s) => s.replaceFirst('http://', 'https://')),
-      ...listed,
-    }.where((s) => s.startsWith('http')).toList();
-    for (final host in hosts.take(8)) {
-      try {
-        final res = await _dio.get<List<int>>(
-          '$host$purl',
-          options: Options(
-            responseType: ResponseType.bytes,
-            headers: {'Range': 'bytes=0-1'},
-            validateStatus: (_) => true,
-            receiveTimeout: const Duration(seconds: 4),
-            sendTimeout: const Duration(seconds: 4),
-          ),
-        );
-        if (res.statusCode == 200 || res.statusCode == 206) {
+      for (final s in listed) s.replaceFirst('https://', 'http://'),
+      for (final s in listed) s.replaceFirst('http://', 'https://'),
+    }.where((s) => s.startsWith('http')).take(10).toList();
+    final found = Completer<String?>();
+    var pending = hosts.length;
+    for (final host in hosts) {
+      _probe('$host$purl').then((ok) {
+        if (ok && !found.isCompleted) {
           _goodSip = host;
-          return '$host$purl';
+          found.complete('$host$purl');
         }
-      } catch (e) {
-        debugPrint('qq sip $host: $e');
-      }
+        if (--pending == 0 && !found.isCompleted) found.complete(null);
+      });
     }
-    return null;
+    if (hosts.isEmpty) return null;
+    return found.future;
+  }
+
+  Future<bool> _probe(String url) async {
+    try {
+      final res = await _dio.get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Range': 'bytes=0-1'},
+          validateStatus: (_) => true,
+          receiveTimeout: const Duration(seconds: 4),
+          sendTimeout: const Duration(seconds: 4),
+        ),
+      );
+      return res.statusCode == 200 || res.statusCode == 206;
+    } catch (e) {
+      debugPrint('qq sip $url: $e');
+      return false;
+    }
   }
 
   // ── 歌词 ──────────────────────────────────────────
