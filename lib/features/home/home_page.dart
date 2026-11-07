@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -307,17 +306,9 @@ class _DailyCardState extends State<DailyCard> {
             if (onCover) ...[
               // 封面放大并模糊成一片色彩（取小尺寸缩略图，模糊开销很小），不与文字和右侧封面抢眼。
               Positioned.fill(
-                child: RepaintBoundary(
-                  child: ImageFiltered(
-                    imageFilter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28, tileMode: TileMode.clamp),
-                    child: Transform.scale(
-                      scale: 1.3,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 400),
-                        child: CoverImage(background, key: ValueKey(background), imageSize: (120 * dpr).round()),
-                      ),
-                    ),
-                  ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: BlurredImage(key: ValueKey(background), url: background, imageSize: (120 * dpr).round()),
                 ),
               ),
               // 统一压暗，左侧更深，保证白色文字在任何封面上都清晰。
@@ -531,14 +522,7 @@ class _RadarCardState extends State<RadarCard> {
         child: Stack(
           children: [
             if (onCover) ...[
-              Positioned.fill(
-                child: RepaintBoundary(
-                  child: ImageFiltered(
-                    imageFilter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28, tileMode: TileMode.clamp),
-                    child: Transform.scale(scale: 1.3, child: CoverImage(background, imageSize: (120 * dpr).round())),
-                  ),
-                ),
-              ),
+              Positioned.fill(child: BlurredImage(url: background, imageSize: (120 * dpr).round())),
               const Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(

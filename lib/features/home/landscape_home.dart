@@ -1,4 +1,3 @@
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -200,10 +199,7 @@ class _FeatureCard extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (covers.isNotEmpty)
-            ImageFiltered(
-              imageFilter: ui.ImageFilter.blur(sigmaX: 26, sigmaY: 26, tileMode: TileMode.clamp),
-              child: Transform.scale(scale: 1.3, child: CoverImage(covers.first, imageSize: (120 * dpr).round())),
-            ),
+            BlurredImage(url: covers.first, sigma: 26, imageSize: (120 * dpr).round()),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [Color(0xA6000000), Color(0x40000000)], begin: Alignment.centerLeft, end: Alignment.centerRight),

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +10,7 @@ import '../settings.dart';
 import '../theme/cover_colors.dart';
 import '../theme/palette.dart';
 import 'glow_background.dart';
+import 'cover.dart';
 
 /// 界面背景：默认纯色、正在播放歌曲的封面取色，或用户选择的图片。
 class AppBackground extends StatelessWidget {
@@ -114,19 +114,10 @@ class _ImageBackground extends StatelessWidget {
     if (path == null || !File(path).existsSync()) return const _Plain();
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final width = (MediaQuery.sizeOf(context).longestSide * dpr).round();
-    Widget image = Image.file(
-      File(path),
-      fit: BoxFit.cover,
-      cacheWidth: s.backgroundBlur ? (width / 4).round() : width,
-      gaplessPlayback: true,
-      errorBuilder: (_, _, _) => const _Plain(),
-    );
-    if (s.backgroundBlur) {
-      image = ImageFiltered(
-        imageFilter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24, tileMode: TileMode.clamp),
-        child: image,
-      );
-    }
+    // 模糊背景预先模糊一次（见 BlurredImage），不在每一帧重新模糊整个窗口。
+    final Widget image = s.backgroundBlur
+        ? BlurredImage(url: path, sigma: 24, scale: 1, imageSize: (width / 4).round())
+        : Image.file(File(path), fit: BoxFit.cover, cacheWidth: width, gaplessPlayback: true, errorBuilder: (_, _, _) => const _Plain());
     return RepaintBoundary(
       child: Stack(
         fit: StackFit.expand,

@@ -90,6 +90,115 @@ class CoverImage extends StatelessWidget {
   }
 }
 
+/// 模糊的封面 / 图片背景：图片加载后按显示尺寸的四分之一预先模糊一次，之后每帧只画这张小图（放大后与实时模糊看起来一样）。
+/// 实时的 ImageFiltered 在 Impeller 上每一帧都要重新模糊整块区域，滚动时开销很大。
+/// [scale] 为模糊前的放大倍数（让模糊后的边缘仍然铺满），[sigma] 为显示尺寸下的模糊半径。
+class BlurredImage extends StatefulWidget {
+  const BlurredImage({super.key, required this.url, this.sigma = 28, this.scale = 1.3, this.imageSize = 240});
+
+  final String? url;
+  final double sigma;
+  final double scale;
+  final int imageSize;
+
+  @override
+  State<BlurredImage> createState() => _BlurredImageState();
+}
+
+class _BlurredImageState extends State<BlurredImage> {
+  ImageStream? _stream;
+  ui.Image? _source;
+  ui.Image? _blurred;
+  Size? _builtFor;
+  late final ImageStreamListener _listener = ImageStreamListener((info, _) {
+    if (!mounted) return;
+    setState(() {
+      _source?.dispose();
+      _source = info.image.clone();
+      _clearBlurred();
+    });
+    info.dispose();
+  }, onError: (_, _) {});
+
+  void _clearBlurred() {
+    _blurred?.dispose();
+    _blurred = null;
+    _builtFor = null;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(BlurredImage old) {
+    super.didUpdateWidget(old);
+    if (old.url != widget.url || old.imageSize != widget.imageSize) _resolve();
+    if (old.sigma != widget.sigma || old.scale != widget.scale) _clearBlurred();
+  }
+
+  void _resolve() {
+    final u = widget.url;
+    if (u == null || u.isEmpty) return;
+    final ImageProvider provider = isLocalPath(u)
+        ? ResizeImage(FileImage(File(u.startsWith('file://') ? Uri.parse(u).toFilePath() : u)), width: widget.imageSize, policy: ResizeImagePolicy.fit)
+        : CachedNetworkImageProvider(_sized(u, widget.imageSize), maxWidth: _px(widget.imageSize));
+    final stream = provider.resolve(createLocalImageConfiguration(context));
+    if (stream.key == _stream?.key) return;
+    _stream?.removeListener(_listener);
+    _stream = stream..addListener(_listener);
+  }
+
+  /// 在显示尺寸的 1/4 上画出放大并模糊后的图片。
+  ui.Image _render(ui.Image src, Size size) {
+    const k = 0.25;
+    final w = (size.width * k).ceil().clamp(1, 2048), h = (size.height * k).ceil().clamp(1, 2048);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final iw = src.width.toDouble(), ih = src.height.toDouble();
+    final cover = (w / iw > h / ih ? w / iw : h / ih) * widget.scale;
+    final dst = Rect.fromCenter(center: Offset(w / 2, h / 2), width: iw * cover, height: ih * cover);
+    final sigma = widget.sigma * k;
+    canvas.saveLayer(
+      Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+      Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp),
+    );
+    canvas.drawImageRect(src, Rect.fromLTWH(0, 0, iw, ih), dst, Paint()..filterQuality = FilterQuality.medium);
+    canvas.restore();
+    final picture = recorder.endRecording();
+    final image = picture.toImageSync(w, h);
+    picture.dispose();
+    return image;
+  }
+
+  @override
+  void dispose() {
+    _stream?.removeListener(_listener);
+    _source?.dispose();
+    _blurred?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final src = _source;
+        final size = c.biggest;
+        if (src == null || size.isEmpty || !size.isFinite) return const SizedBox.expand();
+        if (_blurred == null || _builtFor != size) {
+          _blurred?.dispose();
+          _blurred = _render(src, size);
+          _builtFor = size;
+        }
+        return RawImage(image: _blurred, fit: BoxFit.fill, width: size.width, height: size.height, filterQuality: FilterQuality.medium);
+      },
+    );
+  }
+}
+
 /// 网易云图片服务按 param 返回对应尺寸的缩略图；取 50 的倍数以提高缓存命中率。
 int _px(int imageSize) => ((imageSize / 50).ceil() * 50).clamp(50, 1200);
 
@@ -229,7 +338,11 @@ class _Placeholder extends StatelessWidget {
             ),
           ),
           child: SizedBox.expand(
-            child: side < 18 ? null : Center(child: YIcon(YIcons.note, size: (side * 0.38).clamp(10, 96).toDouble(), color: p.text2.withValues(alpha: 0.55))),
+            child: side < 18
+                ? null
+                : Center(
+                    child: YIcon(YIcons.note, size: (side * 0.38).clamp(10, 96).toDouble(), color: p.text2.withValues(alpha: 0.55)),
+                  ),
           ),
         );
       },
