@@ -181,7 +181,6 @@ void main() {
       expect(s['style'] as double, inInclusiveRange(0, 0.8));
       expect(CosyVoiceEngine.rateFor(Prosody(rate: 3, emotion: e, intensity: 1)), lessThanOrEqualTo(2));
     }
-    expect(ElevenLabsEngine.modelFor(VoiceLanguage.th, 'eleven_multilingual_v2'), 'eleven_v3');
     expect(FishAudioEngine.withEmotion('你好', const Prosody(emotion: Emotion.happy, intensity: 0.8), 's1'), '(happy) 你好');
     expect(FishAudioEngine.withEmotion('你好', const Prosody(emotion: Emotion.happy, intensity: 0.8), 'speech-1.5'), '你好');
   });
@@ -205,13 +204,13 @@ void main() {
       );
     final engine = ElevenLabsEngine(settings, dio: dio);
     final b = VoicePresets.muyan.binding('elevenlabs')!;
-    final audio = await engine.synthesize(b, const TtsRequest('hi', language: VoiceLanguage.en)).toList();
+    final audio = await engine.synthesize(b, const TtsRequest('你好', language: VoiceLanguage.zh)).toList();
     expect(audio.single.format, 'mp3');
-    expect(seen.single.path, contains('/v1/text-to-speech/${b.voices[VoiceLanguage.en]}/stream'));
+    expect(seen.single.path, contains('/v1/text-to-speech/${b.voices[VoiceLanguage.zh]}/stream'));
     expect(seen.single.headers['xi-api-key'], 'k');
     expect((jsonDecode(seen.single.data as String) as Map)['model_id'], 'eleven_multilingual_v2');
     status = 401;
-    await expectLater(engine.synthesize(b, const TtsRequest('hi', language: VoiceLanguage.en)).toList(), throwsA(isA<TtsException>().having((e) => e.retryable, 'retryable', false)));
+    await expectLater(engine.synthesize(b, const TtsRequest('你好', language: VoiceLanguage.zh)).toList(), throwsA(isA<TtsException>().having((e) => e.retryable, 'retryable', false)));
   });
 
   test('等待合成时不算发声，开始播放后才算（打断检测只在发声时打开）', () async {

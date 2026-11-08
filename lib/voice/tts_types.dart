@@ -2,21 +2,15 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
-/// 语音支持的语言。
+/// 语音的语言。云音助手只说中文（句子里夹的英文单词也用中文声音读），各引擎接口保留语言参数，
+/// 以后增加语言时不用改接口。
 enum VoiceLanguage {
-  zh('中文'),
-  en('English'),
-  th('ไทย');
+  zh('中文');
 
   const VoiceLanguage(this.label);
   final String label;
 
-  /// 按文字内容判断语言：含泰文字母为泰语，含汉字为中文，否则英语。
-  static VoiceLanguage detect(String text) {
-    if (RegExp(r'[฀-๿]').hasMatch(text)) return th;
-    if (RegExp(r'[一-鿿]').hasMatch(text)) return zh;
-    return en;
-  }
+  static VoiceLanguage detect(String text) => zh;
 }
 
 /// 情绪。只调整语气、语速与停顿，音色（声音模型 / 供应商音色 ID）始终不变。
@@ -71,7 +65,7 @@ class EngineVoice {
   /// 引擎的合成模型（例如 cosyvoice-v2、eleven_multilingual_v2、s1）。
   final String? model;
 
-  /// 说明（例如“泰语离线只有一个声音”）。
+  /// 说明（在音色中心显示）。
   final String? note;
 
   EngineVoice withVoice(VoiceLanguage lang, String id) => EngineVoice(engine, {...voices, lang: id}, model: model, note: note);

@@ -41,12 +41,7 @@ class SystemTtsEngine extends TtsEngine {
         final ok = await _channel.invokeMethod<bool>('synthesize', {'text': request.text, 'path': path, 'rate': rate, 'lang': lang.name});
         if (ok != true) throw TtsException('系统朗读不可用（请在系统设置中安装中文语音包）', engine: name);
       } else if (Platform.isMacOS) {
-        final voiceArg = switch (lang) {
-          VoiceLanguage.zh => ['-v', 'Tingting'],
-          VoiceLanguage.th => ['-v', 'Kanya'],
-          VoiceLanguage.en => <String>[],
-        };
-        await _run('say', [...voiceArg, '-r', '${(180 * rate).round()}', '-o', path, '--file-format=WAVE', '--data-format=LEI16@22050', request.text]);
+        await _run('say', ['-v', 'Tingting', '-r', '${(180 * rate).round()}', '-o', path, '--file-format=WAVE', '--data-format=LEI16@22050', request.text]);
       } else if (Platform.isWindows) {
         final escaped = request.text.replaceAll("'", "''");
         final r = ((rate - 1) * 10).round().clamp(-10, 10);
@@ -56,7 +51,7 @@ class SystemTtsEngine extends TtsEngine {
           "Add-Type -AssemblyName System.Speech; \$s=New-Object System.Speech.Synthesis.SpeechSynthesizer; \$s.Rate=$r; \$s.SetOutputToWaveFile('$path'); \$s.Speak('$escaped'); \$s.Dispose()",
         ]);
       } else if (Platform.isLinux) {
-        await _run('espeak-ng', ['-v', lang == VoiceLanguage.zh ? 'cmn' : (lang == VoiceLanguage.th ? 'th' : 'en'), '-s', '${(170 * rate).round()}', '-w', path, request.text]);
+        await _run('espeak-ng', ['-v', 'cmn', '-s', '${(170 * rate).round()}', '-w', path, request.text]);
       }
       final f = File(path);
       if (!f.existsSync() || f.lengthSync() < 100) throw TtsException('系统朗读没有生成音频', engine: name);

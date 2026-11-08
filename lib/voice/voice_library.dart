@@ -45,19 +45,14 @@ abstract final class LocalVoiceIds {
   static const chaowen = 'piper-zh-chaowen';
   static const baker = 'matcha-zh-baker';
   static const laozhe = 'vits-zh-laozhe';
-  static const amy = 'piper-en-amy';
-  static const kristin = 'piper-en-kristin';
-  static const hfcFemale = 'piper-en-hfc-female';
-  static const ryan = 'piper-en-ryan';
-  static const john = 'piper-en-john';
-  static const thai = 'mms-th';
 }
 
 /// 首批预设的五个音色。
 ///
-/// - 本地离线：每个音色在每种语言上都是独立的声音模型（泰语离线只有一个声音模型，五个音色共用，云端引擎有独立声音）。
+/// 云音助手只说中文。
+/// - 本地离线：每个音色都是独立的中文声音模型。
 /// - CosyVoice（阿里云百炼）：cosyvoice-v2 的系统音色。
-/// - ElevenLabs：官方预置音色（多语言模型可以说中文、英语）。
+/// - ElevenLabs：官方预置音色（多语言模型说中文）。
 /// - Fish Audio：没有可以预置的官方音色 ID，需要在音色中心填写你在 Fish Audio 选择或克隆的声音（reference_id）。
 abstract final class VoicePresets {
   static const yunxi = VoiceProfile(
@@ -68,14 +63,12 @@ abstract final class VoicePresets {
     traits: ['女声', '青年', '温暖柔和'],
     previewText: {
       VoiceLanguage.zh: '你好，我是云汐。今天想听点什么？我陪你慢慢挑。',
-      VoiceLanguage.en: "Hi, I'm Yunxi. What would you like to listen to today?",
-      VoiceLanguage.th: 'สวัสดีค่ะ วันนี้อยากฟังเพลงอะไรดีคะ',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longxiaochun_v2', VoiceLanguage.en: 'longxiaochun_v2'}, model: 'cosyvoice-v2'),
-      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'XB0fDUnXU5powFXDhCwa', VoiceLanguage.en: 'XB0fDUnXU5powFXDhCwa', VoiceLanguage.th: 'XB0fDUnXU5powFXDhCwa'}, model: 'eleven_multilingual_v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longxiaochun_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'XB0fDUnXU5powFXDhCwa'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.huayan, VoiceLanguage.en: LocalVoiceIds.amy, VoiceLanguage.th: LocalVoiceIds.thai}, note: '泰语离线只有一个声音模型'),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.huayan}),
     ],
   );
 
@@ -87,14 +80,12 @@ abstract final class VoicePresets {
     traits: ['女声', '少女', '明亮清甜'],
     previewText: {
       VoiceLanguage.zh: '嗨嗨，我是小柚！今天的推荐我都替你挑好啦，要不要听听？',
-      VoiceLanguage.en: "Hey there, I'm Xiaoyou! I've picked some fresh songs for you!",
-      VoiceLanguage.th: 'สวัสดีจ้า มาฟังเพลงใหม่กันเถอะ',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longhua_v2', VoiceLanguage.en: 'longhua_v2'}, model: 'cosyvoice-v2'),
-      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'jBpfuIE2acCO8z3wKNLl', VoiceLanguage.en: 'jBpfuIE2acCO8z3wKNLl', VoiceLanguage.th: 'jBpfuIE2acCO8z3wKNLl'}, model: 'eleven_multilingual_v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longhua_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'jBpfuIE2acCO8z3wKNLl'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.xiaoya, VoiceLanguage.en: LocalVoiceIds.kristin, VoiceLanguage.th: LocalVoiceIds.thai}, note: '泰语离线只有一个声音模型'),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.xiaoya}),
     ],
   );
 
@@ -106,14 +97,12 @@ abstract final class VoicePresets {
     traits: ['女声', '青年', '轻柔舒缓'],
     previewText: {
       VoiceLanguage.zh: '晚上好，我是晚星。夜深了，为你放一首安静的歌吧。',
-      VoiceLanguage.en: "Good evening, I'm Wanxing. Let me play something quiet for the night.",
-      VoiceLanguage.th: 'ราตรีสวัสดิ์ค่ะ ฟังเพลงเบาๆ ก่อนนอนนะคะ',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longyue_v2', VoiceLanguage.en: 'longyue_v2'}, model: 'cosyvoice-v2'),
-      EngineVoice('elevenlabs', {VoiceLanguage.zh: '21m00Tcm4TlvDq8ikWAM', VoiceLanguage.en: '21m00Tcm4TlvDq8ikWAM', VoiceLanguage.th: '21m00Tcm4TlvDq8ikWAM'}, model: 'eleven_multilingual_v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longyue_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('elevenlabs', {VoiceLanguage.zh: '21m00Tcm4TlvDq8ikWAM'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.baker, VoiceLanguage.en: LocalVoiceIds.hfcFemale, VoiceLanguage.th: LocalVoiceIds.thai}, note: '泰语离线只有一个声音模型'),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.baker}),
     ],
   );
 
@@ -125,14 +114,12 @@ abstract final class VoicePresets {
     traits: ['男声', '青年', '干净明亮'],
     previewText: {
       VoiceLanguage.zh: '我是清川。想燃一点？交给我，节奏马上到位。',
-      VoiceLanguage.en: "I'm Qingchuan. Want something upbeat? I've got you.",
-      VoiceLanguage.th: 'สวัสดีครับ อยากฟังเพลงมันๆ ไหมครับ',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longcheng_v2', VoiceLanguage.en: 'longcheng_v2'}, model: 'cosyvoice-v2'),
-      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'TxGEqnHWrfWFTfGW9XjX', VoiceLanguage.en: 'TxGEqnHWrfWFTfGW9XjX', VoiceLanguage.th: 'TxGEqnHWrfWFTfGW9XjX'}, model: 'eleven_multilingual_v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longcheng_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'TxGEqnHWrfWFTfGW9XjX'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.chaowen, VoiceLanguage.en: LocalVoiceIds.ryan, VoiceLanguage.th: LocalVoiceIds.thai}, note: '泰语离线只有一个声音模型'),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.chaowen}),
     ],
   );
 
@@ -144,14 +131,12 @@ abstract final class VoicePresets {
     traits: ['男声', '成熟', '低沉磁性'],
     previewText: {
       VoiceLanguage.zh: '我是暮言。好的音乐，值得慢慢听。今晚想聊哪首歌？',
-      VoiceLanguage.en: "I'm Muyan. Good music deserves a slow listen. Which song shall we talk about?",
-      VoiceLanguage.th: 'สวัสดีครับ คืนนี้อยากคุยเรื่องเพลงไหนครับ',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longxiaocheng_v2', VoiceLanguage.en: 'longxiaocheng_v2'}, model: 'cosyvoice-v2'),
-      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'nPczCjzI2devNBz1zQrb', VoiceLanguage.en: 'nPczCjzI2devNBz1zQrb', VoiceLanguage.th: 'nPczCjzI2devNBz1zQrb'}, model: 'eleven_multilingual_v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longxiaocheng_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'nPczCjzI2devNBz1zQrb'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.laozhe, VoiceLanguage.en: LocalVoiceIds.john, VoiceLanguage.th: LocalVoiceIds.thai}, note: '泰语离线只有一个声音模型'),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.laozhe}),
     ],
   );
 

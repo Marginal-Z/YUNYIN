@@ -1085,7 +1085,7 @@ class SettingsRow extends StatelessWidget {
   final TileColor? tile;
   final String title;
 
-  /// 标题下方的说明（较小的次级文字），有它时行高增加到 68。
+  /// 标题下方的说明（较小的次级文字，最多两行），有它时行高至少 68，两行时随内容增高。
   final String? subtitle;
   final String? value;
   final Widget? trailing;
@@ -1104,10 +1104,10 @@ class SettingsRow extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
-    final row = SizedBox(
-      height: subtitle == null ? height : math.max(height, 68),
+    final row = ConstrainedBox(
+      constraints: BoxConstraints(minHeight: subtitle == null ? height : math.max(height, 68)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: subtitle == null ? 0 : 10),
         child: Row(
           children: [
             if (icon != null) ...[IconTile(icon!, tile ?? TileColor.blue), SizedBox(width: subtitle == null ? 12 : 14)],
@@ -1120,7 +1120,7 @@ class SettingsRow extends StatelessWidget {
                       children: [
                         titleText,
                         const SizedBox(height: 3),
-                        Text(subtitle!, style: ts(13, color: p.text2), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(subtitle!, style: ts(13, height: 1.35, color: p.text2), maxLines: 2, overflow: TextOverflow.ellipsis),
                       ],
                     ),
             ),

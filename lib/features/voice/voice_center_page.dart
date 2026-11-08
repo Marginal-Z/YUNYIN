@@ -29,7 +29,7 @@ abstract final class _C {
 /// 云端引擎的说明与申请密钥的页面。
 const _engineInfo = {
   'cosyvoice': ('CosyVoice', '阿里云百炼的语音合成，中文自然、支持中英文。密钥与通义千问相同（DashScope API Key）。', 'https://bailian.console.aliyun.com/'),
-  'elevenlabs': ('ElevenLabs', '表现力强的多语言语音，支持中文、英语与泰语。', 'https://elevenlabs.io/app/settings/api-keys'),
+  'elevenlabs': ('ElevenLabs', '表现力强的多语言语音，用中文朗读。', 'https://elevenlabs.io/app/settings/api-keys'),
   'fish': ('Fish Audio', '支持声音克隆。需要在音色的“高级”中填写你在 Fish Audio 选择或克隆的声音 ID。', 'https://fish.audio/app/api-keys/'),
 };
 
@@ -42,7 +42,8 @@ class VoiceCenterPage extends StatefulWidget {
 }
 
 class _VoiceCenterPageState extends State<VoiceCenterPage> {
-  VoiceLanguage _lang = VoiceLanguage.zh;
+  /// 云音助手只说中文。
+  static const _lang = VoiceLanguage.zh;
   String? _previewing;
   String? _expanded;
   final Map<String, double> _downloads = {};
@@ -118,15 +119,6 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
             ),
             const SizedBox(height: 4),
             Text('为云音助手选择声音。每个音色都是独立的声音模型或供应商音色，不是同一个声音改变音调。', style: ts(13.5, height: 1.5, color: _C.text2)),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                for (final l in VoiceLanguage.values) ...[
-                  _Pill(l.label, selected: _lang == l, onTap: () => setState(() => _lang = l)),
-                  const SizedBox(width: 8),
-                ],
-              ],
-            ),
             if (_message != null) ...[const SizedBox(height: 10), Text(_message!, style: ts(13, color: _message!.startsWith('试听失败') || _message!.startsWith('下载失败') ? _C.danger : _C.text2))],
             const SizedBox(height: 14),
             for (final v in VoicePresets.all) ...[_voiceCard(v, s), const SizedBox(height: 12)],
@@ -216,7 +208,7 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
           const SizedBox(height: 6),
           Text(v.description, style: ts(14, height: 1.5, color: _C.text)),
           const SizedBox(height: 6),
-          Text('${v.traits.join(' · ')}　|　${v.languages.map((l) => l.label).join(' / ')}', style: ts(12.5, color: _C.text2)),
+          Text(v.traits.join(' · '), style: ts(12.5, color: _C.text2)),
           const SizedBox(height: 4),
           Text(
             available.isEmpty ? '可用：系统朗读（下载离线声音或配置云端引擎后使用这个音色）' : '可用：${available.join('、')}',
@@ -488,31 +480,6 @@ class _Toggle extends StatelessWidget {
     );
   }
 }
-
-class _Pill extends StatelessWidget {
-  const _Pill(this.label, {required this.selected, required this.onTap});
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? _C.accent : _C.bg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: selected ? _C.accent : _C.border),
-        ),
-        child: Text(label, style: ts(13.5, weight: w600, color: selected ? Colors.white : _C.text)),
-      ),
-    );
-  }
-}
-
 class _Button extends StatelessWidget {
   const _Button(this.label, {required this.primary, required this.onTap, this.icon});
 

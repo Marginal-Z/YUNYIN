@@ -73,9 +73,6 @@ class ElevenLabsEngine extends CloudTtsEngine {
   @override
   Set<VoiceLanguage> get languages => VoiceLanguage.values.toSet();
 
-  /// 多语言 v2 支持中文与英语；泰语使用 v3 模型（eleven_v3）。
-  static String modelFor(VoiceLanguage lang, String configured) => lang == VoiceLanguage.th ? 'eleven_v3' : configured;
-
   /// 把韵律换算为 ElevenLabs 的 voice_settings（各值都在接口允许的范围内）。
   @visibleForTesting
   static Map<String, Object> voiceSettings(Prosody p) {
@@ -104,7 +101,7 @@ class ElevenLabsEngine extends CloudTtsEngine {
         queryParameters: {'output_format': 'mp3_44100_128'},
         data: jsonEncode({
           'text': request.text,
-          'model_id': modelFor(request.language, model(voice, 'eleven_multilingual_v2')),
+          'model_id': model(voice, 'eleven_multilingual_v2'),
           'voice_settings': voiceSettings(request.prosody),
         }),
         options: Options(
@@ -139,7 +136,7 @@ class FishAudioEngine extends CloudTtsEngine {
   String get name => 'Fish Audio';
 
   @override
-  Set<VoiceLanguage> get languages => {VoiceLanguage.zh, VoiceLanguage.en};
+  Set<VoiceLanguage> get languages => {VoiceLanguage.zh};
 
   @visibleForTesting
   static String withEmotion(String text, Prosody p, String model) {
@@ -208,7 +205,7 @@ class CosyVoiceEngine extends CloudTtsEngine {
   String get name => 'CosyVoice';
 
   @override
-  Set<VoiceLanguage> get languages => {VoiceLanguage.zh, VoiceLanguage.en};
+  Set<VoiceLanguage> get languages => {VoiceLanguage.zh};
 
   static const sampleRate = 22050;
 

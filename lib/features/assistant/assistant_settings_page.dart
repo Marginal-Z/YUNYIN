@@ -125,7 +125,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                 );
               },
             ),
-            _WakeWordRow(),
+            const _WakeWordRow(),
             SettingsRow(
               title: '识别模型',
               subtitle: '${s.asrModel.label}（约 ${s.asrModel.sizeMb} MB）· 点按切换${s.asrModel == AsrModel.senseVoice ? '，支持中英文混说' : '，体积更小'}',
@@ -232,15 +232,45 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   }
 }
 
-/// 自定义唤醒词：输入 3–6 个汉字，保存时转换为拼音并校验唤醒模型能否检测。
-class _WakeWordRow extends StatefulWidget {
+/// 唤醒词：显示当前的唤醒词，点按后在弹窗中修改。
+class _WakeWordRow extends StatelessWidget {
   const _WakeWordRow();
 
   @override
-  State<_WakeWordRow> createState() => _WakeWordRowState();
+  Widget build(BuildContext context) {
+    final s = context.watch<AssistantSettings>();
+    return SettingsRow(
+      title: '唤醒词',
+      subtitle: s.wakeWord.isEmpty ? '你好云音（也可以说“嗨云音”“云音云音”）· 点按自定义' : '${s.wakeWord}（“你好云音”仍然有效）· 点按修改',
+      height: 64,
+      chevron: true,
+      onTap: () => _editWakeWord(context),
+    );
+  }
 }
 
-class _WakeWordRowState extends State<_WakeWordRow> {
+/// 修改唤醒词的弹窗：输入 3–6 个汉字，保存时转换为拼音并校验唤醒模型能否检测。
+Future<void> _editWakeWord(BuildContext context) => showGeneralDialog<void>(
+  context: context,
+  barrierDismissible: true,
+  barrierLabel: '取消',
+  barrierColor: const Color.fromRGBO(0, 0, 0, 0.25),
+  transitionDuration: const Duration(milliseconds: 220),
+  pageBuilder: (ctx, _, _) => const _WakeWordDialog(),
+  transitionBuilder: (ctx, a, _, child) => FadeTransition(
+    opacity: a,
+    child: ScaleTransition(scale: Tween(begin: 1.06, end: 1.0).animate(CurvedAnimation(parent: a, curve: Curves.easeOut)), child: child),
+  ),
+);
+
+class _WakeWordDialog extends StatefulWidget {
+  const _WakeWordDialog();
+
+  @override
+  State<_WakeWordDialog> createState() => _WakeWordDialogState();
+}
+
+class _WakeWordDialogState extends State<_WakeWordDialog> {
   late final _c = TextEditingController(text: context.read<AssistantSettings>().wakeWord);
   String? _error;
   bool _saving = false;
@@ -251,51 +281,100 @@ class _WakeWordRowState extends State<_WakeWordRow> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  Future<void> _save(String word) async {
     setState(() {
       _saving = true;
       _error = null;
     });
-    final e = await context.read<AssistantController>().setWakeWord(_c.text);
+    final e = await context.read<AssistantController>().setWakeWord(word);
     if (!mounted) return;
+    if (e == null) {
+      Navigator.of(context).pop();
+      return;
+    }
     setState(() {
       _saving = false;
       _error = e;
     });
-    if (e == null) FocusScope.of(context).unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
-    final s = context.watch<AssistantSettings>();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('唤醒词', style: ts(15, color: p.text)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _c,
-                  onSubmitted: (_) => _save(),
-                  style: ts(15, color: p.text),
-                  cursorColor: p.accentText,
-                  decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, hintText: '默认“你好云音”，可自定义 3–6 个汉字', hintStyle: ts(14, color: p.text3)),
+    final a = context.watch<AssistantController>();
+    final custom = context.watch<AssistantSettings>().wakeWord.isNotEmpty;
+    Widget button(String label, VoidCallback? onTap, {bool primary = false}) => Expanded(
+      child: Pressable(
+        onTap: onTap,
+        child: SizedBox(
+          height: 46,
+          child: Center(child: Text(label, style: ts(16, weight: primary ? w700 : FontWeight.w400, color: onTap == null ? p.text3 : (primary ? p.accentText : p.text)))),
+        ),
+      ),
+    );
+    final divider = Container(width: 1, height: 46, color: const Color.fromRGBO(60, 60, 67, 0.16));
+    return Center(
+      child: SizedBox(
+        width: 300,
+        child: YBox(
+          radius: BorderRadius.circular(22),
+          color: p.dialog,
+          blur: true,
+          shadows: const [Shadow2(0, 24, 50, Color.fromRGBO(28, 44, 92, 0.22))],
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('自定义唤醒词', textAlign: TextAlign.center, style: ts(17, weight: w700, color: p.text)),
+                      const SizedBox(height: 6),
+                      Text('用 3–6 个汉字，读音清楚、不常在聊天里出现的词更不容易误唤醒。“你好云音”始终有效。', textAlign: TextAlign.center, style: ts(13, height: 1.45, color: p.text2)),
+                      const SizedBox(height: 14),
+                      YBox(
+                        radius: BorderRadius.circular(12),
+                        color: p.card,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: TextField(
+                          controller: _c,
+                          autofocus: true,
+                          enabled: !_saving,
+                          maxLength: 6,
+                          onSubmitted: (v) => _save(v),
+                          textAlign: TextAlign.center,
+                          style: ts(17, weight: w600, color: p.text),
+                          cursorColor: p.accentText,
+                          decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, counterText: '', hintText: '例如：小云小云', hintStyle: ts(17, color: p.text3)),
+                        ),
+                      ),
+                      if (_saving || a.downloadProgress != null || _error != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          _error ?? (a.downloadProgress != null ? '正在下载唤醒模型（${((a.downloadProgress ?? 0) * 100).round()}%）…' : '正在校验读音…'),
+                          textAlign: TextAlign.center,
+                          style: ts(12.5, height: 1.4, color: _error != null ? p.danger : p.text2),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-              ),
-              Pressable(onTap: _saving ? null : _save, child: Text(_saving ? '校验中…' : '保存', style: ts(14, weight: w600, color: p.accentText))),
-            ],
+                Container(height: 1, color: const Color.fromRGBO(60, 60, 67, 0.16)),
+                Row(
+                  children: [
+                    if (custom) ...[button('恢复默认', _saving ? null : () => _save('')), divider],
+                    button('取消', () => Navigator.of(context).pop()),
+                    divider,
+                    button('保存', _saving ? null : () => _save(_c.text), primary: true),
+                  ],
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            _error ?? (s.wakeWord.isEmpty ? '当前：你好云音 / 嗨云音 / 云音云音' : '当前：${s.wakeWord}（“你好云音”仍然有效）'),
-            style: ts(12.5, color: _error != null ? p.danger : p.text2),
-          ),
-        ],
+        ),
       ),
     );
   }

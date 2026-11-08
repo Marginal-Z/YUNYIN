@@ -32,21 +32,14 @@ class LocalVoiceModel {
   String get folder => archive.replaceAll('.tar.bz2', '');
 }
 
-/// 本地离线声音模型目录：每个音色、每种语言对应一个独立的声音模型。
+/// 本地离线声音模型目录：每个音色对应一个独立的中文声音模型。
 abstract final class LocalVoiceModels {
-  static const _en = {VoiceLanguage.en};
   static const all = [
     LocalVoiceModel(LocalVoiceIds.xiaoya, 'vits-piper-zh_CN-xiao_ya-medium-int8.tar.bz2', 'eab027e194e70289233cf12308373611fa4e2e96ef2d97354ef433ab663d831f', 14),
     LocalVoiceModel(LocalVoiceIds.chaowen, 'vits-piper-zh_CN-chaowen-medium-int8.tar.bz2', 'f5f7c8628427fbb259ea4b7ec1a9a822a0c04e3f267071f0abfa0610371d9e0c', 14),
     LocalVoiceModel(LocalVoiceIds.huayan, 'vits-piper-zh_CN-huayan-medium.tar.bz2', 'dbdfec42b91d9cee31cce9ff4b3e9c305eb6fbf60546d071f7e46273554cce6b', 64),
     LocalVoiceModel(LocalVoiceIds.baker, 'matcha-icefall-zh-baker.tar.bz2', '8da2e113b85dfea37b11bcdc994506aa86b584ee3348c2065271fb6f75cb83b8', 72, matcha: true),
     LocalVoiceModel(LocalVoiceIds.laozhe, 'vits-zh-hf-fanchen-ZhiHuiLaoZhe_new.tar.bz2', 'fa6b767c979846f1af3141666158ce91fdad116a15a29654d7e4a071d819af4c', 114),
-    LocalVoiceModel(LocalVoiceIds.amy, 'vits-piper-en_US-amy-medium-int8.tar.bz2', 'bd23c0aa629eb3719448582f45ede49e8fa6a679061fed5eab16a6a6fd8e7e82', 20, languages: _en),
-    LocalVoiceModel(LocalVoiceIds.kristin, 'vits-piper-en_US-kristin-medium-int8.tar.bz2', '16289d7ee8e6b2311a0a0af6531a55f498f82499644a1bb6fddb991fe6fa950c', 20, languages: _en),
-    LocalVoiceModel(LocalVoiceIds.hfcFemale, 'vits-piper-en_US-hfc_female-medium-int8.tar.bz2', '7c467d19054ddf84056a4887a8be75f5f3b2a5d426637b526953a5e488fec5ce', 20, languages: _en),
-    LocalVoiceModel(LocalVoiceIds.ryan, 'vits-piper-en_US-ryan-medium-int8.tar.bz2', '376eb489d42e98cb49f0e13a633e8d88580bd247ed8aacc298a733210404f771', 20, languages: _en),
-    LocalVoiceModel(LocalVoiceIds.john, 'vits-piper-en_US-john-medium-int8.tar.bz2', '2ea2f6cf88bba033be71c941d00cd4d2af35d23655b5d68b7fe8239d519f17b4', 20, languages: _en),
-    LocalVoiceModel(LocalVoiceIds.thai, 'vits-mms-tha.tar.bz2', 'e774f69a873806d5be445f107e72c9b3bd828188e1d5002f8ece8886d5528fa5', 103, languages: {VoiceLanguage.th}),
   ];
 
   /// Matcha 模型使用的声码器。
