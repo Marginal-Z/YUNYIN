@@ -3,17 +3,23 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/services.dart';
 import 'package:record/record.dart';
 
+import '../core/lyrics_overlay.dart';
 import '../core/settings.dart';
+import '../core/theme/palette.dart';
+import '../data/downloads.dart';
 import '../data/listen_stats.dart';
 import '../data/models.dart';
 import '../data/sources/music_source.dart';
 import '../data/sources/source_manager.dart';
+import '../pet/pet_rig.dart';
 import '../player/player_controller.dart';
 import '../voice/prosody.dart';
 import '../voice/speech_output.dart';
+import '../voice/voice_library.dart';
 import 'assistant_settings.dart';
 import 'intents.dart';
 import 'llm_client.dart';
@@ -44,7 +50,7 @@ enum AssistantStatus { idle, listening, thinking }
 /// 常用指令（播放控制、点歌、音量、定时、音效）在本机解析，不需要大模型也能用；
 /// 其余的话交给大模型，大模型通过函数调用操作播放器（见 [_tools]）。
 class AssistantController extends ChangeNotifier {
-  AssistantController({required this.settings, required this.app, required this.player, required this.sources, required this.stats, LlmClient? llm, this.speech}) {
+  AssistantController({required this.settings, required this.app, required this.player, required this.sources, required this.stats, LlmClient? llm, this.speech, this.downloads}) {
     _llm = llm ?? LlmClient(settings);
     _channel.setMethodCallHandler((call) async {
       // Android 常驻通知上点了“关闭”。
@@ -61,6 +67,9 @@ class AssistantController extends ChangeNotifier {
 
   /// 语音输出（音色系统）；为 null 时不朗读（测试）。
   final SpeechOutput? speech;
+
+  /// 下载管理（“下载这首歌”）；为 null 时不支持（测试）。
+  final DownloadManager? downloads;
   late final LlmClient _llm;
 
   static const _channel = MethodChannel('yunyin/voice');
@@ -85,6 +94,10 @@ class AssistantController extends ChangeNotifier {
   /// 语音唤醒后请界面打开助手面板（应用在前台时）。
   final StreamController<void> _wakeEvents = StreamController.broadcast();
   Stream<void> get wakeEvents => _wakeEvents.stream;
+
+  /// 请界面打开某个页面（页面名称，附带的搜索关键词），见 [AppAction.open]。
+  final StreamController<(String, String?)> _openEvents = StreamController.broadcast();
+  Stream<(String, String?)> get openRequests => _openEvents.stream;
 
   AudioRecorder? _recorder;
   StreamSubscription<Uint8List>? _mic;
@@ -379,7 +392,9 @@ class AssistantController extends ChangeNotifier {
         if (song == null) return AssistantMessage(false, '现在没有在播放歌曲');
         return AssistantMessage(false, '正在播放《${song.name}》，${song.artistText}${song.album == null ? '' : '，专辑《${song.album!.name}》'}');
       case OpenLyricsIntent():
-        return AssistantMessage(false, '在播放页点按“歌词”即可查看完整歌词');
+        return AssistantMessage(false, await _runApp(const AppIntent(AppAction.open, 'lyrics')));
+      case AppIntent():
+        return AssistantMessage(false, await _runApp(intent));
       case EqIntent(:final preset):
         if (preset == null) {
           app.setFlag('eqEnabled', false);
@@ -483,6 +498,25 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
       'spatial': {'type': 'number'},
     }),
     tool('like_current_song', '收藏正在播放的歌曲', {}),
+    tool(
+      'control_app',
+      '控制云音本身：切换平台模式、深浅色、主题色、播放页样式，开关桌面歌词 / 状态栏歌词 / 歌词翻译 / 液态玻璃，'
+          '显示或隐藏桌宠、换助手音色，下载正在播放的歌，播放每日推荐 / 我喜欢的音乐 / 最近播放，打开页面或搜索。',
+      {
+        'action': {
+          'type': 'string',
+          'enum': [for (final a in AppAction.values) a.name],
+          'description':
+              'platform（value：网易云 / QQ 音乐 / 酷狗 / 洛雪）；themeMode（light / dark / system）；accent（朱红 / 蓝 / 青绿 / 橙 / 石墨）；'
+              'playerStyle（封面 / 黑胶 / 光盘 / 沉浸 / 卡片流 / 3D 封面流 / 照片墙 / 极简）；desktopLyrics、statusLyrics、translation、glass（on / off）；'
+              'pet（团团 / 星月 / 阿曜 / off）；voice（云汐 / 小柚 / 晚星 / 清川 / 暮言）；download；playCollection（daily / liked / recent）；'
+              'open（settings / downloads / stats / voice / pet / player / lyrics / library / search，search 时把关键词放在 query）',
+        },
+        'value': {'type': 'string'},
+        'query': {'type': 'string'},
+      },
+      required: ['action'],
+    ),
     tool('get_now_playing', '获取正在播放的歌曲信息、播放进度与当前歌词', {}),
     tool('get_lyrics', '获取正在播放歌曲的完整歌词', {}),
     tool('get_queue', '获取播放队列中接下来的歌曲', {}),
@@ -547,6 +581,117 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
       reply.text = '好的';
       turn?.add('好的');
     }
+  }
+
+  /// 执行控制云音本身的指令，返回给用户的说明。
+  Future<String> _runApp(AppIntent i) async {
+    final v = (i.value ?? '').trim();
+    bool on() => v != 'off';
+    Future<bool> canDraw() async => !_android || await LyricsOverlay.canDraw();
+    switch (i.action) {
+      case AppAction.platform:
+        final key = v.toLowerCase().replaceAll('音乐', '').replaceAll('网易云', '网易');
+        final source = sources.selectable.where((s) => s.name.toLowerCase().contains(key)).firstOrNull;
+        if (source == null) return '没有“$v”这个平台模式';
+        await sources.select(source.id);
+        return '已切换到${source.name}模式';
+      case AppAction.themeMode:
+        final mode = switch (v) {
+          'dark' => ThemeMode.dark,
+          'light' => ThemeMode.light,
+          _ => ThemeMode.system,
+        };
+        app.setThemeMode(mode);
+        return switch (mode) {
+          ThemeMode.dark => '已切换到深色模式',
+          ThemeMode.light => '已切换到浅色模式',
+          _ => '外观已改为跟随系统',
+        };
+      case AppAction.accent:
+        final accent = switch (v.replaceAll('色', '')) {
+          '红' || '朱红' => AccentColor.red,
+          '蓝' => AccentColor.blue,
+          '绿' || '青绿' => AccentColor.teal,
+          '橙' => AccentColor.orange,
+          '灰' || '石墨' => AccentColor.graphite,
+          _ => null,
+        };
+        if (accent == null) return '主题色只有朱红、蓝、青绿、橙和石墨';
+        app.setAccent(accent);
+        return '主题色已换成${accent.label}';
+      case AppAction.playerStyle:
+        final key = v.replaceAll(' ', '');
+        final style = PlayerStyle.values.where((s) => s.label.replaceAll(' ', '') == key).firstOrNull ?? PlayerStyle.values.where((s) => s.label.replaceAll(' ', '').contains(key)).firstOrNull;
+        if (style == null) return '没有“$v”这种播放页样式';
+        app.setPlayerStyle(style);
+        return '播放页已换成${style.label}样式';
+      case AppAction.desktopLyrics || AppAction.statusLyrics:
+        final desktop = i.action == AppAction.desktopLyrics;
+        if (on() && !await canDraw()) return '需要先允许云音“显示在其他应用上层”：设置 → 桌面与状态栏歌词';
+        app.setFlag(desktop ? 'desktopLyrics' : 'statusBarLyrics', on());
+        return '${on() ? '已打开' : '已关闭'}${desktop ? '桌面歌词' : '状态栏歌词'}';
+      case AppAction.translation:
+        app.setFlag('showTranslation', on());
+        return on() ? '已显示歌词翻译' : '已隐藏歌词翻译';
+      case AppAction.glass:
+        app.setFlag('glass', on());
+        return on() ? '已打开液态玻璃效果' : '已关闭液态玻璃效果';
+      case AppAction.pet:
+        if (v == 'off') {
+          settings.setPet('');
+          return '桌宠已收起';
+        }
+        final kind = PetKind.values.where((k) => k.label == v).firstOrNull ?? PetKind.byName(settings.pet) ?? PetKind.tuantuan;
+        if (!await canDraw()) return '需要先允许云音“显示在其他应用上层”：设置 → 云音助手 → 桌宠';
+        settings.setPet(kind.name);
+        speech?.settings.setVoice(kind.voiceId);
+        return '${kind.label}来啦，${_android ? '回到桌面就能看到它' : '在桌面上陪你'}';
+      case AppAction.voice:
+        final voice = VoicePresets.all.where((p) => p.name == v).firstOrNull;
+        if (voice == null || speech == null) return '没有“$v”这个音色';
+        speech!.settings.setVoice(voice.id);
+        return '好的，换成${voice.name}的声音了';
+      case AppAction.download:
+        final song = player.current;
+        if (song == null) return '现在没有在播放歌曲';
+        if (downloads == null) return '这里不能下载歌曲';
+        final ok = await downloads!.download(song);
+        return ok ? '开始下载《${song.name}》' : '《${song.name}》已经下载过了或者不能下载';
+      case AppAction.playCollection:
+        final (title, songs) = switch (v) {
+          'liked' => ('我喜欢的音乐', await _likedSongs()),
+          'recent' => ('最近播放', await _source.recentSongs()),
+          _ => ('每日推荐', (await _source.homeFeed()).daily),
+        };
+        final playable = songs.where((s) => s.playable).toList();
+        if (playable.isEmpty) return '$title里没有可以播放的歌曲';
+        await player.playSongs(playable, title: title);
+        return '为你播放$title，共 ${playable.length} 首';
+      case AppAction.open:
+        const names = {
+          'settings': '设置',
+          'downloads': '下载与缓存',
+          'stats': '听歌统计',
+          'voice': '音色中心',
+          'pet': '桌宠设置',
+          'player': '播放页',
+          'lyrics': '歌词',
+          'library': '乐库',
+          'search': '搜索结果',
+        };
+        final page = names.containsKey(v) ? v : 'settings';
+        if ((page == 'player' || page == 'lyrics') && player.current == null) return '现在没有在播放歌曲';
+        _openEvents.add((page, i.query));
+        return page == 'search' ? '为你搜索“${i.query ?? ''}”' : '已打开${names[page]}';
+    }
+  }
+
+  /// “我喜欢的音乐”：用户歌单中名称带“喜欢”的那个（网易云、QQ 音乐、酷狗都是第一个）。
+  Future<List<Song>> _likedSongs() async {
+    final lists = await _source.userPlaylists();
+    final liked = lists.where((p) => p.name.contains('喜欢')).firstOrNull ?? lists.firstOrNull;
+    if (liked == null) return const [];
+    return (await _source.playlist(liked.id)).tracks ?? const [];
   }
 
   /// 只保留最近 16 条（从一条用户消息开始，避免留下没有对应调用的工具结果）。
@@ -616,6 +761,10 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
         if (a['bass'] is num) app.setBassEnhance(((a['bass'] as num) / 100).clamp(0, 1).toDouble());
         if (a['spatial'] is num) app.setSpatial(((a['spatial'] as num) / 100).clamp(0, 1).toDouble());
         return ok();
+      case 'control_app':
+        final action = AppAction.values.asNameMap()['${a['action']}'];
+        if (action == null) return jsonEncode({'error': '未知动作 ${a['action']}'});
+        return jsonEncode({'result': await _runApp(AppIntent(action, a['value'] as String?, a['query'] as String?))});
       case 'like_current_song':
         await _runLocal(const LikeIntent());
         return ok();
@@ -696,6 +845,7 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
     unawaited(_stopVoice());
     _recorder?.dispose();
     _wakeEvents.close();
+    _openEvents.close();
     super.dispose();
   }
 }

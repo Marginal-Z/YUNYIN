@@ -50,4 +50,36 @@ void main() {
     expect(parseIntent('收藏这首歌'), isA<LikeIntent>());
     expect(parseIntent('这是什么歌'), isA<NowPlayingIntent>());
   });
+
+  test('控制云音本身：平台、外观、歌词、桌宠、音色、下载、歌单与页面', () {
+    AppIntent app(String s) => parseIntent(s) as AppIntent;
+    expect(app('切换到网易云').action, AppAction.platform);
+    expect(app('切换到QQ音乐').value, 'QQ音乐');
+    expect(app('酷狗模式').value, '酷狗');
+    expect(app('打开深色模式').value, 'dark');
+    expect(app('关闭深色模式').value, 'light');
+    expect(app('切换到浅色模式').value, 'light');
+    expect(app('主题色换成青绿').value, '青绿');
+    expect(app('播放页换成黑胶').value, '黑胶');
+    expect(app('打开桌面歌词').value, 'on');
+    expect(app('关闭桌面歌词').value, 'off');
+    expect(app('关掉悬浮歌词').value, 'off');
+    expect(app('打开状态栏歌词').action, AppAction.statusLyrics);
+    expect(app('显示歌词翻译').action, AppAction.translation);
+    expect(app('召唤星月').value, '星月');
+    expect(app('收起桌宠').value, 'off');
+    expect(app('换成晚星的声音').value, '晚星');
+    expect(app('下载这首歌').action, AppAction.download);
+    expect(app('播放每日推荐').value, 'daily');
+    expect(app('播放我喜欢的音乐').value, 'liked');
+    expect(app('打开设置').value, 'settings');
+    final search = app('搜索周杰伦');
+    expect(search.value, 'search');
+    expect(search.query, '周杰伦');
+    // 原有的指令不受影响。
+    expect(parseIntent('播放晴天'), isA<PlayQueryIntent>());
+    expect(parseIntent('打开歌词'), isA<OpenLyricsIntent>());
+    expect(parseIntent('打开重低音'), isA<EffectIntent>());
+    expect(parseIntent('播放页弄成那种唱片的样子'), isNull, reason: '说的是播放界面，交给大模型');
+  });
 }

@@ -132,7 +132,7 @@ Future<void> main(List<String> args) async {
   final voiceSettings = VoiceSettings();
   await voiceSettings.init();
   final speech = SpeechOutput(voiceSettings, onDuck: player.duck);
-  final assistant = AssistantController(settings: assistantSettings, app: settings, player: player, sources: sources, stats: stats, speech: speech);
+  final assistant = AssistantController(settings: assistantSettings, app: settings, player: player, sources: sources, stats: stats, speech: speech, downloads: downloads);
   if (!benchmarkRequested && !screenshotsRequested) unawaited(assistant.init());
   // 桌宠：Android 悬浮窗或桌面端置顶小窗口。
   if (!benchmarkRequested && !screenshotsRequested) PetHost.attach(settings: assistantSettings, assistant: assistant, speech: speech, player: player, voice: voiceSettings);

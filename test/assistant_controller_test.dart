@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,7 @@ import 'package:yunyin/assistant/assistant_controller.dart';
 import 'package:yunyin/assistant/assistant_settings.dart';
 import 'package:yunyin/assistant/llm_client.dart';
 import 'package:yunyin/core/settings.dart';
+import 'package:yunyin/core/theme/palette.dart';
 import 'package:yunyin/data/listen_stats.dart';
 import 'package:yunyin/data/models.dart';
 import 'package:yunyin/data/sources/music_source.dart';
@@ -187,5 +189,33 @@ void main() {
     final a = AssistantController(settings: settings, app: app, player: player, sources: SourceManager([source]), stats: ListenStats(), llm: LlmClient(settings, dio: dio));
     await a.submit('这首歌讲了什么');
     expect(a.messages.last.text, contains('密钥无效'));
+  });
+
+  test('语音控制云音本身：本地指令与大模型的 control_app 都会改变设置', () async {
+    await assistant.submit('打开深色模式');
+    expect(app.themeMode, ThemeMode.dark);
+    await assistant.submit('主题色换成青绿');
+    expect(app.accent, AccentColor.teal);
+    await assistant.submit('显示歌词翻译');
+    expect(app.showTranslation, isTrue);
+    expect(requests, isEmpty);
+    settings.setLlm(apiKey: 'sk-test');
+    replies.addAll([
+      {
+        'role': 'assistant',
+        'content': '',
+        'tool_calls': [
+          {
+            'id': 'c1',
+            'type': 'function',
+            'function': {'name': 'control_app', 'arguments': jsonEncode({'action': 'playerStyle', 'value': '黑胶'})},
+          },
+        ],
+      },
+      {'role': 'assistant', 'content': '[开心] 换好啦！'},
+    ]);
+    await assistant.submit('播放页弄成那种唱片的样子');
+    expect(app.playerStyle, PlayerStyle.vinyl);
+    expect(assistant.messages.last.text, '换好啦！');
   });
 }

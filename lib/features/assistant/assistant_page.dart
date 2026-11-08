@@ -13,6 +13,7 @@ import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
 import '../../player/player_controller.dart';
+import '../common/actions.dart';
 import '../common/layout.dart';
 import '../common/song_cover.dart';
 import '../desktop/desktop_dialogs.dart';
@@ -47,6 +48,37 @@ class AssistantWakeListener extends StatefulWidget {
 
 class _AssistantWakeListenerState extends State<AssistantWakeListener> {
   StreamSubscription<void>? _sub;
+  StreamSubscription<(String, String?)>? _open;
+
+  /// 助手要求打开页面（“打开设置”“搜索晴天”）：先收起助手面板等弹出的页面，再在主导航中打开。
+  void _openPage((String, String?) request) {
+    final (page, query) = request;
+    final ctx = rootNavigatorKey.currentContext;
+    if (!mounted || ctx == null || !ctx.mounted || WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) return;
+    Navigator.of(ctx).popUntil((r) => r.isFirst);
+    final nav = context.read<AppNav>();
+    switch (page) {
+      case 'player':
+        openPlayer(ctx);
+      case 'lyrics':
+        openLyrics(ctx);
+      case 'search':
+        nav.push(SearchResultRoute(query ?? ''));
+      case 'downloads':
+        nav.push(StorageSettingsRoute());
+      case 'stats':
+        nav.push(StatsRoute());
+      case 'voice':
+        nav.push(VoiceCenterRoute());
+      case 'pet':
+        nav.push(PetRoute());
+      case 'library':
+        // 乐库是第三个标签。
+        nav.switchTab(2);
+      default:
+        nav.push(SettingsRoute());
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -57,11 +89,13 @@ class _AssistantWakeListenerState extends State<AssistantWakeListener> {
       if (!mounted || nav == null || !nav.mounted || WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) return;
       openAssistant(nav);
     });
+    _open ??= context.read<AssistantController>().openRequests.listen(_openPage);
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    _open?.cancel();
     super.dispose();
   }
 
