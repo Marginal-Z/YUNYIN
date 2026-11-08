@@ -2,7 +2,7 @@
 
 <img src="website/icon.png" width="112" alt="云音">
 
-# 云音 YunYin
+#  YunYin
 
 **一款开源、跨平台的第三方音乐客户端**
 网易云音乐 · QQ 音乐 · 酷狗音乐 · 洛雪曲库 · 本地音乐 · 网盘，一个应用全部搞定
