@@ -9,6 +9,9 @@ import 'package:flutter/services.dart';
 abstract final class WakeWords {
   static Map<String, (String, String)>? _table;
 
+  /// 汉字读音表（声母，带声调数字的韵母）。
+  static Future<Map<String, (String, String)>> table() => _load();
+
   static Future<Map<String, (String, String)>> _load() async {
     if (_table != null) return _table!;
     final text = await rootBundle.loadString('assets/pinyin/hanzi.txt');

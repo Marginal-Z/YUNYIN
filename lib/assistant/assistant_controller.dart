@@ -21,6 +21,7 @@ import '../voice/prosody.dart';
 import '../voice/speech_output.dart';
 import '../voice/voice_library.dart';
 import 'assistant_settings.dart';
+import 'command_fixer.dart';
 import 'intents.dart';
 import 'llm_client.dart';
 import 'voice_engine.dart';
@@ -285,7 +286,12 @@ class AssistantController extends ChangeNotifier {
     AssistantMessage? reply;
     var failed = false;
     try {
-      final intent = parseIntent(text);
+      var intent = parseIntent(text);
+      // 语音识别偶尔把短指令认成读音相近的字：按读音纠正后再试一次。
+      if (intent == null && spoken) {
+        final fixed = (await _fixer())?.fix(text);
+        if (fixed != null) intent = parseIntent(fixed);
+      }
       if (intent != null) {
         reply = await _runLocal(intent);
       } else if (settings.llmConfigured) {
@@ -331,6 +337,17 @@ class AssistantController extends ChangeNotifier {
       _beginListening();
     } else if (!settings.voiceWake && status != AssistantStatus.listening) {
       unawaited(_stopVoice());
+    }
+  }
+
+  CommandFixer? _commandFixer;
+
+  Future<CommandFixer?> _fixer() async {
+    try {
+      return _commandFixer ??= CommandFixer(await WakeWords.table());
+    } catch (e) {
+      debugPrint('command fixer: $e');
+      return null;
     }
   }
 

@@ -165,7 +165,7 @@ class AppSettings extends ChangeNotifier {
 
   /// 已同意的使用声明版本（首次启动时阅读并同意后才能进入应用；条款更新时提高 [kConsentVersion] 会重新询问）。
   int consentVersion = 0;
-  static const kConsentVersion = 2;
+  static const kConsentVersion = 3;
   bool get consentAccepted => consentVersion >= kConsentVersion;
 
   void acceptConsent() {
