@@ -213,4 +213,19 @@ void main() {
     status = 401;
     await expectLater(engine.synthesize(b, const TtsRequest('hi', language: VoiceLanguage.en)).toList(), throwsA(isA<TtsException>().having((e) => e.retryable, 'retryable', false)));
   });
+
+  test('等待合成时不算发声，开始播放后才算（打断检测只在发声时打开）', () async {
+    final engine = _FakeEngine('local', offline: true, delay: const Duration(milliseconds: 120));
+    final sink = _Sink(ms: 120);
+    final out = SpeechOutput(settings, engines: VoiceEngines(settings, engines: [engine]), sink: sink);
+    final turn = out.begin();
+    turn.add('第一句。');
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(out.speaking, isTrue);
+    expect(out.audible, isFalse, reason: '还在合成，没有声音');
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(out.audible, isTrue);
+    await turn.end();
+    expect(out.audible, isFalse);
+  });
 }

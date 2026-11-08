@@ -147,7 +147,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
             ),
             SettingsRow(
               title: '开口打断',
-              subtitle: '朗读时直接说话就能打断；关闭后只有说唤醒词或点按才能打断',
+              subtitle: '戴耳机时，朗读中直接说话就能打断；外放时说唤醒词或点按打断（外放的朗读声会被麦克风收到）',
               height: 64,
               trailing: YSwitch(value: s.bargeIn, label: '开口打断', onChanged: s.setBargeIn),
             ),

@@ -48,6 +48,24 @@ class VoiceService : Service() {
         private var ttsReady = false
         private var pendingSpeech: String? = null
 
+        /** 声音是否从耳机播放（有线、蓝牙或 USB 耳机）：外放时麦克风会收到朗读声，不能用“开口打断”。 */
+        fun headset(context: Context): Boolean {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                @Suppress("DEPRECATION")
+                return am.isWiredHeadsetOn || am.isBluetoothA2dpOn
+            }
+            val headsets = mutableSetOf(
+                android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                android.media.AudioDeviceInfo.TYPE_USB_HEADSET,
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) headsets.add(android.media.AudioDeviceInfo.TYPE_BLE_HEADSET)
+            return am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in headsets }
+        }
+
         /** 用系统的文字转语音朗读（第一次调用时初始化引擎）。 */
         fun speak(context: Context, text: String) {
             val engine = tts

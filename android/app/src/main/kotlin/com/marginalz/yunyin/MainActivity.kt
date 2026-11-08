@@ -174,6 +174,7 @@ class MainActivity : AudioServiceActivity() {
                     result.success(null)
                 }
                 "volume" -> result.success(VoiceService.volume(app, call.argument<Double>("level"), call.argument<Double>("delta")))
+                "headset" -> result.success(VoiceService.headset(app))
                 "synthesize" -> {
                     val main = android.os.Handler(android.os.Looper.getMainLooper())
                     VoiceService.synthesize(

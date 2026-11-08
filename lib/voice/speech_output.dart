@@ -145,6 +145,16 @@ class SpeechOutput extends ChangeNotifier {
   /// 正在说话（队列中还有句子或正在播放）。
   bool get speaking => _playing || _queue.isNotEmpty;
 
+  /// 正在发出声音（不包括等待第一句合成的时间）：打断检测只在这时打开。
+  bool get audible => _audible;
+  bool _audible = false;
+
+  void _setAudible(bool v) {
+    if (v == _audible) return;
+    _audible = v;
+    notifyListeners();
+  }
+
   /// 最近一次使用的引擎（音色中心显示“正在使用”）。
   String? lastEngine;
 
@@ -183,6 +193,7 @@ class SpeechOutput extends ChangeNotifier {
     _queue.clear();
     _synthTail = Future.value();
     await _sink.stop();
+    _audible = false;
     if (_playing) {
       _playing = false;
       await onDuck?.call(false);
@@ -200,12 +211,14 @@ class SpeechOutput extends ChangeNotifier {
       if (generation != _generation) return;
       for (final f in files) {
         if (generation != _generation) return;
+        _setAudible(true);
         await _sink.play(f);
       }
       if (_queue.isNotEmpty && identical(_queue.first, u)) _queue.removeFirst();
     }
     if (generation != _generation) return;
     _playing = false;
+    _audible = false;
     await onDuck?.call(false);
     notifyListeners();
   }

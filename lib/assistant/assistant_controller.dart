@@ -58,6 +58,7 @@ class AssistantController extends ChangeNotifier {
       if (call.method == 'stopRequested') settings.setVoiceWake(false);
     });
     settings.addListener(_syncVoice);
+    speech?.addListener(_syncMonitor);
   }
 
   final AssistantSettings settings;
@@ -238,11 +239,14 @@ class AssistantController extends ChangeNotifier {
   void _beginListening() {
     status = AssistantStatus.listening;
     partial = '';
+    _monitoring = false;
     _worker?.setMonitor(false);
     unawaited(player.duck(true));
     unawaited(_stopSpeaking());
     notifyListeners();
   }
+
+  static final _filler = RegExp(r'^[嗯啊哦噢呃额唔呀哈哎诶喔恩]+[。，！？.,!?…]*$');
 
   void _onVoice(VoiceEvent e) {
     switch (e) {
@@ -261,7 +265,8 @@ class AssistantController extends ChangeNotifier {
         status = AssistantStatus.idle;
         unawaited(player.duck(false));
         notifyListeners();
-        if (text.isNotEmpty) {
+        // 只有“嗯”“啊”这类语气词（多半是背景声或犹豫）：不当作提问。
+        if (text.isNotEmpty && !_filler.hasMatch(text)) {
           unawaited(submit(text, spoken: true));
         } else if (!settings.voiceWake) {
           unawaited(_stopVoice());
@@ -298,7 +303,7 @@ class AssistantController extends ChangeNotifier {
         reply = AssistantMessage(false, '')..streaming = true;
         messages.add(reply);
         turn = out?.begin();
-        if (turn != null) _monitor(true);
+        if (turn != null) await _beginTurn();
         await _askLlm(text, reply, turn);
       } else {
         reply = AssistantMessage(false, '这句话需要大模型来理解。请在“设置 → 云音助手”中填写大模型接口与密钥；播放控制、点歌、音量与定时等常用指令不用设置也能直接说。');
@@ -324,11 +329,11 @@ class AssistantController extends ChangeNotifier {
       if (turn == null) {
         turn = out.begin();
         turn.add(failed ? reply.text.split('\n').last : reply.text);
-        _monitor(true);
+        await _beginTurn();
       }
       // 等说完（被打断时立即返回）。
       await turn.end();
-      _monitor(false);
+      _endTurn();
     }
     if (!spoken) return;
     // 连续对话：说完后接着听（这期间用户已经开口打断、或者又点了麦克风时，已经在听了）。
@@ -351,9 +356,39 @@ class AssistantController extends ChangeNotifier {
     }
   }
 
-  /// 朗读期间检测用户开口（打断）。
-  void _monitor(bool on) {
-    if (settings.bargeIn || !on) _worker?.setMonitor(on);
+  /// 正在朗读助手的回答（这期间可以打断）。
+  bool _turnActive = false;
+
+  /// 打断检测是否已打开。
+  bool _monitoring = false;
+
+  /// 声音从耳机播放（有线、蓝牙或 USB 耳机）：这时才允许直接开口打断。
+  bool _headset = false;
+
+  /// 朗读期间检测用户开口（打断）。只在真正发出声音（音乐已压低）时打开，并且只在戴耳机时打开：
+  /// 用手机外放时，朗读声与音乐会被麦克风收进去，误认为用户在说话。外放时说唤醒词打断（唤醒词检测一直在运行）。
+  void _syncMonitor() {
+    final on = _turnActive && _headset && settings.bargeIn && (speech?.audible ?? false) && status != AssistantStatus.listening;
+    if (on == _monitoring) return;
+    _monitoring = on;
+    _worker?.setMonitor(on);
+  }
+
+  Future<void> _beginTurn() async {
+    _turnActive = true;
+    if (_android) {
+      try {
+        _headset = await _channel.invokeMethod<bool>('headset') ?? false;
+      } catch (_) {
+        _headset = false;
+      }
+    }
+    _syncMonitor();
+  }
+
+  void _endTurn() {
+    _turnActive = false;
+    _syncMonitor();
   }
 
   void clear() {
@@ -859,6 +894,7 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
   @override
   void dispose() {
     settings.removeListener(_syncVoice);
+    speech?.removeListener(_syncMonitor);
     unawaited(_stopVoice());
     _recorder?.dispose();
     _wakeEvents.close();
