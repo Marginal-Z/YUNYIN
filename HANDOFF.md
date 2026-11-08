@@ -38,7 +38,8 @@ flutter test --no-pub -j 4
 | `d1d53a5` | 桌宠：团团、星月、阿曜，会动、有表情（见 4.2） |
 | `30ccc20` | 桌宠“多久没人理”使用注入的时钟（修复：时区不同时一启动就打瞌睡） |
 | `dee49b0` | CI：缓存 Gradle 与 libmpv 安卓库，构建前带重试预先下载 |
-| （本文档所在的提交） | `tool/ci/` 下载脚本（还没接进工作流），以及这份交接文档 |
+| `cbb48a0` | `tool/ci/` 下载脚本，以及这份交接文档 |
+| `ae9a8e9` | 把下载脚本接进 CI 工作流，CI 全部通过 |
 
 `CHANGELOG.md` 的 v1.1.25 一节已经写好了以上内容。
 
@@ -90,53 +91,27 @@ flutter test --no-pub -j 4
 - **`wake_word.dart`**：把汉字唤醒词转成拼音，转换用的读音表是 `assets/pinyin/hanzi.txt`。
 - **重要约束**：后台计算用 `compute(静态函数, 数据)`，**不要用捕获了上下文的 `Isolate.run` 闭包**。它在 release AOT 模式下会失败。
 
-## 5. CI 现状（最后一次构建：run 42470487838，对应提交 `dee49b0`）
+## 5. CI 现状：全部通过
 
-### 5.1 通过的部分
+最后一次构建是 run 42475338239，对应提交 `ae9a8e9`，所有任务都通过：
+- 静态检查与测试；
+- Android（4 个 APK，`PetOverlay.kt` 已编译）、Windows、macOS、Linux x64 / arm64 的构建与打包；
+- Android 模拟器、Windows、macOS、Linux 的音频验证。
 
-- 静态检查与测试。
-- **Android 构建**：4 个 APK 都编译成功，`PetOverlay.kt` 第一次通过编译。
-- Android 模拟器的音频验证。
-- macOS 构建。
-- macOS 与 Linux 的音频验证。
+### 5.1 GitHub 发布文件下载不稳定的处理
 
-### 5.2 失败的部分：都是下载 GitHub 发布文件失败，与代码无关
-
-- **Windows x64、Windows 音频验证**：media_kit 在 CMake 里从 GitHub 下载 libmpv 压缩包，下载失败，报 `Integrity check failed`。
-- **Linux x64 与 arm64**：程序本身已经编译成功，失败在 `tool/linux/package.sh` 下载 linuxdeploy / appimagetool 这一步（curl 退出码 22/56）。
-- **原因**：当天 GitHub 的 `github.com/<owner>/<repo>/releases/download/...` 入口间歇性返回 504，有时 GitHub API 和网站也会超时。通过 GitHub API 下载同一个发布文件（`/repos/{o}/{r}/releases/assets/{id}`，请求头 `Accept: application/octet-stream`）多数时候可以成功。
-
-### 5.3 `tool/ci/`：已写好并提交，**还没接进工作流**
-
-**三个脚本**
+- **起因**：2026-11-08 那天，GitHub 的 `github.com/<owner>/<repo>/releases/download/...` 入口间歇性返回 504，有时 API 和网站也会超时。Android 构建要从 GitHub 下载 Gradle、libmpv，甚至 Kotlin 编译器；Windows 的 media_kit 和 Linux 打包工具也一样，当时这些任务都失败了。
+- **处理**：`tool/ci/` 里的三个脚本已经接进 `.github/workflows/build.yml`。
 
 | 脚本 | 作用 |
 | --- | --- |
-| `gh_release_download.sh <下载地址> <保存路径>` | 每一轮先试官方下载地址，失败就改用 GitHub API，最多 10 轮，每轮间隔 20 秒。设置了 `GITHUB_TOKEN` 时 API 请求会带上它。 |
-| `prefetch_android.sh` | 下载 Gradle，用 `downloads.gradle.org` 公布的 SHA-256 校验，然后把 `gradle-wrapper.properties` 的 `distributionUrl` 改成本地文件（只在 CI 里改）；下载 4 个 libmpv 安卓 jar 到 `build/media_kit_libs_android_audio/<版本>/`，用插件自带的 MD5 校验。 |
-| `prefetch_windows.sh` | 在 Git Bash 下运行。下载 libmpv 的 7z 到 `build/windows/x64/`，用插件 CMakeLists 里的 MD5 校验。 |
+| `gh_release_download.sh <下载地址> <保存路径>` | 每一轮先试官方下载地址，失败就改用 GitHub API（`/repos/{o}/{r}/releases/assets/{id}`，请求头 `Accept: application/octet-stream`），最多 10 轮，每轮间隔 20 秒。使用工作流的 `GITHUB_TOKEN`。 |
+| `prefetch_android.sh` | 在 android 和 audio-android 两个任务里运行。Gradle 用官网公布的 SHA-256 校验，然后让 Gradle 包装器使用本地文件（只在 CI 里改 `distributionUrl`）；libmpv 的 jar 用插件自带的 MD5 校验。 |
+| `prefetch_windows.sh` | 在 windows 任务和 audio-desktop 的 Windows 任务里运行（Git Bash）。libmpv 压缩包下载到 `build/windows/x64/`，用 MD5 校验。 |
 
-**本地测试结果**
-- `prefetch_android.sh`：已在临时目录完整跑通，Gradle 和 4 个 jar 都通过了校验。
-- `prefetch_windows.sh`：GitHub 最不稳定的时段，10 轮（约 5 分钟）都失败过两次。之后在调试模式下重跑，官方地址一次就成功了；手动用 API 下载的文件 MD5 也一致。查过匿名 API 的额度没有用完（每小时 60 次，当时还剩 34 次），所以失败是网络问题，不是脚本逻辑的问题。
-
-**下一步：接进 `.github/workflows/build.yml`**
-1. **android 与 audio-android 两个任务**：把现有的内联步骤“预先下载 Gradle 与 libmpv（失败自动重试）”换成 `run: tool/ci/prefetch_android.sh`，并加上 `env: GITHUB_TOKEN: ${{ github.token }}`。
-   - 现有内联步骤里的 `flutter build apk --config-only` 和 `./gradlew --version` 可以删掉，脚本已经让 Gradle 使用本地文件。
-   - 保留 `actions/cache`（缓存 libmpv）和 `setup-java` 的 `cache: gradle`。
-2. **windows 任务**：在 `flutter pub get` 之后、`flutter build windows` 之前加一步：
-   ```yaml
-   - shell: bash
-     env:
-       GITHUB_TOKEN: ${{ github.token }}
-     run: tool/ci/prefetch_windows.sh
-   ```
-3. **audio-desktop 任务**：只在 Windows 上加同样的一步（`if: matrix.device == 'windows'`）。
-4. **`tool/linux/package.sh`**：把 `fetch()` 里的 `curl -fsSL -o "$WORK/$1" "$2"` 换成 `"$ROOT/tool/ci/gh_release_download.sh" "$2" "$WORK/$1"`，并在 linux 任务的打包步骤加上 `GITHUB_TOKEN` 环境变量。
-
-**注意事项**
-- `jq` 和 `curl` 在 GitHub 的 Ubuntu 和 Windows 镜像里都有。macOS 用的是 bash 3.2，脚本里的空数组已经用 `${auth[@]+"${auth[@]}"}` 处理，不过 macOS 任务用不到这些脚本。
-- 不要改用 ghfast.top 这类第三方镜像：它们只是转发到 GitHub，GitHub 出故障时同样返回 504，而且有被篡改的风险。
+- **其他改动**：`tool/linux/package.sh` 的 `fetch()` 也改用 `gh_release_download.sh`。另外，`setup-java` 设置了 `cache: gradle`，libmpv 安卓库也用 `actions/cache` 缓存。
+- **实际效果**：在 run 42475338239 里，Linux x64 打包时官方地址失败一次，改用 API 后下载成功。
+- **注意**：不要改用 ghfast.top 这类第三方镜像。它们只是转发到 GitHub，GitHub 出故障时同样失败，而且有被篡改的风险。
 
 ## 6. 还没做完的事
 
