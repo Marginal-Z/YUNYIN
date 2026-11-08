@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -55,6 +56,42 @@ void main() {
     // 同一首歌 20 分钟内不再请求。
     await kg.stream(song, AudioQuality.lossless);
     expect(log.where((o) => o.uri.path == '/v5/url').length, 2);
+    dio.close();
+  });
+
+  test('酷狗概念版：扫码选概念版得到概念版账号；之后的请求用概念版的 appid、签名、设备与播放参数', () async {
+    SharedPreferences.setMockInitialValues({'kugou.guid': 'guid-test', 'kugou.dfid': 'dfid-std', 'kugou.dfid.lite': 'dfid-lite'});
+    final log = <RequestOptions>[];
+    final dio = _dio({
+      '/v2/qrcode': (_) => {'status': 1, 'data': {'qrcode': 'qr-key'}},
+      '/v2/get_userinfo_qrcode': (_) => {'status': 1, 'data': {'status': 4, 'token': 'lite-token', 'userid': 42, 'nickname': '概念'}},
+      '/risk/v3/r_register_dev': (_) => {'status': 0, 'error_code': 20010, 'data': 'rsa failure'},
+      '/v5/url': (_) => {'status': 1, 'url': ['https://fs.example/a.mp3'], 'extName': 'mp3', 'bitRate': 128000},
+    }, log: log);
+    final kg = KugouSource(dio: dio);
+    await kg.init();
+    kg.loginLite = true;
+    final ticket = await kg.createQrLogin();
+    expect(ticket.app, '酷狗概念版 App');
+    expect(log.last.queryParameters['qrcode_txt'], contains('appid=3116'));
+    expect(await kg.checkQrLogin(ticket), QrState.confirmed);
+    expect(log.last.queryParameters['appid'], '3116');
+    expect(kg.isLiteAccount, isTrue);
+    await kg.stream(song, AudioQuality.standard);
+    final q = Map<String, String>.from(log.lastWhere((o) => o.uri.path == '/v5/url').queryParameters.map((k, v) => MapEntry(k, '$v')));
+    expect(q['appid'], '3116');
+    expect(q['page_id'], '967177915');
+    expect(q['pid'], '411');
+    expect(q['ppage_id'], '356753938,823673182,967485191');
+    expect(q['token'], 'lite-token');
+    // 登录后按新账号重新注册设备（这里模拟注册失败），注册请求也用概念版客户端。
+    expect(log.firstWhere((o) => o.uri.path == '/risk/v3/r_register_dev').queryParameters['appid'], '3116');
+    final mid = BigInt.parse(md5.convert(utf8.encode('guid-test')).toString(), radix: 16).toString();
+    expect(q['key'], md5.convert(utf8.encode('abc123185672dd44712f60bb1736df5a377e823116${mid}42')).toString());
+    final sig = q.remove('signature');
+    final keys = q.keys.toList()..sort();
+    const salt = 'LnT6xpN3khm36zse0QzvmgTZ3waWdRSA';
+    expect(sig, md5.convert(utf8.encode('$salt${keys.map((k) => '$k=${q[k]}').join()}$salt')).toString());
     dio.close();
   });
 

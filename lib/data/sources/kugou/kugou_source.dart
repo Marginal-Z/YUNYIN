@@ -35,7 +35,15 @@ class KugouSource extends MusicSource {
   /// 客户端接口的设备：guid 随机生成并保存，mid 由 guid 计算（与酷狗客户端相同），dfid 向酷狗注册设备后得到。
   String _guid = '';
   String get _mid => _guid.isEmpty ? _deviceId : BigInt.parse(md5.convert(utf8.encode(_guid)).toString(), radix: 16).toString();
-  String? _dfid;
+  /// 向酷狗注册设备得到的 dfid：普通版与概念版是两个客户端，各自注册。
+  String? _dfidStd;
+  String? _dfidLite;
+  String? get _dfid => _lite ? _dfidLite : _dfidStd;
+  set _dfid(String? v) => _lite ? _dfidLite = v : _dfidStd = v;
+  String get _dfidPrefsKey => _lite ? 'kugou.dfid.lite' : 'kugou.dfid';
+
+  /// 扫码登录时使用的客户端：true 为酷狗概念版（登录页选择）。
+  bool loginLite = false;
 
   @override
   String get id => sourceId;
@@ -44,7 +52,7 @@ class KugouSource extends MusicSource {
   String get name => '酷狗音乐';
 
   @override
-  String get description => '酷狗的搜索、排行榜、歌单与账号，酷狗 App 扫码登录后按账号权限播放';
+  String get description => '酷狗的搜索、排行榜、歌单与账号，酷狗音乐或酷狗概念版 App 扫码登录后按账号权限播放';
 
   @override
   Set<SourceFeature> get features => {
@@ -76,6 +84,13 @@ class KugouSource extends MusicSource {
   /// 扫码登录得到的客户端凭据（网页登录的凭据为 false）。
   bool get _appAccount => _account?['_app'] == '1';
 
+  /// 酷狗概念版的账号：概念版是单独的客户端（appid、签名、设备注册都不同），登录凭据与普通版不通用，
+  /// 概念版 VIP 也只在概念版客户端的接口中生效。
+  bool get _lite => _appAccount && _account?['_lite'] == '1';
+
+  /// 当前账号是否为酷狗概念版。
+  bool get isLiteAccount => _lite;
+
   @override
   UserProfile? get user => _user;
 
@@ -90,7 +105,8 @@ class KugouSource extends MusicSource {
         _guid = md5.convert(utf8.encode('${DateTime.now().microsecondsSinceEpoch}-${math.Random.secure().nextDouble()}-guid')).toString();
         await prefs.setString('kugou.guid', _guid);
       }
-      _dfid = prefs.getString('kugou.dfid');
+      _dfidStd = prefs.getString('kugou.dfid');
+      _dfidLite = prefs.getString('kugou.dfid.lite');
       final raw = prefs.getString(_prefsKey);
       if (raw != null) _setAccount(Map<String, String>.from(jsonDecode(raw) as Map));
     } catch (e) {
@@ -186,17 +202,19 @@ class KugouSource extends MusicSource {
   Future<QrTicket> createQrLogin() async {
     cancelQrLogin();
     final generation = _qrGeneration;
+    final lite = loginLite;
     final j = await _web('https://login-user.kugou.com/v2/qrcode', {
       'appid': '1001',
       'type': '1',
       'plat': '4',
-      'qrcode_txt': 'https://h5.kugou.com/apps/loginQRCode/html/index.html?appid=$_appId&',
+      'qrcode_txt': 'https://h5.kugou.com/apps/loginQRCode/html/index.html?appid=${lite ? _liteAppId : _stdAppId}&',
       'srcappid': '2919',
+      if (lite) 'clientver': '$_liteClientVer',
     });
     if (generation != _qrGeneration) throw StateError('扫码登录已取消，请重新扫码');
     final key = '${(j['data'] as Map?)?['qrcode'] ?? ''}';
     if ('${j['status']}' != '1' || key.isEmpty) throw Exception('获取酷狗登录二维码失败${_why(j)}');
-    return QrTicket(key, 'https://h5.kugou.com/apps/loginQRCode/html/index.html?qrcode=$key', app: '酷狗音乐 App');
+    return QrTicket(key, 'https://h5.kugou.com/apps/loginQRCode/html/index.html?qrcode=$key', app: lite ? '酷狗概念版 App' : '酷狗音乐 App');
   }
 
   @override
@@ -205,7 +223,14 @@ class KugouSource extends MusicSource {
   @override
   Future<QrState> checkQrLogin(QrTicket ticket) async {
     final generation = _qrGeneration;
-    final j = await _web('https://login-user.kugou.com/v2/get_userinfo_qrcode', {'plat': '4', 'appid': '$_appId', 'srcappid': '2919', 'qrcode': ticket.key});
+    final lite = loginLite;
+    final j = await _web('https://login-user.kugou.com/v2/get_userinfo_qrcode', {
+      'plat': '4',
+      'appid': '${lite ? _liteAppId : _stdAppId}',
+      'srcappid': '2919',
+      'qrcode': ticket.key,
+      if (lite) 'clientver': '$_liteClientVer',
+    });
     if (generation != _qrGeneration) throw StateError('扫码登录已取消，请重新扫码');
     if ('${j['status']}' != '1') throw Exception('查询扫码状态失败${_why(j)}');
     final d = j['data'] as Map? ?? const {};
@@ -220,7 +245,7 @@ class KugouSource extends MusicSource {
         final token = '${d['token'] ?? ''}';
         final userid = '${d['userid'] ?? ''}';
         if (token.isEmpty || userid.isEmpty || userid == '0') throw Exception('酷狗没有返回登录凭据，请重新扫码');
-        _setAccount({'KugooID': userid, 't': token, 'NickName': '${d['nickname'] ?? ''}', 'Pic': '${d['pic'] ?? ''}', '_app': '1'});
+        _setAccount({'KugooID': userid, 't': token, 'NickName': '${d['nickname'] ?? ''}', 'Pic': '${d['pic'] ?? ''}', '_app': '1', if (lite) '_lite': '1'});
         await _saveAccount();
         // 新账号在本机重新注册一次设备，按账号身份校验。
         unawaited(_registerDevice(force: true).catchError((Object _) => '-'));
@@ -241,9 +266,18 @@ class KugouSource extends MusicSource {
   // ── 客户端接口 ──────────────────────────────────────
   // 酷狗安卓客户端的请求方式：带设备标识（dfid / mid / uuid）、客户端版本与签名，登录后带 token 与 userid。
 
-  static const _appId = 1005;
-  static const _clientVer = 20489;
-  static const _appKey = 'OIlwieks28dk2k092lksi2UIkp';
+  static const _stdAppId = 1005;
+  static const _stdClientVer = 20489;
+  static const _stdKey = 'OIlwieks28dk2k092lksi2UIkp';
+
+  /// 酷狗概念版客户端（参数与签名盐值参考 MakcRe/KuGouMusicApi，MIT 协议）。
+  static const _liteAppId = 3116;
+  static const _liteClientVer = 11440;
+  static const _liteKey = 'LnT6xpN3khm36zse0QzvmgTZ3waWdRSA';
+
+  int get _appId => _lite ? _liteAppId : _stdAppId;
+  int get _clientVer => _lite ? _liteClientVer : _stdClientVer;
+  String get _appKey => _lite ? _liteKey : _stdKey;
   static const _webKey = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt';
   static const _appUa = 'Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi';
 
@@ -324,15 +358,24 @@ class KugouSource extends MusicSource {
   // 未注册的设备取播放地址会被要求验证（20028 / 30020）。注册接口的请求体用随机密钥做 AES 加密，
   // 密钥用酷狗客户端内置的 RSA 公钥加密后放在 p 参数中；返回的 dfid 保存在本机，之后一直使用。
 
+  BigInt get _rsaModulus => _lite ? _liteModulus : _stdModulus;
+
+  /// 酷狗概念版客户端内置的 RSA 公钥模数。
+  static final _liteModulus = BigInt.parse(
+    'c40a2d0da76511f3bb1cc2bbd3afbd8bea83b4d6b05b6c13eb8920c53f1af7679b32ba0d0edb843240ef1b836efed3ee240734c14c1399fd6594d16af22f5252'
+    '5d14d72e0155c6dcc8638d4f7bb94f3a0b1f4c29f991972f2a160a25eb0a9e724336be7f69bbd319ffab1c6dd8470b021dc434f3faba89f4a2a01b33bdbdd08b',
+    radix: 16,
+  );
+
   /// 酷狗客户端内置的 RSA 公钥模数。
-  static final _rsaModulus = BigInt.parse(
+  static final _stdModulus = BigInt.parse(
     'c8006ed03842d2628209bd314984ca5ed6cfe06e30c95f9d4704d9c49791d7a935ba950ecb0bc8ebf5f5994f0bac927a7eb151b3c1de343303fa539c83136ecc'
     'fd7d7e511e2dbce18eaa9f784c9b50d443e75865979e0a5e216e46c684066a8d6b998580bbaa22d73f5790286bb14742e83244e44db6d707ffe162c5c7002d45',
     radix: 16,
   );
 
   /// 账号接口的 p 参数：JSON 末尾补 0 到 128 字节后做 RSA 运算（不带填充）。
-  static String _rsa(Map<String, Object?> data) {
+  String _rsa(Map<String, Object?> data) {
     final bytes = utf8.encode(jsonEncode(data));
     final padded = List<int>.filled(128, 0)..setRange(0, bytes.length, bytes);
     final m = padded.fold(BigInt.zero, (v, b) => (v << 8) | BigInt.from(b));
@@ -340,7 +383,7 @@ class KugouSource extends MusicSource {
   }
 
   /// RSA PKCS#1 v1.5 加密（设备注册的 p 参数）。
-  static String _rsaPkcs1(List<int> message) {
+  String _rsaPkcs1(List<int> message) {
     final r = math.Random.secure();
     final em = <int>[0, 2, for (var i = 0; i < 128 - 3 - message.length; i++) 1 + r.nextInt(255), 0, ...message];
     final m = em.fold(BigInt.zero, (v, b) => (v << 8) | BigInt.from(b));
@@ -437,7 +480,7 @@ class KugouSource extends MusicSource {
         if ('${j['status']}' != '1' || dfid.isEmpty) throw _KugouRefusal('${j['error_code'] ?? ''}', '${j['data'] is String ? j['data'] : ''}');
         _dfid = dfid;
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('kugou.dfid', dfid);
+        await prefs.setString(_dfidPrefsKey, dfid);
         return dfid;
       } catch (e) {
         debugPrint('kugou register device: $e');
@@ -560,7 +603,9 @@ class KugouSource extends MusicSource {
     }
     try {
       final d = await _account2('/v1/get_union_vip', base: 'https://kugouvip.kugou.com', query: const {'busi_type': 'concept'});
-      return kugouMembership(d);
+      final m = kugouMembership(d);
+      if (!_lite) return m;
+      return Membership(platform: '酷狗概念版', title: m.title, active: m.active, level: m.level, expires: m.expires, benefits: m.benefits, relogin: m.relogin);
     } catch (e) {
       debugPrint('kugou vip: $e');
       final text = '$e'.replaceFirst('Exception: ', '');
@@ -628,7 +673,7 @@ class KugouSource extends MusicSource {
     final a = _account;
     if (a == null) return '$out未登录';
     final id = a['KugooID'] ?? '';
-    out.writeln('账号：${id.length > 4 ? '${id.substring(0, 2)}***${id.substring(id.length - 2)}' : '***'}，${_appAccount ? '酷狗 App 扫码登录（客户端凭据）' : '网页登录 / Cookie（网页凭据，客户端接口不认可）'}');
+    out.writeln('账号：${id.length > 4 ? '${id.substring(0, 2)}***${id.substring(id.length - 2)}' : '***'}，${_appAccount ? (_lite ? '酷狗概念版 App 扫码登录（概念版客户端凭据）' : '酷狗 App 扫码登录（客户端凭据）') : '网页登录 / Cookie（网页凭据，客户端接口不认可）'}');
     out.writeln('设备：${(_dfid ?? '').isEmpty ? '未注册' : '已注册'}');
     Future<void> step(String name, Future<String> Function() run) async {
       try {
@@ -1378,19 +1423,19 @@ class KugouSource extends MusicSource {
         'hash': ids.hash.toLowerCase(),
         'ssa_flag': 'is_fromtrack',
         'version': 11430,
-        'page_id': 151369488,
+        'page_id': _lite ? 967177915 : 151369488,
         'quality': quality,
         'album_audio_id': int.tryParse(ids.audio) ?? 0,
         'behavior': 'play',
-        'pid': 2,
+        'pid': _lite ? 411 : 2,
         'cmd': 26,
         'pidversion': 3001,
         'IsFreePart': freePart ? 1 : 0,
-        'ppage_id': '463467626,350369493,788954147',
+        'ppage_id': _lite ? '356753938,823673182,967485191' : '463467626,350369493,788954147',
         'cdnBackup': 1,
         'module': '',
         'clientver': 11430,
-        'key': md5.convert(utf8.encode('${ids.hash.toLowerCase()}57ae12eb6890223e355ccfcb74edf70d$_appId$_mid${a?['KugooID'] ?? 0}')).toString(),
+        'key': md5.convert(utf8.encode('${ids.hash.toLowerCase()}${_lite ? '185672dd44712f60bb1736df5a377e82' : '57ae12eb6890223e355ccfcb74edf70d'}$_appId$_mid${a?['KugooID'] ?? 0}')).toString(),
       },
     );
   }

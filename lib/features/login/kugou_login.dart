@@ -30,6 +30,13 @@ class KugouLoginCard extends StatelessWidget {
   /// 打开扫码登录。
   final VoidCallback onQr;
 
+  /// 选择用哪个版本的酷狗 App 扫码，然后打开扫码登录。
+  void _qr(BuildContext context, {required bool lite}) {
+    final source = context.read<SourceManager>().current;
+    if (source is KugouSource) source.loginLite = lite;
+    onQr();
+  }
+
   Future<void> _paste(BuildContext context) async {
     final source = context.read<SourceManager>().current;
     final ctl = TextEditingController();
@@ -99,9 +106,15 @@ class KugouLoginCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('打开手机上的酷狗音乐 App 扫码，确认后即可登录。登录后可以查看歌单、收藏与会员，并按账号会员权限播放。', style: ts(14, height: 1.5, color: p.text2)),
+        Text(
+          '用手机上的酷狗音乐或酷狗概念版 App 扫码，确认后即可登录，可以查看歌单、收藏与会员，并按账号会员权限播放。'
+          '两个版本的登录凭据与会员互不通用：开通的是概念版 VIP，请用概念版扫码。',
+          style: ts(14, height: 1.5, color: p.text2),
+        ),
         const SizedBox(height: 16),
-        PrimaryButton(label: '酷狗 App 扫码登录', icon: YIcons.qr, height: 52, fontSize: 17, expand: true, onTap: onQr),
+        PrimaryButton(label: '酷狗音乐 App 扫码登录', icon: YIcons.qr, height: 52, fontSize: 17, expand: true, onTap: () => _qr(context, lite: false)),
+        const SizedBox(height: 10),
+        SizedBox(width: double.infinity, child: SecondaryButton(label: '酷狗概念版 App 扫码登录', icon: YIcons.qr, iconSize: 18, height: 48, fontSize: 15, onTap: () => _qr(context, lite: true))),
         const SizedBox(height: 10),
         Row(
           children: [
