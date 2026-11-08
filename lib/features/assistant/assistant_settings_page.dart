@@ -9,6 +9,7 @@ import '../../assistant/assistant_controller.dart';
 import '../../assistant/assistant_settings.dart';
 import '../../assistant/voice_engine.dart';
 import '../../core/theme/palette.dart';
+import '../../pet/pet_rig.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
@@ -112,6 +113,18 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                 );
               },
             ),
+            Builder(
+              builder: (context) {
+                final pet = PetKind.byName(s.pet);
+                return SettingsRow(
+                  title: '桌宠',
+                  subtitle: pet == null ? '团团、星月、阿曜 · 在桌面上陪你听歌，点一下就能说话' : '${pet.label}（${pet.style}）已在桌面上',
+                  height: 64,
+                  chevron: true,
+                  onTap: () => context.read<AppNav>().push(PetRoute()),
+                );
+              },
+            ),
             _WakeWordRow(),
             SettingsRow(
               title: '识别模型',
@@ -130,7 +143,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         ),
         if (a.downloadProgress != null) ...[
           const SizedBox(height: 10),
-          Text('正在下载离线语音模型（约 31 MB，只需下载一次）…', style: ts(13, color: p.text2)),
+          Text('正在下载离线语音模型（${s.asrModel.label}约 ${s.asrModel.sizeMb} MB，只需下载一次）…', style: ts(13, color: p.text2)),
           const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(3),

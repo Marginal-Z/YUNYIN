@@ -33,6 +33,7 @@ class MainActivity : AudioServiceActivity() {
     override fun onResume() {
         super.onResume()
         LyricsOverlay.setAppVisible(this, true)
+        PetOverlay.setAppVisible(this, true)
         preferHighRefreshRate()
     }
 
@@ -113,6 +114,7 @@ class MainActivity : AudioServiceActivity() {
     override fun onPause() {
         super.onPause()
         LyricsOverlay.setAppVisible(this, false)
+        PetOverlay.setAppVisible(this, false)
     }
 
     /**
@@ -173,6 +175,23 @@ class MainActivity : AudioServiceActivity() {
                         (call.argument<Double>("rate") ?: 1.0).toFloat(),
                         call.argument<String>("lang") ?: "zh",
                     ) { ok -> main.post { result.success(ok) } }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        // 桌宠悬浮窗（见 PetOverlay）：主程序推送开关与状态，悬浮窗上的点按经由这条通道回到主程序。
+        val pet = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/pet")
+        PetOverlay.mainChannel = pet
+        pet.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "configure" -> {
+                    PetOverlay.configure(app, call.argument<Boolean>("enabled") ?: false)
+                    result.success(null)
+                }
+                "state" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    PetOverlay.update(app, (call.arguments as? Map<String, Any?>) ?: emptyMap())
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }

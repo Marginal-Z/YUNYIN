@@ -89,6 +89,7 @@ flutter:
   assets:
     - assets/icon/themes/
     - assets/pinyin/
+    - assets/pets/
     - shaders/THIRD_PARTY_NOTICES.txt
 
   shaders:

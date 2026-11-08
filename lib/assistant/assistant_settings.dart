@@ -50,6 +50,15 @@ class AssistantSettings extends ChangeNotifier {
   List<String> get wakeWordTokens => _wakeTokens.isEmpty ? kWakeWords : [_wakeTokens, ...kWakeWords.take(1)];
   String _wakeTokens = '';
 
+  /// 桌宠（为空表示关闭）：团团、星月或阿曜（见 PetKind），在桌面上显示并可以点按说话。
+  String pet = '';
+
+  /// 桌宠大小：0 小、1 中、2 大。
+  int petSize = 1;
+
+  /// 桌宠本身的高度（逻辑像素）。
+  double get petHeight => const [104.0, 132.0, 164.0][petSize.clamp(0, 2)];
+
   bool get llmConfigured => apiKey.trim().isNotEmpty && baseUrl.trim().isNotEmpty && model.trim().isNotEmpty;
 
   Future<void> init() async {
@@ -62,6 +71,20 @@ class AssistantSettings extends ChangeNotifier {
     asrModel = AsrModel.values.asNameMap()[_p.getString('assistant.asr')] ?? AsrModel.senseVoice;
     wakeWord = _p.getString('assistant.wakeWord') ?? '';
     _wakeTokens = _p.getString('assistant.wakeTokens') ?? '';
+    pet = _p.getString('assistant.pet') ?? '';
+    petSize = _p.getInt('assistant.petSize') ?? 1;
+  }
+
+  void setPet(String v) {
+    pet = v;
+    _p.setString('assistant.pet', v);
+    notifyListeners();
+  }
+
+  void setPetSize(int v) {
+    petSize = v.clamp(0, 2);
+    _p.setInt('assistant.petSize', petSize);
+    notifyListeners();
   }
 
   void setAsrModel(AsrModel m) {

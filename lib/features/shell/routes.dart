@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../artist/artist_page.dart';
 import '../assistant/assistant_settings_page.dart';
+import '../assistant/pet_page.dart';
 import '../cloud/cloud_pages.dart';
 import '../discover/discover_page.dart';
 import '../home/desktop_home_page.dart';
@@ -38,6 +39,7 @@ Widget buildMobileRoute(AppRoute r) => switch (r) {
   SettingsMoreRoute() => const SettingsMorePage(),
   AssistantSettingsRoute() => const AssistantSettingsPage(),
   VoiceCenterRoute() => const VoiceCenterPage(),
+  PetRoute() => const PetPage(),
   AppearanceRoute() => const AppearancePage(),
   StatsRoute() => const StatsPage(),
   AboutRoute(:final page) => buildAboutPage(page),

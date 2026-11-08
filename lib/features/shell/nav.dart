@@ -134,6 +134,15 @@ class SettingsRoute extends AppRoute {
   String get sideKey => 'settings';
 }
 
+/// 桌宠：挑选与预览桌宠，打开后显示在桌面上。
+class PetRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
 /// 音色中心：云音助手的音色与语音引擎。
 class VoiceCenterRoute extends AppRoute {
   @override

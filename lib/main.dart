@@ -33,12 +33,20 @@ import 'features/desktop/lyrics_window.dart';
 import 'features/desktop/window_controls.dart';
 import 'player/player_controller.dart';
 import 'player/system_media.dart';
+import 'pet/pet_host.dart';
+import 'pet/pet_window.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   // 桌面歌词是独立的窗口（单独的 Flutter 引擎），入口参数为 ["multi_window", 窗口 ID, 窗口参数]。
   if (isDesktopPlatform && args.firstOrNull == 'multi_window') {
-    await runLyricsWindow(args.length > 2 ? args[2] : '{}');
+    final arguments = args.length > 2 ? args[2] : '{}';
+    // 桌宠窗口与桌面歌词窗口共用这个入口，按参数里的类型区分。
+    if (arguments.contains('"$kPetWindowArgument"')) {
+      await runPetWindow(arguments);
+    } else {
+      await runLyricsWindow(arguments);
+    }
     return;
   }
   SmoothWheel.install();
@@ -126,6 +134,8 @@ Future<void> main(List<String> args) async {
   final speech = SpeechOutput(voiceSettings, onDuck: player.duck);
   final assistant = AssistantController(settings: assistantSettings, app: settings, player: player, sources: sources, stats: stats, speech: speech);
   if (!benchmarkRequested && !screenshotsRequested) unawaited(assistant.init());
+  // 桌宠：Android 悬浮窗或桌面端置顶小窗口。
+  if (!benchmarkRequested && !screenshotsRequested) PetHost.attach(settings: assistantSettings, assistant: assistant, speech: speech, player: player, voice: voiceSettings);
 
   if (splashShotsRequested) prepareSplashShots();
   runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, drives: drives, updater: updater, stats: stats, lyricsOverlay: lyricsOverlay, lx: lx, assistant: assistant));
@@ -133,3 +143,7 @@ Future<void> main(List<String> args) async {
   if (screenshotsRequested) unawaited(runScreenshots(rootNavigatorKey));
   if (splashShotsRequested) unawaited(runSplashShots());
 }
+
+/// Android 桌宠悬浮窗的入口（由 PetOverlay.kt 在单独的 Flutter 引擎中启动）。
+@pragma('vm:entry-point')
+Future<void> petOverlayMain() => runPetOverlay();
