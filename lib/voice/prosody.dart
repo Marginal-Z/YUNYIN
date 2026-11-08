@@ -26,6 +26,11 @@ abstract final class ProsodyPlanner {
 
   static final _tagPattern = RegExp(r'^\s*[\[【(（]\s*([^\]】)）]{1,8})\s*[\]】)）]\s*');
 
+  static final _anyTag = RegExp(r'[\[【]\s*([^\]】]{1,8})\s*[\]】]\s*');
+
+  /// 显示用的文字：去掉文中所有的情绪标记（大模型偶尔在段落中间也加）。
+  static String displayText(String text) => text.replaceAllMapped(_anyTag, (m) => _tags.containsKey(m.group(1)!.trim().toLowerCase()) ? '' : m.group(0)!);
+
   /// 去掉开头的情绪标记，返回（文字，标记出的情绪）。
   static (String, Emotion?) stripTag(String text) {
     final m = _tagPattern.firstMatch(text);

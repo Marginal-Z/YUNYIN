@@ -135,9 +135,21 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
             ),
             SettingsRow(
               title: '朗读回答',
-              subtitle: '语音提问时用系统语音读出回答',
+              subtitle: '语音提问时用所选音色读出回答，边生成边读',
               height: 64,
               trailing: YSwitch(value: s.speakReplies, label: '朗读回答', onChanged: s.setSpeakReplies),
+            ),
+            SettingsRow(
+              title: '连续对话',
+              subtitle: '回答完自动继续听，不用每句都说唤醒词；几秒不说话就结束',
+              height: 64,
+              trailing: YSwitch(value: s.continuous, label: '连续对话', onChanged: s.setContinuous),
+            ),
+            SettingsRow(
+              title: '开口打断',
+              subtitle: '朗读时直接说话就能打断；关闭后只有说唤醒词或点按才能打断',
+              height: 64,
+              trailing: YSwitch(value: s.bargeIn, label: '开口打断', onChanged: s.setBargeIn),
             ),
           ],
         ),

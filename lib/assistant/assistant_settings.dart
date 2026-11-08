@@ -33,6 +33,12 @@ class AssistantSettings extends ChangeNotifier {
   /// 用语音播报助手的回答。
   bool speakReplies = true;
 
+  /// 连续对话：语音提问时，回答完自动继续听，不用每句都说唤醒词；几秒没说话就结束。
+  bool continuous = true;
+
+  /// 朗读回答时可以直接开口打断（检测到持续说话就停下朗读并开始听）。说唤醒词总能打断。
+  bool bargeIn = true;
+
   /// 大模型接口（兼容 OpenAI 的 /chat/completions）。
   String baseUrl = AiProvider.presets.first.baseUrl;
   String model = AiProvider.presets.first.model;
@@ -71,6 +77,8 @@ class AssistantSettings extends ChangeNotifier {
     asrModel = AsrModel.values.asNameMap()[_p.getString('assistant.asr')] ?? AsrModel.senseVoice;
     wakeWord = _p.getString('assistant.wakeWord') ?? '';
     _wakeTokens = _p.getString('assistant.wakeTokens') ?? '';
+    continuous = _p.getBool('assistant.continuous') ?? true;
+    bargeIn = _p.getBool('assistant.bargeIn') ?? true;
     pet = _p.getString('assistant.pet') ?? '';
     petSize = _p.getInt('assistant.petSize') ?? 1;
   }
@@ -105,6 +113,18 @@ class AssistantSettings extends ChangeNotifier {
   void setVoiceWake(bool v) {
     voiceWake = v;
     _p.setBool('assistant.voiceWake', v);
+    notifyListeners();
+  }
+
+  void setContinuous(bool v) {
+    continuous = v;
+    _p.setBool('assistant.continuous', v);
+    notifyListeners();
+  }
+
+  void setBargeIn(bool v) {
+    bargeIn = v;
+    _p.setBool('assistant.bargeIn', v);
     notifyListeners();
   }
 

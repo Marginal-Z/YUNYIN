@@ -51,6 +51,30 @@ class _Source extends MusicSource {
   Future<StreamInfo> stream(Song song, AudioQuality quality) async => const StreamInfo(url: 'https://example.com/a.mp3');
 }
 
+/// 按请求的方式回复：流式请求（responseType 为 stream）时回复数据流。[sse] 为 true 时把 [message]
+/// 拆成多段 SSE 事件（文字逐字、函数参数分两段），否则回复整段 JSON（不支持流式的服务）。
+Response<dynamic> _reply(RequestOptions o, Map<String, dynamic> message, {int status = 200, bool sse = true, Map<String, dynamic>? body}) {
+  final json = jsonEncode(body ?? {'choices': [{'message': message}]});
+  if (o.responseType != ResponseType.stream) return Response(requestOptions: o, statusCode: status, data: json);
+  if (!sse || status != 200) {
+    return Response(requestOptions: o, statusCode: status, data: ResponseBody.fromString(json, status, headers: {'content-type': ['application/json']}));
+  }
+  final events = <Map<String, dynamic>>[];
+  for (final ch in '${message['content'] ?? ''}'.split('')) {
+    events.add({'content': ch});
+  }
+  final calls = (message['tool_calls'] as List?) ?? const [];
+  for (var i = 0; i < calls.length; i++) {
+    final c = calls[i] as Map;
+    final args = '${c['function']['arguments']}';
+    final half = args.length ~/ 2;
+    events.add({'tool_calls': [{'index': i, 'id': c['id'], 'type': 'function', 'function': {'name': c['function']['name'], 'arguments': args.substring(0, half)}}]});
+    events.add({'tool_calls': [{'index': i, 'function': {'arguments': args.substring(half)}}]});
+  }
+  final text = [for (final d in events) 'data: ${jsonEncode({'choices': [{'index': 0, 'delta': d}]})}\n\n', 'data: [DONE]\n\n'].join();
+  return Response(requestOptions: o, statusCode: 200, data: ResponseBody.fromString(text, 200, headers: {'content-type': ['text/event-stream; charset=utf-8']}));
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late AppSettings app;
@@ -79,8 +103,7 @@ void main() {
         InterceptorsWrapper(
           onRequest: (o, h) {
             requests.add(jsonDecode(o.data as String) as Map<String, dynamic>);
-            final message = replies.removeAt(0);
-            h.resolve(Response(requestOptions: o, statusCode: 200, data: jsonEncode({'choices': [{'message': message}]})));
+            h.resolve(_reply(o, replies.removeAt(0)));
           },
         ),
       );
@@ -137,6 +160,20 @@ void main() {
     expect(player.queue.map((s) => s.name), ['夜曲', '倔强']);
     expect(assistant.messages.last.text, '已为你播放跑步歌单，加油！');
     expect(assistant.messages.last.songs, hasLength(2));
+    expect(assistant.messages.last.streaming, isFalse);
+    expect(requests.first['stream'], isTrue);
+  });
+
+  test('流式回答：情绪标记不显示；不支持流式的服务直接返回整段回答也能用', () async {
+    settings.setLlm(apiKey: 'sk-test');
+    replies.add({'role': 'assistant', 'content': '[开心] 好呀，这首歌讲的是青春。'});
+    await assistant.submit('这首歌讲了什么');
+    expect(assistant.messages.last.text, '好呀，这首歌讲的是青春。');
+    final dio = Dio(BaseOptions(responseType: ResponseType.plain))
+      ..interceptors.add(InterceptorsWrapper(onRequest: (o, h) => h.resolve(_reply(o, {'role': 'assistant', 'content': '[平静] 晚安。'}, sse: false))));
+    final a = AssistantController(settings: settings, app: app, player: player, sources: SourceManager([source]), stats: ListenStats(), llm: LlmClient(settings, dio: dio));
+    await a.submit('说晚安');
+    expect(a.messages.last.text, '晚安。');
   });
 
   test('大模型出错时给出原因', () async {
@@ -144,7 +181,7 @@ void main() {
     final dio = Dio(BaseOptions(responseType: ResponseType.plain))
       ..interceptors.add(
         InterceptorsWrapper(
-          onRequest: (o, h) => h.resolve(Response(requestOptions: o, statusCode: 401, data: jsonEncode({'error': {'message': 'invalid key'}}))),
+          onRequest: (o, h) => h.resolve(_reply(o, const {}, status: 401, body: {'error': {'message': 'invalid key'}})),
         ),
       );
     final a = AssistantController(settings: settings, app: app, player: player, sources: SourceManager([source]), stats: ListenStats(), llm: LlmClient(settings, dio: dio));

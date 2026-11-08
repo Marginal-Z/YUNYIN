@@ -78,7 +78,8 @@ class VoiceError extends VoiceEvent {
 /// - 平时只做唤醒词检测（模型很小，耗电低）。
 /// - 听到唤醒词或手动开始后，用语音活动检测（Silero VAD）判断开口与说完，说话期间每 0.7 秒用离线识别模型
 ///   识别一次已说的部分作为实时字幕，说完（静音 0.7 秒）后识别整句。一直不开口 6 秒或说满 15 秒时结束。
-/// - 助手说话时可以开启“打断检测”：检测到用户持续开口 0.3 秒，发出 [VoiceBargeIn] 并直接开始识别。
+/// - 助手说话时可以开启“打断检测”：检测到用户持续开口 0.5 秒，发出 [VoiceBargeIn] 并直接开始识别；
+///   这期间唤醒词检测照常进行，说唤醒词也能打断。
 ///
 /// 只在后台 isolate 中使用（见 [VoiceWorker]），也可以在测试中直接使用。
 class VoiceRecognizer {
@@ -227,7 +228,7 @@ class VoiceRecognizer {
         _vad.pop();
       }
       _voiced = speaking ? _voiced + samples.length : 0;
-      if (_voiced >= sampleRate * 3 ~/ 10) {
+      if (_voiced >= sampleRate ~/ 2) {
         _voiced = 0;
         monitor = false;
         events.add(const VoiceBargeIn());
@@ -235,8 +236,9 @@ class VoiceRecognizer {
         _heard = true;
         _utterance.add(samples);
         _utteranceSamples += samples.length;
+        return events;
       }
-      return events;
+      // 没有检测到持续说话时继续检测唤醒词：说唤醒词总能打断。
     }
     if (!wakeEnabled) return events;
     _kwsStream.acceptWaveform(samples: samples, sampleRate: sampleRate);

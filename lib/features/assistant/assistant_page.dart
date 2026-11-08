@@ -81,6 +81,7 @@ class _AssistantPageState extends State<AssistantPage> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   int _count = 0;
+  int _lastLength = 0;
 
   static const _suggestions = ['来点适合跑步的歌', '这首歌讲了什么', '解读一下这句歌词', '推荐几首和这首类似的歌', '我最近常听什么', '30 分钟后停止播放'];
 
@@ -110,10 +111,14 @@ class _AssistantPageState extends State<AssistantPage> {
     final a = context.watch<AssistantController>();
     final s = context.watch<AssistantSettings>();
     final pad = MediaQuery.paddingOf(context);
-    if (a.messages.length != _count) {
+    // 新消息或者回答边生成边变长时，滚到最下面。
+    final growing = a.messages.lastOrNull?.text.length ?? 0;
+    if (a.messages.length != _count || growing != _lastLength) {
       _count = a.messages.length;
+      _lastLength = growing;
       _scrollToEnd();
     }
+    final waiting = a.status == AssistantStatus.thinking && !(a.messages.lastOrNull?.streaming ?? false);
     return Material(
       color: p.bg,
       child: Padding(
@@ -168,14 +173,16 @@ class _AssistantPageState extends State<AssistantPage> {
                   : ListView.builder(
                       controller: _scroll,
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      itemCount: a.messages.length + (a.status == AssistantStatus.thinking ? 1 : 0),
+                      itemCount: a.messages.length + (waiting ? 1 : 0),
                       itemBuilder: (context, i) {
                         if (i == a.messages.length) return const _Bubble(fromUser: false, text: '思考中…', dim: true);
                         final m = a.messages[i];
+                        // 大模型还没开始输出文字（或在调用函数）时显示“思考中”。
+                        final pending = m.streaming && m.text.isEmpty;
                         return Column(
                           crossAxisAlignment: m.fromUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                           children: [
-                            _Bubble(fromUser: m.fromUser, text: m.text),
+                            _Bubble(fromUser: m.fromUser, text: pending ? '思考中…' : m.text, dim: pending),
                             if (m.songs.isNotEmpty) _SongList(songs: m.songs),
                           ],
                         );
@@ -193,7 +200,7 @@ class _AssistantPageState extends State<AssistantPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('正在下载离线语音模型（约 31 MB，只需下载一次）…', style: ts(12.5, color: p.text2)),
+                    Text('正在下载离线语音模型（约 ${s.asrModel.sizeMb} MB，只需下载一次）…', style: ts(12.5, color: p.text2)),
                     const SizedBox(height: 6),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(3),

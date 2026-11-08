@@ -12,6 +12,7 @@ import '../data/models.dart';
 import '../data/sources/music_source.dart';
 import '../data/sources/source_manager.dart';
 import '../player/player_controller.dart';
+import '../voice/prosody.dart';
 import '../voice/speech_output.dart';
 import 'assistant_settings.dart';
 import 'intents.dart';
@@ -25,10 +26,15 @@ class AssistantMessage {
   AssistantMessage(this.fromUser, this.text, {this.songs = const []});
 
   final bool fromUser;
-  final String text;
+
+  /// 文字（大模型边生成边显示时逐步增加）。
+  String text;
 
   /// 助手为这条回答播放 / 推荐的歌曲（界面上显示为可点按的列表）。
-  final List<Song> songs;
+  List<Song> songs;
+
+  /// 大模型还在生成这条回答。
+  bool streaming = false;
 }
 
 enum AssistantStatus { idle, listening, thinking }
@@ -218,6 +224,7 @@ class AssistantController extends ChangeNotifier {
   void _beginListening() {
     status = AssistantStatus.listening;
     partial = '';
+    _worker?.setMonitor(false);
     unawaited(player.duck(true));
     unawaited(_stopSpeaking());
     notifyListeners();
@@ -252,32 +259,71 @@ class AssistantController extends ChangeNotifier {
 
   // ── 对话 ──────────────────────────────────────────
 
-  /// 处理一句话（打字或语音）。[spoken] 为 true 时按设置朗读回答。
+  /// 处理一句话（打字或语音）。[spoken] 为 true 时按设置朗读回答：大模型边生成边显示、边朗读；
+  /// 朗读时可以开口打断；打开“连续对话”时，说完自动继续听下一句。
   Future<void> submit(String text, {bool spoken = false}) async {
     text = text.trim();
     if (text.isEmpty) return;
     messages.add(AssistantMessage(true, text));
     status = AssistantStatus.thinking;
     notifyListeners();
-    AssistantMessage reply;
+    final out = spoken && settings.speakReplies ? speech : null;
+    SpeechTurn? turn;
+    AssistantMessage? reply;
+    var failed = false;
     try {
       final intent = parseIntent(text);
       if (intent != null) {
         reply = await _runLocal(intent);
       } else if (settings.llmConfigured) {
-        reply = await _askLlm(text);
+        reply = AssistantMessage(false, '')..streaming = true;
+        messages.add(reply);
+        turn = out?.begin();
+        if (turn != null) _monitor(true);
+        await _askLlm(text, reply, turn);
       } else {
         reply = AssistantMessage(false, '这句话需要大模型来理解。请在“设置 → 云音助手”中填写大模型接口与密钥；播放控制、点歌、音量与定时等常用指令不用设置也能直接说。');
       }
     } catch (e) {
-      reply = AssistantMessage(false, '出错了：${'$e'.replaceFirst('Exception: ', '')}');
+      failed = true;
+      final message = '出错了：${'$e'.replaceFirst('Exception: ', '')}';
+      if (reply != null && reply.streaming) {
+        // 已经说了一半：停下，改说出错的原因。
+        await out?.stop();
+        turn = null;
+        reply.text = reply.text.isEmpty ? message : '${reply.text}\n$message';
+      } else {
+        reply = AssistantMessage(false, message);
+      }
     }
-    messages.add(reply);
+    reply.streaming = false;
+    if (!messages.contains(reply)) messages.add(reply);
     if (messages.length > 60) messages.removeRange(0, messages.length - 60);
-    status = AssistantStatus.idle;
+    if (status == AssistantStatus.thinking) status = AssistantStatus.idle;
     notifyListeners();
-    if (spoken && settings.speakReplies) unawaited(_speak(reply.text));
-    if (spoken && !settings.voiceWake) unawaited(_stopVoice());
+    if (out != null) {
+      if (turn == null) {
+        turn = out.begin();
+        turn.add(failed ? reply.text.split('\n').last : reply.text);
+        _monitor(true);
+      }
+      // 等说完（被打断时立即返回）。
+      await turn.end();
+      _monitor(false);
+    }
+    if (!spoken) return;
+    // 连续对话：说完后接着听（这期间用户已经开口打断、或者又点了麦克风时，已经在听了）。
+    if (settings.continuous && !failed && status == AssistantStatus.idle && _worker != null) {
+      _worker!.listen();
+      _beginListening();
+    } else if (!settings.voiceWake && status != AssistantStatus.listening) {
+      unawaited(_stopVoice());
+    }
+  }
+
+  /// 朗读期间检测用户开口（打断）。
+  void _monitor(bool on) {
+    if (settings.bargeIn || !on) _worker?.setMonitor(on);
   }
 
   void clear() {
@@ -388,7 +434,8 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
 - 用户想听歌、要推荐或按心情 / 场景要歌单时，调用 play_songs，给出真实存在的歌曲（“歌名 歌手”），一般 8–15 首，风格贴合需求；只想听某位歌手时调用 play_artist。
 - 播放控制、音量、定时关闭、音效等直接调用对应函数。
 - 问到正在播放的歌、歌词含义、创作背景时，先调用 get_now_playing 或 get_lyrics 获取信息再回答；不确定的事实要说明不确定，不要编造。
-- 回答简短自然，适合语音播报（一般不超过 80 字）；用户要求详细解读时可以写长一些。不要使用 Markdown 标题和表格。''';
+- 这是语音对话：像朋友聊天一样自然、口语化，一般 1–3 句（不超过 80 字），不要列清单；用户要求详细解读时可以写长一些。不要使用 Markdown 标题和表格。
+- 每次回答开头加一个情绪标记，从 [开心] [兴奋] [温柔] [平静] [难过] [认真] 中选一个最贴切的，例如“[开心] 好呀，这就放！”。标记只用来调整语气，不会显示也不会读出来。''';
   }
 
   List<Map<String, dynamic>> get _tools => [
@@ -442,24 +489,34 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
     tool('get_listening_stats', '获取用户的听歌统计（常听的歌曲与歌手、累计时长）', {}),
   ];
 
-  Future<AssistantMessage> _askLlm(String text) async {
+  /// 问大模型（流式）：文字边生成边写进 [reply]，有 [turn] 时边生成边朗读；函数调用最多 5 轮。
+  Future<void> _askLlm(String text, AssistantMessage reply, SpeechTurn? turn) async {
     _history.add({'role': 'user', 'content': text});
     final played = <Song>[];
+    final raw = StringBuffer();
     for (var round = 0; round < 5; round++) {
-      final reply = await _llm.complete([
-        {'role': 'system', 'content': _system},
-        ..._history,
-      ], tools: _tools);
-      final calls = (reply['tool_calls'] as List?)?.cast<Map>() ?? const [];
+      final m = await _llm.stream(
+        [
+          {'role': 'system', 'content': _system},
+          ..._history,
+        ],
+        tools: _tools,
+        onText: (delta) {
+          raw.write(delta);
+          reply.text = ProsodyPlanner.displayText(raw.toString()).trimLeft();
+          // 开始回答：不再是“思考中”。
+          if (status == AssistantStatus.thinking) status = AssistantStatus.idle;
+          turn?.add(delta);
+          notifyListeners();
+        },
+      );
+      final calls = (m['tool_calls'] as List?)?.cast<Map>() ?? const [];
       _history.add({
         'role': 'assistant',
-        'content': reply['content'] ?? '',
+        'content': m['content'] ?? '',
         if (calls.isNotEmpty) 'tool_calls': calls,
       });
-      if (calls.isEmpty) {
-        _trimHistory();
-        return AssistantMessage(false, '${reply['content'] ?? ''}'.trim().ifEmpty('好的'), songs: played);
-      }
+      if (calls.isEmpty) break;
       for (final c in calls) {
         final f = c['function'] as Map? ?? const {};
         Map<String, dynamic> args;
@@ -476,9 +533,20 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
         }
         _history.add({'role': 'tool', 'tool_call_id': c['id'], 'content': result});
       }
+      reply.songs = List.of(played);
+      notifyListeners();
+      // 下一轮的文字接在后面，换一行。
+      if (raw.isNotEmpty && !raw.toString().endsWith('\n')) {
+        raw.write('\n');
+        turn?.add('\n');
+      }
     }
     _trimHistory();
-    return AssistantMessage(false, '好的', songs: played);
+    reply.songs = played;
+    if (reply.text.trim().isEmpty) {
+      reply.text = '好的';
+      turn?.add('好的');
+    }
   }
 
   /// 只保留最近 16 条（从一条用户消息开始，避免留下没有对应调用的工具结果）。
@@ -589,13 +657,6 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
 
   // ── 朗读 ──────────────────────────────────────────
 
-  /// 朗读回答：使用音色中心选择的音色（引擎降级与情绪由 [SpeechOutput] 处理）。
-  Future<void> _speak(String text) async {
-    final out = speech;
-    if (out == null) return;
-    await out.say(text);
-  }
-
   Future<void> _stopSpeaking() async => speech?.stop();
 
   /// 设置自定义唤醒词（空字符串恢复默认）。返回错误原因，成功时为 null。
@@ -639,6 +700,3 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
   }
 }
 
-extension on String {
-  String ifEmpty(String other) => isEmpty ? other : this;
-}
