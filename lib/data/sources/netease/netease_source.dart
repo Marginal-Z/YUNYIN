@@ -881,23 +881,60 @@ class NeteaseSource extends MusicSource {
       likedCount: (c['likedCount'] as num?)?.toInt() ?? 0,
       liked: c['liked'] == true,
       replyCount: (c['showFloorComment']?['replyCount'] as num?)?.toInt() ?? 0,
+      replyTo: ((c['beReplied'] as List?)?.firstOrNull as Map?)?['user']?['nickname'] as String?,
     );
   }
 
   @override
   Future<CommentPage> comments(Song song, {CommentSort sort = CommentSort.recommend, int offset = 0}) async {
-    final rid = 'R_SO_4_${song.id}';
-    if (sort == CommentSort.hot) {
-      final j = await _weapi('/v1/resource/hotcomments/$rid', {'rid': song.id, 'limit': 20, 'offset': offset, 'beforeTime': 0});
+    // 新版评论接口：带每条评论的回复数（旧接口不返回，界面上看不到“N 条回复”）。
+    // 推荐 / 热门按页码翻页；最新按时间游标翻页，[offset] 为上一页最后一条的时间。
+    const size = 20;
+    final latest = sort == CommentSort.latest;
+    if (sort == CommentSort.hot && offset > 0) {
+      // 新版接口的热门排序不能翻到第二页（参数错误）：后面的页使用旧版热门评论接口。
+      final j = await _weapi('/v1/resource/hotcomments/R_SO_4_${song.id}', {'rid': song.id, 'limit': size, 'offset': offset, 'beforeTime': 0});
       final list = [for (final c in (j['hotComments'] as List? ?? const [])) _comment(Map<String, dynamic>.from(c as Map))];
-      return CommentPage(total: (j['total'] as num?)?.toInt() ?? list.length, comments: list, hasMore: j['hasMore'] == true, next: offset + 20);
+      return CommentPage(total: (j['total'] as num?)?.toInt() ?? list.length, comments: list, hasMore: j['hasMore'] == true, next: offset + size);
     }
-    final j = await _weapi('/v1/resource/comments/$rid', {'rid': song.id, 'limit': 20, 'offset': offset, 'beforeTime': 0});
-    final latest = [for (final c in (j['comments'] as List? ?? const [])) _comment(Map<String, dynamic>.from(c as Map))];
-    final hot = [for (final c in (j['hotComments'] as List? ?? const [])) _comment(Map<String, dynamic>.from(c as Map))];
-    final list = sort == CommentSort.recommend && offset == 0 ? [...hot, ...latest.where((c) => !hot.any((h) => h.id == c.id))] : latest;
-    // 第一页混排了热门评论：下一页按最新评论的位置继续，不能按已显示的条数（会跳过热门评论条数那么多的评论）。
-    return CommentPage(total: (j['total'] as num?)?.toInt() ?? list.length, comments: list, hasMore: j['more'] == true, next: offset + 20);
+    final j = await _weapi('/v2/resource/comments', {
+      'threadId': 'R_SO_4_${song.id}',
+      'pageNo': latest ? (offset == 0 ? 1 : 2) : offset ~/ size + 1,
+      'pageSize': size,
+      'cursor': latest ? (offset == 0 ? 0 : offset) : offset,
+      'sortType': switch (sort) {
+        CommentSort.recommend => 1,
+        CommentSort.hot => 2,
+        CommentSort.latest => 3,
+      },
+      'showInner': false,
+    });
+    final d = j['data'] as Map? ?? const {};
+    final list = [for (final c in (d['comments'] as List? ?? const [])) _comment(Map<String, dynamic>.from(c as Map))];
+    return CommentPage(
+      total: (d['totalCount'] as num?)?.toInt() ?? list.length,
+      comments: list,
+      hasMore: d['hasMore'] == true,
+      next: latest ? (int.tryParse('${d['cursor'] ?? ''}') ?? list.lastOrNull?.time?.millisecondsSinceEpoch ?? 0) : offset + size,
+    );
+  }
+
+  @override
+  Future<CommentPage> commentReplies(Song song, Comment parent, {int offset = 0}) async {
+    final j = await _weapi('/resource/comment/floor/get', {
+      'parentCommentId': parent.id,
+      'threadId': 'R_SO_4_${song.id}',
+      'time': offset == 0 ? -1 : offset,
+      'limit': 20,
+    });
+    final d = j['data'] as Map? ?? const {};
+    final list = [for (final c in (d['comments'] as List? ?? const [])) _comment(Map<String, dynamic>.from(c as Map))];
+    return CommentPage(
+      total: (d['totalCount'] as num?)?.toInt() ?? parent.replyCount,
+      comments: list,
+      hasMore: d['hasMore'] == true,
+      next: (d['time'] as num?)?.toInt() ?? list.lastOrNull?.time?.millisecondsSinceEpoch,
+    );
   }
 
   @override

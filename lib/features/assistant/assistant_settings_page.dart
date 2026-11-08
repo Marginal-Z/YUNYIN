@@ -14,7 +14,7 @@ import '../../core/ui/widgets.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
 
-/// AI 助手设置：语音唤醒（离线）、朗读回答与大模型接口（用户自己的密钥）。
+/// 云音助手设置：语音唤醒（离线）、朗读回答与大模型接口（用户自己的密钥）。
 class AssistantSettingsPage extends StatefulWidget {
   const AssistantSettingsPage({super.key});
 
@@ -86,7 +86,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       chrome: Chrome.navOnly,
       mobileTop: 22,
       children: [
-        const PageHeader('AI 助手', subtitle: '语音唤醒、语音控制与大模型'),
+        const PageHeader('云音助手', subtitle: '语音唤醒、语音控制与大模型'),
         const GroupLabel('语音'),
         CardList(
           indent: 14,

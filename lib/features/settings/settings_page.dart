@@ -305,7 +305,7 @@ class SettingsEntries extends StatelessWidget {
                 return SettingsRow(
                   icon: YIcons.sparkle,
                   tile: TileColor.blue,
-                  title: 'AI 助手',
+                  title: '云音助手',
                   subtitle: [a.voiceWake ? '语音唤醒已开启' : '语音唤醒关闭', a.llmConfigured ? a.model : '未设置大模型'].join(' · '),
                   onTap: () => go(context, AssistantSettingsRoute()),
                 );

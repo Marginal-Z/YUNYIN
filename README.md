@@ -5,7 +5,7 @@
 #  YunYin
 
 **所有的歌，一处安放。**
-开源、跨平台的音乐客户端：网易云音乐 · QQ 音乐 · 酷狗音乐 · 洛雪曲库 · 本地音乐 · 网盘 · AI 助手
+开源、跨平台的音乐客户端：网易云音乐 · QQ 音乐 · 酷狗音乐 · 洛雪曲库 · 本地音乐 · 网盘 · 云音助手
 
 [![最新版本](https://img.shields.io/github/v/release/Marginal-Z/YUNYIN?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=e8304a)](https://github.com/Marginal-Z/YUNYIN/releases/latest)
 [![构建](https://img.shields.io/github/actions/workflow/status/Marginal-Z/YUNYIN/build.yml?branch=main&label=%E6%9E%84%E5%BB%BA)](https://github.com/Marginal-Z/YUNYIN/actions/workflows/build.yml)
@@ -61,7 +61,7 @@
 - 10 段均衡器与预设、低频增强与空间音效（在播放器中完成，所有设备都能听出变化）、音量均衡与强度调节、音量增强；Android 高解析输出、Windows / macOS 独占输出
 - 基于 libmpv（FFmpeg）的播放引擎，支持 FLAC / APE / DSD 等格式，淡入淡出、睡眠定时
 
-**AI 助手**
+**云音助手**
 - 语音唤醒：说“你好云音”（也可以说“嗨云音”“云音云音”），唤醒词检测与语音识别完全在本机离线完成（sherpa-onnx），录音不上传；Android 后台也能唤醒（显示常驻通知），桌面端窗口最小化时也能用
 - 常用语音 / 文字指令不需要联网的大模型：播放 / 暂停 / 切歌、“播放晴天”“我想听周杰伦的歌”、音量、单曲循环 / 随机、收藏、“三十分钟后停止播放”、切换均衡器预设与低频增强
 - 接入任意兼容 OpenAI 接口的大模型（DeepSeek、通义千问、Kimi、智谱 GLM、OpenAI，填写自己的密钥）后：按心情或场景生成歌单并播放、推荐相似歌曲、讲解歌曲背景、解读当前歌词、点评你的听歌习惯；大模型通过函数调用直接操作播放器

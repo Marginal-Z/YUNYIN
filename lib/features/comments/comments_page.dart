@@ -77,13 +77,70 @@ class _CommentsPageState extends State<CommentsPage> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
 
+  /// 正在查看回复的评论（为 null 时显示评论列表）。
+  Comment? _thread;
+  final List<Comment> _replies = [];
+  int _replyTotal = 0;
+  int _replyOffset = 0;
+  bool _replyMore = true;
+  bool _replyLoading = false;
+  Object? _replyError;
+  int _replyRequest = 0;
+
   @override
   void initState() {
     super.initState();
     _scroll.addListener(() {
-      if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 300) _load();
+      if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 300) _thread == null ? _load() : _loadReplies();
     });
     _load(reset: true);
+  }
+
+  void _openThread(Comment c) {
+    setState(() {
+      _thread = c;
+      _replies.clear();
+      _replyTotal = c.replyCount;
+      _replyOffset = 0;
+      _replyMore = true;
+      _replyError = null;
+    });
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+    _loadReplies();
+  }
+
+  void _closeThread() {
+    _replyRequest++;
+    setState(() {
+      _thread = null;
+      _replyLoading = false;
+    });
+  }
+
+  Future<void> _loadReplies() async {
+    final thread = _thread;
+    if (thread == null || _replyLoading || !_replyMore) return;
+    final request = ++_replyRequest;
+    setState(() {
+      _replyLoading = true;
+      _replyError = null;
+    });
+    try {
+      final src = context.read<SourceManager>().byId(widget.song.sourceId);
+      final offset = _replyOffset;
+      final page = await src.commentReplies(widget.song, thread, offset: offset);
+      if (!mounted || request != _replyRequest) return;
+      setState(() {
+        _replyTotal = page.total;
+        _replies.addAll(page.comments.where((c) => !_replies.any((x) => x.id == c.id)));
+        _replyOffset = page.next ?? offset + page.comments.length;
+        _replyMore = page.hasMore && _replyOffset != offset;
+      });
+    } catch (e) {
+      if (mounted && request == _replyRequest) setState(() => _replyError = e);
+    } finally {
+      if (mounted && request == _replyRequest) setState(() => _replyLoading = false);
+    }
   }
 
   @override
@@ -169,195 +226,241 @@ class _CommentsPageState extends State<CommentsPage> {
     final song = widget.song;
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final canPost = context.read<SourceManager>().byId(song.sourceId).supports(SourceFeature.postComment);
-    return Material(
-      type: MaterialType.transparency,
-      child: AppBackground(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  // 顶部的标题与按钮固定不动：滚上去的评论在标题下方渐隐，文字不会叠在一起。
-                  child: IsolatedShaderMask(
-                    blendMode: BlendMode.dstIn,
-                    shaderCallback: (r) {
-                      final h = math.max(1.0, r.height);
-                      return LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: const [Color(0x00000000), Color(0x00000000), Color(0xFF000000), Color(0xFF000000)],
-                        stops: [0, ((pad.top + 52) / h).clamp(0.0, 1.0), ((pad.top + 82) / h).clamp(0.0, 1.0), 1],
-                      ).createShader(r);
-                    },
-                    child: ListView(
-                      controller: _scroll,
-                      padding: EdgeInsets.fromLTRB(20, pad.top + 84, 20, pad.bottom + 22 + 60 + 24 + bottomInset),
-                      children: [
-                        Pressable(
-                          onTap: () => Navigator.of(context).maybePop(),
-                          child: YCard(
-                            radius: 22,
-                            child: SizedBox(
-                              height: 64,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 14),
-                                child: Row(
-                                  children: [
-                                    SongCover(song, size: 44, radius: 11),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            song.name,
-                                            style: ts(15, weight: w600, color: p.text),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            song.subtitle,
-                                            style: ts(13, color: p.text2),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
+    return PopScope(
+      canPop: _thread == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _thread != null) _closeThread();
+      },
+      child: Material(
+        type: MaterialType.transparency,
+        child: AppBackground(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    // 顶部的标题与按钮固定不动：滚上去的评论在标题下方渐隐，文字不会叠在一起。
+                    child: IsolatedShaderMask(
+                      blendMode: BlendMode.dstIn,
+                      shaderCallback: (r) {
+                        final h = math.max(1.0, r.height);
+                        return LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: const [Color(0x00000000), Color(0x00000000), Color(0xFF000000), Color(0xFF000000)],
+                          stops: [0, ((pad.top + 52) / h).clamp(0.0, 1.0), ((pad.top + 82) / h).clamp(0.0, 1.0), 1],
+                        ).createShader(r);
+                      },
+                      child: ListView(
+                        controller: _scroll,
+                        padding: EdgeInsets.fromLTRB(20, pad.top + 84, 20, pad.bottom + 22 + 60 + 24 + bottomInset),
+                        children: [
+                          Pressable(
+                            onTap: () => Navigator.of(context).maybePop(),
+                            child: YCard(
+                              radius: 22,
+                              child: SizedBox(
+                                height: 64,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                  child: Row(
+                                    children: [
+                                      SongCover(song, size: 44, radius: 11),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              song.name,
+                                              style: ts(15, weight: w600, color: p.text),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              song.subtitle,
+                                              style: ts(13, color: p.text2),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                    const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
-                                  ],
+                                      const YIcon(YIcons.chevronRight, size: 16, color: Color(0xFF8E8E93)),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Segmented(
-                          labels: const ['推荐', '最热', '最新'],
-                          index: _sort.index,
-                          onChanged: (i) {
-                            setState(() => _sort = CommentSort.values[i]);
-                            _load(reset: true);
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        if (_error != null && _items.isEmpty)
-                          YCard(
-                            child: StateView.failure(_error, onRetry: () => _load(reset: true)),
-                          )
-                        else if (_items.isEmpty && _loading)
-                          const SkeletonComments()
-                        else if (_items.isEmpty)
-                          YCard(
-                            child: StateView.empty(title: '还没有评论', message: '来抢沙发吧。', icon: YIcons.comment, tile: TileColor.red),
-                          )
-                        else
-                          CardList(
-                            indent: 66,
-                            children: [
-                              for (final c in _items) _CommentRow(comment: c, liked: _likedIds.contains(c.id), onLike: canPost ? () => _like(c) : null),
-                            ],
+                          const SizedBox(height: 16),
+                          Segmented(
+                            labels: const ['推荐', '最热', '最新'],
+                            index: _sort.index,
+                            onChanged: (i) {
+                              setState(() => _sort = CommentSort.values[i]);
+                              _load(reset: true);
+                            },
                           ),
-                        if (_loading && _items.isNotEmpty)
-                          const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 16,
-                  top: pad.top + 20,
-                  child: GlassButton(YIcons.back, label: '返回', onTap: () => Navigator.of(context).maybePop()),
-                ),
-                Positioned(
-                  left: 76,
-                  right: 76,
-                  top: pad.top + 20,
-                  height: 44,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '评论',
-                        style: ts(17, weight: w700, color: p.text),
-                      ),
-                      const SizedBox(height: 1),
-                      Text('${groupDigits(_total)} 条', style: ts(12, color: p.text2, tabular: true)),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  right: 16,
-                  top: pad.top + 20,
-                  child: GlassButton(
-                    YIcons.share,
-                    label: '分享',
-                    onTap: () {
-                      final url = switch (song.sourceId) {
-                        'netease' => 'https://music.163.com/song?id=${song.id}',
-                        'qq' => 'https://y.qq.com/n/ryqq/songDetail/${song.id.split(':').first}',
-                        'kugou' => 'https://www.kugou.com/song/#hash=${song.id.split(':').first}',
-                        _ => '${song.name} - ${song.artistText}',
-                      };
-                      Clipboard.setData(ClipboardData(text: url));
-                      Toast.show(context, '链接已复制');
-                    },
-                  ),
-                ),
-                // 只有支持发表评论的平台（网易云）显示输入框。
-                if (canPost)
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: pad.bottom + 22 + bottomInset,
-                    child: Glass(
-                      radius: 30,
-                      height: 60,
-                      padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _input,
-                              onSubmitted: (_) => _send(),
-                              textInputAction: TextInputAction.send,
-                              style: ts(16, color: p.text),
-                              cursorColor: p.accentText,
-                              decoration: InputDecoration(
-                                isCollapsed: true,
-                                border: InputBorder.none,
-                                hintText: '说点什么吧…',
-                                hintStyle: ts(16, color: p.text2),
+                          const SizedBox(height: 14),
+                          if (_error != null && _items.isEmpty)
+                            YCard(child: StateView.failure(_error, onRetry: () => _load(reset: true)))
+                          else if (_items.isEmpty && _loading)
+                            const SkeletonComments()
+                          else if (_items.isEmpty)
+                            YCard(
+                              child: StateView.empty(title: '还没有评论', message: '来抢沙发吧。', icon: YIcons.comment, tile: TileColor.red),
+                            )
+                          else if (_thread != null) ...[
+                            // 一条评论的回复：原评论在上，回复按时间排列。
+                            CardList(
+                              indent: 66,
+                              children: [
+                                _CommentRow(comment: _thread!, liked: _likedIds.contains(_thread!.id), onLike: canPost ? () => _like(_thread!) : null),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6, bottom: 8),
+                              child: Text(
+                                '${groupDigits(_replyTotal)} 条回复',
+                                style: ts(14, weight: w600, color: p.text2),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Pressable(
-                            onTap: _send,
-                            scale: 0.92,
-                            semanticLabel: '发送',
-                            child: YBox(
-                              width: 44,
-                              height: 44,
-                              radius: BorderRadius.circular(22),
-                              gradient: CssGradient.vertical(p.buttonGradient),
-                              shadows: p.buttonShadow,
-                              insets: [Shadow2(0, 1, 0, p.buttonInsetHighlight)],
-                              alignment: Alignment.center,
-                              child: const YIcon(YIcons.send, size: 20, color: Colors.white),
+                            if (_replyError != null && _replies.isEmpty)
+                              YCard(child: StateView.failure(_replyError, onRetry: _loadReplies))
+                            else if (_replies.isEmpty && _replyLoading)
+                              const SkeletonComments()
+                            else if (_replies.isEmpty)
+                              YCard(
+                                child: StateView.empty(title: '暂时看不到回复', message: '平台没有返回这条评论的回复。', icon: YIcons.comment, tile: TileColor.red),
+                              )
+                            else
+                              CardList(
+                                indent: 66,
+                                children: [
+                                  for (final c in _replies) _CommentRow(comment: c, liked: _likedIds.contains(c.id), onLike: canPost ? () => _like(c) : null),
+                                ],
+                              ),
+                            if (_replyLoading && _replies.isNotEmpty)
+                              const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                              ),
+                          ] else
+                            CardList(
+                              indent: 66,
+                              children: [
+                                for (final c in _items)
+                                  _CommentRow(
+                                    comment: c,
+                                    liked: _likedIds.contains(c.id),
+                                    onLike: canPost ? () => _like(c) : null,
+                                    onReplies: c.replyCount > 0 ? () => _openThread(c) : null,
+                                  ),
+                              ],
                             ),
-                          ),
+                          if (_thread == null && _loading && _items.isNotEmpty)
+                            const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                            ),
                         ],
                       ),
                     ),
                   ),
-              ],
+                  Positioned(
+                    left: 16,
+                    top: pad.top + 20,
+                    child: GlassButton(YIcons.back, label: '返回', onTap: () => _thread != null ? _closeThread() : Navigator.of(context).maybePop()),
+                  ),
+                  Positioned(
+                    left: 76,
+                    right: 76,
+                    top: pad.top + 20,
+                    height: 44,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _thread == null ? '评论' : '回复',
+                          style: ts(17, weight: w700, color: p.text),
+                        ),
+                        const SizedBox(height: 1),
+                        Text('${groupDigits(_thread == null ? _total : _replyTotal)} 条', style: ts(12, color: p.text2, tabular: true)),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    right: 16,
+                    top: pad.top + 20,
+                    child: GlassButton(
+                      YIcons.share,
+                      label: '分享',
+                      onTap: () {
+                        final url = switch (song.sourceId) {
+                          'netease' => 'https://music.163.com/song?id=${song.id}',
+                          'qq' => 'https://y.qq.com/n/ryqq/songDetail/${song.id.split(':').first}',
+                          'kugou' => 'https://www.kugou.com/song/#hash=${song.id.split(':').first}',
+                          _ => '${song.name} - ${song.artistText}',
+                        };
+                        Clipboard.setData(ClipboardData(text: url));
+                        Toast.show(context, '链接已复制');
+                      },
+                    ),
+                  ),
+                  // 只有支持发表评论的平台（网易云）显示输入框。
+                  if (canPost)
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: pad.bottom + 22 + bottomInset,
+                      child: Glass(
+                        radius: 30,
+                        height: 60,
+                        padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _input,
+                                onSubmitted: (_) => _send(),
+                                textInputAction: TextInputAction.send,
+                                style: ts(16, color: p.text),
+                                cursorColor: p.accentText,
+                                decoration: InputDecoration(
+                                  isCollapsed: true,
+                                  border: InputBorder.none,
+                                  hintText: '说点什么吧…',
+                                  hintStyle: ts(16, color: p.text2),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Pressable(
+                              onTap: _send,
+                              scale: 0.92,
+                              semanticLabel: '发送',
+                              child: YBox(
+                                width: 44,
+                                height: 44,
+                                radius: BorderRadius.circular(22),
+                                gradient: CssGradient.vertical(p.buttonGradient),
+                                shadows: p.buttonShadow,
+                                insets: [Shadow2(0, 1, 0, p.buttonInsetHighlight)],
+                                alignment: Alignment.center,
+                                child: const YIcon(YIcons.send, size: 20, color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -367,11 +470,14 @@ class _CommentsPageState extends State<CommentsPage> {
 }
 
 class _CommentRow extends StatelessWidget {
-  const _CommentRow({required this.comment, required this.liked, required this.onLike});
+  const _CommentRow({required this.comment, required this.liked, required this.onLike, this.onReplies});
 
   final Comment comment;
   final bool liked;
   final VoidCallback? onLike;
+
+  /// 点按“N 条回复”查看回复；为 null 时不显示入口（回复本身、或平台不提供回复）。
+  final VoidCallback? onReplies;
 
   @override
   Widget build(BuildContext context) {
@@ -423,12 +529,26 @@ class _CommentRow extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(c.content, style: ts(15, height: 1.5, color: p.text)),
-                if (c.replyCount > 0) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    '${c.replyCount} 条回复',
-                    style: ts(13, weight: w600, color: p.accentText),
+                _CommentText(comment: c),
+                if (onReplies != null) ...[
+                  const SizedBox(height: 4),
+                  Pressable(
+                    onTap: onReplies,
+                    semanticLabel: '查看 ${c.replyCount} 条回复',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${groupDigits(c.replyCount)} 条回复',
+                            style: ts(13, weight: w600, color: p.accentText),
+                          ),
+                          const SizedBox(width: 2),
+                          YIcon(YIcons.chevronRight, size: 14, color: p.accentText),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ],
@@ -436,6 +556,54 @@ class _CommentRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 评论正文：楼层回复前加“回复 @某人：”；酷狗回复中引用的原文（“//@某人:……”）用浅色显示在下面。
+class _CommentText extends StatelessWidget {
+  const _CommentText({required this.comment});
+
+  final Comment comment;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final c = comment;
+    final i = c.content.indexOf('//@');
+    final main = i > 0 ? c.content.substring(0, i).trim() : c.content;
+    final quote = i > 0 ? c.content.substring(i + 2).trim() : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            children: [
+              if (c.replyTo != null)
+                TextSpan(
+                  text: '回复 @${c.replyTo}：',
+                  style: ts(15, height: 1.5, color: p.accentText),
+                ),
+              TextSpan(text: main),
+            ],
+          ),
+          style: ts(15, height: 1.5, color: p.text),
+        ),
+        if (quote != null) ...[
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
+            decoration: BoxDecoration(color: p.chip, borderRadius: BorderRadius.circular(10)),
+            child: Text(
+              quote,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: ts(13, height: 1.45, color: p.text2),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -138,7 +138,7 @@ class HomePage extends StatelessWidget {
                 ],
               ),
             ),
-            CircleButton(YIcons.sparkle, size: 44, iconSize: 21, color: p.accentText, label: 'AI 助手', onTap: () => openAssistant(context)),
+            CircleButton(YIcons.sparkle, size: 44, iconSize: 21, color: p.accentText, label: '云音助手', onTap: () => openAssistant(context)),
             const SizedBox(width: 10),
             if (user?.avatar != null)
               Pressable(onTap: () => go(context, ProfileRoute()), semanticLabel: '个人中心', child: Cover(user!.avatar, size: 44, circle: true))

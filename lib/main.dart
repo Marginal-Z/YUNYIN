@@ -115,7 +115,7 @@ Future<void> main(List<String> args) async {
   AppIconController(settings);
   final updater = UpdateManager();
   await updater.init();
-  // AI 助手（语音唤醒打开时在这里开始监听）。
+  // 云音助手（语音唤醒打开时在这里开始监听）。
   final assistantSettings = AssistantSettings();
   await assistantSettings.init();
   final assistant = AssistantController(settings: assistantSettings, app: settings, player: player, sources: sources, stats: stats);

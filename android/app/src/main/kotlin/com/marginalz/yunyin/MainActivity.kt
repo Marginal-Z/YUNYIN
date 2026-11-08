@@ -50,13 +50,64 @@ class MainActivity : AudioServiceActivity() {
                 .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
                 .maxByOrNull { it.refreshRate } ?: return
             val attrs = window.attributes
-            if (attrs.preferredDisplayModeId == best.modeId && attrs.preferredRefreshRate == best.refreshRate) return
-            attrs.preferredDisplayModeId = best.modeId
-            attrs.preferredRefreshRate = best.refreshRate
-            window.attributes = attrs
+            if (attrs.preferredDisplayModeId != best.modeId || attrs.preferredRefreshRate != best.refreshRate) {
+                attrs.preferredDisplayModeId = best.modeId
+                attrs.preferredRefreshRate = best.refreshRate
+                window.attributes = attrs
+            }
+            maxRefreshRate = best.refreshRate
+            // Android 15（One UI 7）起系统会为省电在画面变化较小时降低帧率，三星机型上滚动与动画会被限制到 60Hz。
+            if (Build.VERSION.SDK_INT >= 35) window.setFrameRatePowerSavingsBalanced(false)
+            voteSurfaceFrameRate(window.decorView)
         } catch (e: Throwable) {
             android.util.Log.w("YunYin", "refresh rate: $e")
         }
+    }
+
+    private var maxRefreshRate = 0f
+    private val votedSurfaces = java.util.WeakHashMap<android.view.SurfaceView, Boolean>()
+
+    /**
+     * 为 Flutter 的绘制表面单独声明期望的帧率。三星的自适应刷新率主要按各个表面声明的帧率决定屏幕刷新率，
+     * 只设置窗口的显示模式时，没有声明帧率的表面仍可能被按 60Hz 处理，滚动与转场动画掉到 60 帧。
+     */
+    private fun voteSurfaceFrameRate(view: android.view.View) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || maxRefreshRate <= 0f) return
+        if (view is android.view.SurfaceView) {
+            fun apply() {
+                val surface = view.holder.surface
+                if (surface != null && surface.isValid) {
+                    try {
+                        surface.setFrameRate(maxRefreshRate, android.view.Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+                    } catch (e: Throwable) {
+                        android.util.Log.w("YunYin", "surface frame rate: $e")
+                    }
+                }
+            }
+            apply()
+            if (votedSurfaces.put(view, true) == null) {
+                // 表面重建（切到后台再回来、旋转屏幕）后重新声明。
+                view.holder.addCallback(object : android.view.SurfaceHolder.Callback {
+                    override fun surfaceCreated(holder: android.view.SurfaceHolder) = apply()
+                    override fun surfaceChanged(holder: android.view.SurfaceHolder, format: Int, width: Int, height: Int) = apply()
+                    override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {}
+                })
+            }
+        }
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) voteSurfaceFrameRate(view.getChildAt(i))
+        }
+    }
+
+    /** 当前屏幕的刷新率与支持的刷新率（流畅度检测显示）。 */
+    private fun displayInfo(): Map<String, Any> {
+        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
+        return mapOf(
+            "current" to (display?.refreshRate?.toDouble() ?: 0.0),
+            "modes" to (display?.supportedModes?.map { it.refreshRate.toDouble() }?.distinct()?.sorted() ?: emptyList<Double>()),
+            "preferred" to window.attributes.preferredRefreshRate.toDouble(),
+            "device" to "${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}",
+        )
     }
 
     override fun onPause() {
@@ -182,6 +233,7 @@ class MainActivity : AudioServiceActivity() {
                         "microphone" to (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED),
                     ),
                 )
+                "displayInfo" -> result.success(displayInfo())
                 "openAppSettings" -> {
                     startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     result.success(null)

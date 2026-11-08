@@ -21,7 +21,7 @@ class AiProvider {
   ];
 }
 
-/// AI 助手的设置（单独保存，不放进 [AppSettings]）。
+/// 云音助手的设置（单独保存，不放进 [AppSettings]）。
 class AssistantSettings extends ChangeNotifier {
   late SharedPreferences _p;
 

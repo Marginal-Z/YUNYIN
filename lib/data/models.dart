@@ -386,6 +386,8 @@ class Comment {
     this.likedCount = 0,
     this.liked = false,
     this.replyCount = 0,
+    this.replyTo,
+    this.ref,
   });
 
   final String id;
@@ -397,6 +399,12 @@ class Comment {
   final int likedCount;
   final bool liked;
   final int replyCount;
+
+  /// 回复的对象（楼层回复中“回复 @某人”）。
+  final String? replyTo;
+
+  /// 平台查询这条评论的回复时需要的额外参数（酷狗为所属专题等，按平台自己的格式保存）。
+  final String? ref;
 }
 
 class CommentPage {

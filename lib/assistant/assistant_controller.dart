@@ -31,7 +31,7 @@ class AssistantMessage {
 
 enum AssistantStatus { idle, listening, thinking }
 
-/// AI 助手：语音唤醒（离线）、语音 / 文字指令、调用大模型（用户自己的接口）完成点歌、推荐与问答。
+/// 云音助手：语音唤醒（离线）、语音 / 文字指令、调用大模型（用户自己的接口）完成点歌、推荐与问答。
 ///
 /// 常用指令（播放控制、点歌、音量、定时、音效）在本机解析，不需要大模型也能用；
 /// 其余的话交给大模型，大模型通过函数调用操作播放器（见 [_tools]）。
@@ -249,7 +249,7 @@ class AssistantController extends ChangeNotifier {
       } else if (settings.llmConfigured) {
         reply = await _askLlm(text);
       } else {
-        reply = AssistantMessage(false, '这句话需要大模型来理解。请在“设置 → AI 助手”中填写大模型接口与密钥；播放控制、点歌、音量与定时等常用指令不用设置也能直接说。');
+        reply = AssistantMessage(false, '这句话需要大模型来理解。请在“设置 → 云音助手”中填写大模型接口与密钥；播放控制、点歌、音量与定时等常用指令不用设置也能直接说。');
       }
     } catch (e) {
       reply = AssistantMessage(false, '出错了：${'$e'.replaceFirst('Exception: ', '')}');
@@ -364,7 +364,7 @@ class AssistantController extends ChangeNotifier {
     final song = player.current;
     final now = DateTime.now();
     return '''
-你是“云音”音乐播放器里的 AI 助手，用简体中文回答。当前平台：${_source.name}（只能播放这个平台的歌）。现在是 ${now.year} 年 ${now.month} 月 ${now.day} 日 ${now.hour} 点。
+你是“云音助手”，云音音乐播放器里的语音助手，用简体中文回答。当前平台：${_source.name}（只能播放这个平台的歌）。现在是 ${now.year} 年 ${now.month} 月 ${now.day} 日 ${now.hour} 点。
 ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}》- ${song.artistText}。'}
 规则：
 - 用户想听歌、要推荐或按心情 / 场景要歌单时，调用 play_songs，给出真实存在的歌曲（“歌名 歌手”），一般 8–15 首，风格贴合需求；只想听某位歌手时调用 play_artist。

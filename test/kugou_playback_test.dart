@@ -171,4 +171,41 @@ void main() {
     expect(pages, ['1', '2']);
     dio.close();
   });
+
+  test('评论回复：带评论所属的专题参数请求楼层回复，按页码翻页', () async {
+    final queries = <Map<String, dynamic>>[];
+    final dio = _dio({
+      '/mcomment/v1/cmtlist': (o) => {
+        'status': 1,
+        'count': 1,
+        'list': [
+          {'id': '99', 'user_name': 'u', 'content': '原评论', 'reply_num': 40, 'special_id': 2364, 'special_child_id': 20505418, 'extdata': '{"a":1}'},
+        ],
+      },
+      '/mcomment/v1/hot_replylist': (o) {
+        queries.add(Map<String, dynamic>.from(o.queryParameters));
+        return {
+          'status': 1,
+          'comments_num': 40,
+          'list': [
+            for (var i = 0; i < 30; i++) {'id': 'r${o.queryParameters['p']}-$i', 'user_name': 'r', 'content': '回复 $i//@u:原评论'},
+          ],
+        };
+      },
+    });
+    final kg = KugouSource(dio: dio);
+    final parent = (await kg.comments(song)).comments.single;
+    expect(parent.replyCount, 40);
+    final first = await kg.commentReplies(song, parent);
+    expect(first.total, 40);
+    expect(first.comments, hasLength(30));
+    expect(first.hasMore, isTrue);
+    expect(queries.first['tid'], '99');
+    expect(queries.first['special_id'], '2364');
+    expect(queries.first['childrenid'], '20505418');
+    final second = await kg.commentReplies(song, parent, offset: first.next!);
+    expect(second.comments.first.id, 'r2-0');
+    expect(second.hasMore, isFalse);
+    dio.close();
+  });
 }

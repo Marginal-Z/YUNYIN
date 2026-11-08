@@ -393,7 +393,7 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   home();
   nav.push(AudioEffectsRoute());
   await shot('mobile-audio', settle: 1500);
-  // AI 助手：一条本地指令的对话。
+  // 云音助手：一条本地指令的对话。
   home();
   openAssistant(ctx());
   await ctx().read<AssistantController>().submit('播放晴天');

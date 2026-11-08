@@ -1237,7 +1237,35 @@ class KugouSource extends MusicSource {
       likedCount: ((c['like'] as Map?)?['likenum'] as num?)?.toInt() ?? 0,
       liked: (c['like'] as Map?)?['haslike'] == true,
       replyCount: (c['reply_num'] as num?)?.toInt() ?? 0,
+      // 查询回复需要评论所属的专题与子专题（每条评论自带）。
+      ref: c['special_id'] == null ? null : jsonEncode({'special_id': '${c['special_id']}', 'child': '${c['special_child_id'] ?? ''}', 'extdata': c['extdata'] is String ? c['extdata'] : jsonEncode(c['extdata'] ?? '0')}),
     );
+  }
+
+  @override
+  Future<CommentPage> commentReplies(Song song, Comment parent, {int offset = 0}) async {
+    final ref = parent.ref == null ? const <String, dynamic>{} : jsonDecode(parent.ref!) as Map<String, dynamic>;
+    const size = 30;
+    final page = offset ~/ size + 1;
+    final j = await _app(
+      '/mcomment/v1/hot_replylist',
+      method: 'POST',
+      query: {
+        'mixsongid': _ids(song).audio,
+        'special_id': ref['special_id'] ?? '',
+        'tid': parent.id,
+        'childrenid': ref['child'] ?? '',
+        'extdata': ref['extdata'] ?? '0',
+        'p': page,
+        'pagesize': size,
+        'need_show_image': 1,
+        'code': 'fc4be23b4e972707f36b8a828a93ba8a',
+      },
+    );
+    if ('${j['status']}' != '1') throw _KugouRefusal('${j['err_code'] ?? ''}', '${j['msg'] ?? j['message'] ?? ''}');
+    final list = [for (final c in (j['list'] as List? ?? const []).whereType<Map>()) ?_comment(c)];
+    final total = (j['comments_num'] as num?)?.toInt() ?? parent.replyCount;
+    return CommentPage(total: total, comments: list, hasMore: list.isNotEmpty && page * size < total, next: page * size);
   }
 
   // ── 播放 ──────────────────────────────────────────

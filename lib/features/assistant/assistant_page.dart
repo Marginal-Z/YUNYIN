@@ -18,7 +18,7 @@ import '../common/song_cover.dart';
 import '../desktop/desktop_dialogs.dart';
 import '../shell/nav.dart';
 
-/// 打开 AI 助手：手机为整页，桌面为弹出面板。[listen] 为 true 时打开后立即开始听（语音唤醒）。
+/// 打开云音助手：手机为整页，桌面为弹出面板。[listen] 为 true 时打开后立即开始听（语音唤醒）。
 void openAssistant(BuildContext context, {bool listen = false}) {
   if (_open) return;
   _open = true;
@@ -69,7 +69,7 @@ class _AssistantWakeListenerState extends State<AssistantWakeListener> {
   Widget build(BuildContext context) => widget.child;
 }
 
-/// AI 助手：对话记录、正在识别的话、快捷提问与输入框（文字 / 语音）。
+/// 云音助手：对话记录、正在识别的话、快捷提问与输入框（文字 / 语音）。
 class AssistantPage extends StatefulWidget {
   const AssistantPage({super.key});
 
@@ -138,7 +138,7 @@ class _AssistantPageState extends State<AssistantPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('AI 助手', style: ts(17, weight: w700, color: p.text)),
+                        Text('云音助手', style: ts(17, weight: w700, color: p.text)),
                         Text(
                           s.voiceWake ? '说“你好云音”随时唤醒' : (s.llmConfigured ? '已连接 ${s.model}' : '常用指令可直接使用'),
                           style: ts(12, color: p.text2),
@@ -152,7 +152,7 @@ class _AssistantPageState extends State<AssistantPage> {
                     size: 40,
                     iconSize: 20,
                     color: p.text2,
-                    label: 'AI 助手设置',
+                    label: '云音助手设置',
                     onTap: () {
                       final nav = context.read<AppNav>();
                       Navigator.of(context).maybePop();

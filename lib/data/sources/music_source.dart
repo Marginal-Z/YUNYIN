@@ -132,6 +132,9 @@ abstract class MusicSource extends ChangeNotifier {
 
   // ── 评论 ──────────────────────────────────────────
   Future<CommentPage> comments(Song song, {CommentSort sort = CommentSort.recommend, int offset = 0}) => throw const SourceUnsupported('评论');
+
+  /// 一条评论下的回复（楼层）。[offset] 为上一页返回的 [CommentPage.next]（第一页为 0）。
+  Future<CommentPage> commentReplies(Song song, Comment parent, {int offset = 0}) => throw const SourceUnsupported('评论回复');
   Future<void> postComment(Song song, String content) => throw const SourceUnsupported('发表评论');
   Future<void> likeComment(Song song, Comment comment, bool like) => throw const SourceUnsupported('点赞评论');
 
