@@ -182,7 +182,7 @@ class AppSettings extends ChangeNotifier {
   bool perfOverlay = false;
 
   /// 流畅度检测的对照实验（见 PerfLab），不保存。
-  bool perfNoScale = false, perfNoShadow = false, perfNoChrome = false;
+  bool perfNoShadow = false, perfNoChrome = false;
   bool pushNotify = true;
   bool personalized = true;
   bool showTranslation = false;
@@ -467,10 +467,6 @@ class AppSettings extends ChangeNotifier {
         glass = v;
       case 'perfOverlay':
         perfOverlay = v;
-      case 'perfNoScale':
-        perfNoScale = v;
-        notifyListeners();
-        return;
       case 'perfNoShadow':
         perfNoShadow = v;
         notifyListeners();

@@ -109,7 +109,6 @@ class YunyinApp extends StatelessWidget {
               );
               if (splashShotsRequested) return ShotFrame(builder: (context) => _SplashGate(child: scaled(context)));
               if (screenshotsRequested) return ShotFrame(builder: scaled);
-              PerfLab.noScale = s.perfOverlay && s.perfNoScale;
               PerfLab.noShadow = s.perfOverlay && s.perfNoShadow;
               PerfLab.noChrome = s.perfOverlay && s.perfNoChrome;
               return PerfOverlay(enabled: s.perfOverlay, child: _SplashGate(child: scaled(context)));

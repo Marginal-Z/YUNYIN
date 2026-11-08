@@ -81,10 +81,6 @@ class SettingsMorePage extends StatelessWidget {
             // 对照实验（只在检测时显示，不保存）：逐个关闭，看哪一项让页面切换掉帧。
             if (s.perfOverlay) ...[
               SettingsRow(
-                title: '实验：页面切换不缩放',
-                trailing: YSwitch(value: s.perfNoScale, label: '页面切换不缩放', onChanged: (v) => s.setFlag('perfNoScale', v)),
-              ),
-              SettingsRow(
                 title: '实验：不画卡片阴影',
                 trailing: YSwitch(value: s.perfNoShadow, label: '不画卡片阴影', onChanged: (v) => s.setFlag('perfNoShadow', v)),
               ),

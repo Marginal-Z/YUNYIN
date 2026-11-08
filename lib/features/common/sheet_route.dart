@@ -48,35 +48,29 @@ class SheetRoute<T> extends PageRoute<T> {
         final v = animation.value;
         final gesture = _dragging || navigator?.userGestureInProgress == true;
         // 三种状态共用同一组件结构（只改参数），拖动开始时页面不会被重建、状态不会丢失。
-        double opacity, dy, scale, radius;
+        double opacity, dy, radius;
         if (gesture || animation.status == AnimationStatus.reverse) {
           // 拖动时页面跟随手指；收起时整页滑回下方。
           final t = gesture ? v : Curves.easeInCubic.transform(v);
           opacity = 1;
           dy = 1 - t;
-          scale = 1;
           radius = math.min((1 - v).clamp(0.0, 1.0) * 120, 28);
         } else {
-          // 弹出：升起 + 放大 + 淡入，圆角从 36 收到 0。
+          // 弹出：升起 + 淡入，圆角从 36 收到 0。不做缩放：播放页文字与封面多，连续缩放时每帧都要重新光栅化文字。
           final t = const _OpenCurve().transform(v);
           opacity = (v * 3).clamp(0.0, 1.0);
-          // 位移不越过终点（回弹只体现在缩放上），页面底部不会露出缝隙。
+          // 位移不越过终点，页面底部不会露出缝隙。
           dy = (1 - math.min(t, 1.0)) * 0.3;
-          scale = 0.88 + 0.12 * math.min(t, 1.006);
           radius = (1 - t).clamp(0.0, 1.0) * 36;
         }
         return Opacity(
           opacity: opacity,
           child: FractionalTranslation(
             translation: Offset(0, dy),
-            child: Transform.scale(
-              scale: scale,
-              alignment: Alignment.bottomCenter,
-              child: ClipRRect(
-                clipBehavior: v < 1 ? Clip.antiAlias : Clip.none,
-                borderRadius: BorderRadius.circular(radius),
-                child: child,
-              ),
+            child: ClipRRect(
+              clipBehavior: v < 1 ? Clip.antiAlias : Clip.none,
+              borderRadius: BorderRadius.circular(radius),
+              child: child,
             ),
           ),
         );

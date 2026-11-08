@@ -53,9 +53,10 @@ Route<T> fadeRoute<T>(Widget page) => PageRouteBuilder<T>(
   pageBuilder: (_, _, _) => BackdropGroup(child: page),
   transitionsBuilder: (_, a, _, child) {
     final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    // 淡入加轻微上移（不缩放：满屏歌词连续缩放时每帧都要重新光栅化文字）。
     return FadeTransition(
       opacity: c,
-      child: ScaleTransition(scale: Tween(begin: 0.97, end: 1.0).animate(c), child: child),
+      child: SlideTransition(position: Tween(begin: const Offset(0, 0.03), end: Offset.zero).animate(c), child: child),
     );
   },
 );
@@ -297,7 +298,7 @@ Future<void> showSongMenu(BuildContext context, Song song) async {
       if (desktop) {
         return FadeTransition(
           opacity: curved,
-          child: ScaleTransition(scale: Tween(begin: 0.96, end: 1.0).animate(curved), child: child),
+          child: SlideTransition(position: Tween(begin: const Offset(0, 0.04), end: Offset.zero).animate(curved), child: child),
         );
       }
       return SlideTransition(

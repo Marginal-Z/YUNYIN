@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 
-import '../../core/perf_overlay.dart';
 import '../../core/ui/motion.dart';
 
 /// 桌面端内容区的页面。
@@ -52,13 +51,12 @@ class _FadeRoute extends PageRoute<void> {
         final s = secondaryAnimation.status == AnimationStatus.reverse
             ? Curves.easeIn.transform(secondaryAnimation.value)
             : Curves.easeOut.transform((secondaryAnimation.value / 0.4).clamp(0.0, 1.0));
-        // 组件树结构保持不变（只改参数），页面状态不会因为动画而重建。
-        final scale = (0.985 + 0.015 * rise) * (1 - 0.02 * s);
+        // 组件树结构保持不变（只改参数），页面状态不会因为动画而重建。不做缩放：连续缩放时满屏文字每帧都要重新光栅化。
         return Opacity(
           opacity: (fade * (1 - s)).clamp(0.0, 1.0),
           child: Transform(
             alignment: Alignment.center,
-            transform: Matrix4.translationValues(0, 22 * (1 - rise), 0)..scaleByDouble(scale, scale, 1, 1),
+            transform: Matrix4.translationValues(0, 22 * (1 - rise) - 8 * s, 0),
             child: child,
           ),
         );
@@ -152,7 +150,7 @@ class _TabStackState extends State<TabStack> with SingleTickerProviderStateMixin
                   final t = current && _from != null ? 1 - _move.value : 0.0;
                   return Transform(
                     alignment: Alignment.topCenter,
-                    transform: Matrix4.translationValues(0, 18 * t, 0)..scaleByDouble(1 - 0.02 * t, 1 - 0.02 * t, 1, 1),
+                    transform: Matrix4.translationValues(0, 18 * t, 0),
                     child: child,
                   );
                 },
@@ -166,8 +164,10 @@ class _TabStackState extends State<TabStack> with SingleTickerProviderStateMixin
   }
 }
 
-/// 移动端的页面：iOS 式从右侧滑入（保留从左边缘右滑返回），新页面同时从 96% 弹性放大到全尺寸，
-/// 被覆盖的页面略微缩小，层次感更强、落定时带一点 Q 弹。
+/// 移动端的页面：iOS 式从右侧滑入，被覆盖的页面同时向左平移（保留从左边缘右滑返回）。
+///
+/// 不对整页做缩放：Impeller 按“字号 × 缩放比例”光栅化字形，整页连续缩放时每一帧都要把满屏的文字重新
+/// 光栅化一遍。三星 S23 Ultra 上实测，去掉缩放后同样 16 次页面切换的掉帧从约 300 帧降到约 45 帧。
 class SpringPage<T> extends Page<T> {
   const SpringPage({required super.key, required this.child});
 
@@ -193,22 +193,4 @@ class _SpringPageRoute<T> extends PageRoute<T> with CupertinoRouteTransitionMixi
 
   @override
   Duration get transitionDuration => Motion.page;
-
-  @override
-  Widget buildTransitions(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
-    final slide = CupertinoRouteTransitionMixin.buildPageTransitions<T>(this, context, animation, secondaryAnimation, child);
-    if (PerfLab.noScale) return slide;
-    return AnimatedBuilder(
-      animation: Listenable.merge([animation, secondaryAnimation]),
-      builder: (context, child) {
-        // 只有打开时用弹簧；手势返回与关闭时线性跟随，避免松手瞬间跳动。组件树结构始终不变。
-        final forward = animation.status == AnimationStatus.forward && navigator?.userGestureInProgress != true;
-        final enter = forward ? Motion.spring.transform(animation.value) : animation.value;
-        final covered = Curves.easeOutCubic.transform(secondaryAnimation.value);
-        final scale = (0.96 + 0.04 * enter) * (1 - 0.035 * covered);
-        return Transform.scale(scale: scale, child: child);
-      },
-      child: slide,
-    );
-  }
 }

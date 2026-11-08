@@ -10,9 +10,6 @@ import 'package:flutter/widgets.dart';
 ///
 /// 另有几个对照实验开关（[PerfLab]），只在打开流畅度检测时显示，用来找出绘制开销大的部分。
 abstract final class PerfLab {
-  /// 页面切换时不缩放新旧页面（只保留滑动）。
-  static bool noScale = false;
-
   /// 不绘制卡片的外阴影。
   static bool noShadow = false;
 
