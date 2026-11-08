@@ -59,6 +59,10 @@ dependencies:
   flutter_js: ^0.8.7
   webview_flutter: ^4.14.1
   desktop_multi_window: ^0.3.1
+  # AI 助手：离线唤醒词与语音识别（sherpa-onnx）、麦克风录音、模型解压。
+  sherpa_onnx: 1.13.8
+  record: ^7.1.1
+  archive: ^4.5.2
 
 dev_dependencies:
   flutter_test:

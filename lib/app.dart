@@ -32,6 +32,8 @@ import 'core/update/updater.dart';
 import 'core/lyrics_overlay.dart';
 import 'data/cloud/cloud_drives.dart';
 import 'data/lx/lx_sources.dart';
+import 'assistant/assistant_controller.dart';
+import 'features/assistant/assistant_page.dart';
 import 'data/listen_stats.dart';
 import 'features/consent/consent_page.dart';
 
@@ -50,6 +52,7 @@ class YunyinApp extends StatelessWidget {
     required this.stats,
     required this.lyricsOverlay,
     required this.lx,
+    required this.assistant,
   });
 
   final AppSettings settings;
@@ -62,6 +65,7 @@ class YunyinApp extends StatelessWidget {
   final ListenStats stats;
   final LyricsOverlay lyricsOverlay;
   final LxSources lx;
+  final AssistantController assistant;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +81,8 @@ class YunyinApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: stats),
         ChangeNotifierProvider.value(value: lyricsOverlay),
         ChangeNotifierProvider.value(value: lx),
+        ChangeNotifierProvider.value(value: assistant),
+        ChangeNotifierProvider.value(value: assistant.settings),
         ChangeNotifierProvider(create: (_) => AppNav()),
       ],
       child: Consumer<AppSettings>(
@@ -134,7 +140,7 @@ class YunyinApp extends StatelessWidget {
                   type: MaterialType.transparency,
                   child: PlaybackShortcuts(
                     enabled: AdaptiveScale.desktopOf(context) ?? width >= kDesktopBreakpoint,
-                    child: BackdropGroup(child: _NoticeListener(child: child)),
+                    child: BackdropGroup(child: _NoticeListener(child: AssistantWakeListener(child: child))),
                   ),
                 ),
               ),

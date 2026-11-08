@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   desktop_multi_window
   flutter_js
   media_kit_libs_windows_audio
+  record_windows
   screen_retriever_windows
   url_launcher_windows
   window_manager
@@ -13,6 +14,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   jni
+  sherpa_onnx_windows
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

@@ -134,6 +134,15 @@ class SettingsRoute extends AppRoute {
   String get sideKey => 'settings';
 }
 
+/// AI 助手设置：语音唤醒与大模型接口。
+class AssistantSettingsRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
 class SettingsMoreRoute extends AppRoute {
   @override
   Chrome get chrome => Chrome.navOnly;

@@ -45,6 +45,7 @@ abstract final class YIcons {
   static const heart = YIconData('<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.2 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/>', stroke: false);
   static const heartOutline = YIconData('<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.2 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/>');
   static const send = YIconData('<path d="M5 12 19 5l-4 14-3-6z"/>');
+  static const mic = YIconData('<rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>');
   static const clock = YIconData('<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>');
   static const timer = YIconData('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>');
   static const download = YIconData('<path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/>');

@@ -353,7 +353,18 @@ class PlayerController extends ChangeNotifier {
       level: base * level * _eqHeadroom,
       eqPeakDb: _eqApplied.isEmpty ? 0 : _filterGains.fold<double>(0, math.max),
     );
-    return (base * _fade * level * boost * _eqHeadroom * 100).clamp(0, 200).toDouble();
+    return (base * _fade * _duck * level * boost * _eqHeadroom * 100).clamp(0, 200).toDouble();
+  }
+
+  /// 语音助手听指令时压低音乐的系数。
+  double _duck = 1;
+
+  /// 语音助手听指令时把音乐压低到 25%（识别更准），说完后恢复。
+  Future<void> duck(bool on) async {
+    final v = on ? 0.25 : 1.0;
+    if (v == _duck) return;
+    _duck = v;
+    await _applyVolume();
   }
 
   /// 当前歌曲的峰值（平台提供；不知道时为 null）。

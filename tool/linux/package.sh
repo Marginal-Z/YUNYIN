@@ -36,11 +36,13 @@ cp "$ROOT/linux/runner/resources/app_icon.png" "$PKG/usr/share/icons/hicolor/256
   echo "Architecture: $DEB_ARCH"
   echo "Maintainer: Marginal-Z <yy19273767397@gmail.com>"
   echo "Depends: libgtk-3-0t64 | libgtk-3-0, libmpv2 | libmpv1"
+  # AI 助手：麦克风录音（parecord）与朗读回答（spd-say），不装也能正常播放。
+  echo "Recommends: pulseaudio-utils, speech-dispatcher"
   echo "Section: sound"
   echo "Priority: optional"
   echo "Homepage: https://github.com/Marginal-Z/YUNYIN"
-  echo "Description: 云音 - 第三方网易云音乐客户端"
-  echo " 跨平台第三方网易云音乐客户端，支持切换播放源。"
+  echo "Description: 云音 - 开源跨平台音乐客户端"
+  echo " 网易云音乐、QQ 音乐、酷狗音乐与洛雪曲库四种平台模式，离线语音唤醒的 AI 助手。"
 } > "$PKG/DEBIAN/control"
 dpkg-deb --root-owner-group --build "$PKG" "$DIST/YunYin-$VERSION-linux-$ARCH.deb" >/dev/null
 

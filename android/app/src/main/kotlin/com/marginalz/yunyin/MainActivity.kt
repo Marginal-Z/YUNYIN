@@ -93,6 +93,29 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+        // AI 助手：语音唤醒的前台服务、系统朗读与媒体音量。只使用 applicationContext（引擎可能比界面活得久）。
+        val app = applicationContext
+        val voice = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/voice")
+        VoiceService.onStopRequested = { android.os.Handler(android.os.Looper.getMainLooper()).post { voice.invokeMethod("stopRequested", null) } }
+        voice.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startService" -> result.success(VoiceService.start(app))
+                "stopService" -> {
+                    VoiceService.stop(app)
+                    result.success(null)
+                }
+                "speak" -> {
+                    VoiceService.speak(app, call.argument<String>("text") ?: "")
+                    result.success(null)
+                }
+                "stopSpeaking" -> {
+                    VoiceService.stopSpeaking()
+                    result.success(null)
+                }
+                "volume" -> result.success(VoiceService.volume(app, call.argument<Double>("level"), call.argument<Double>("delta")))
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/widget").setMethodCallHandler { call, result ->
             when (call.method) {
                 "update" -> {
@@ -156,6 +179,7 @@ class MainActivity : AudioServiceActivity() {
                         "audio" to (ContextCompat.checkSelfPermission(this, audioPermission) == PackageManager.PERMISSION_GRANTED),
                         "install" to (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()),
                         "overlay" to LyricsOverlay.canDraw(this),
+                        "microphone" to (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED),
                     ),
                 )
                 "openAppSettings" -> {

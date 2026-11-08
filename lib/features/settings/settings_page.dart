@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../assistant/assistant_settings.dart';
+
 import '../../data/listen_stats.dart';
 import '../../data/lx/lx_sources.dart';
 import 'lx_page.dart';
@@ -296,6 +298,18 @@ class SettingsEntries extends StatelessWidget {
                 if (s.hifiEngine) '高保真',
               ].join(' · '),
               onTap: () => go(context, AudioEffectsRoute()),
+            ),
+            Builder(
+              builder: (context) {
+                final a = context.watch<AssistantSettings>();
+                return SettingsRow(
+                  icon: YIcons.sparkle,
+                  tile: TileColor.blue,
+                  title: 'AI 助手',
+                  subtitle: [a.voiceWake ? '语音唤醒已开启' : '语音唤醒关闭', a.llmConfigured ? a.model : '未设置大模型'].join(' · '),
+                  onTap: () => go(context, AssistantSettingsRoute()),
+                );
+              },
             ),
           ],
         ),

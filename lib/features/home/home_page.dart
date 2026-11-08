@@ -17,6 +17,7 @@ import '../../data/models.dart';
 import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
+import '../assistant/assistant_page.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
 import '../common/song_row.dart';
@@ -137,6 +138,8 @@ class HomePage extends StatelessWidget {
                 ],
               ),
             ),
+            CircleButton(YIcons.sparkle, size: 44, iconSize: 21, color: p.accentText, label: 'AI 助手', onTap: () => openAssistant(context)),
+            const SizedBox(width: 10),
             if (user?.avatar != null)
               Pressable(onTap: () => go(context, ProfileRoute()), semanticLabel: '个人中心', child: Cover(user!.avatar, size: 44, circle: true))
             else

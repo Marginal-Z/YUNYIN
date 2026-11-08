@@ -217,6 +217,8 @@ void main() {
       await settings.init();
       settings.setBassEnhance(bass);
       settings.setSpatial(spatial);
+      // ao=pcm 不按实时速度输出：淡入（420 ms）期间整首测试音就已经写完，录到的全是静音。
+      settings.setFlag('crossfade', false);
       final sources = SourceManager([_ToneSource(path)]);
       await sources.init();
       final player = PlayerController(sources, settings);

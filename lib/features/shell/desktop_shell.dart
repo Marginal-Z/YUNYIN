@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../assistant/assistant_page.dart';
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
@@ -313,6 +314,7 @@ class _Sidebar extends StatelessWidget {
                   _SideItem(icon: YIcons.discover, label: '发现', active: active == 'discover', onTap: () => open(DiscoverRoute())),
                   if (source.supports(SourceFeature.radio))
                     _SideItem(icon: YIcons.radio, label: '电台', active: active == 'radio', onTap: () => open(DiscoverRoute(tab: 2))),
+                  _SideItem(icon: YIcons.sparkle, label: 'AI 助手', active: false, onTap: () => openAssistant(context)),
                   label('乐库', 18),
                   _SideItem(icon: YIcons.clock, label: '最近播放', active: active == 'collection:recent', onTap: () => open(CollectionRoute(PlaylistKind.recent))),
                   _SideItem(

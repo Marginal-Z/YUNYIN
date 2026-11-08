@@ -51,6 +51,15 @@ android {
         }
     }
 
+    packaging {
+        jniLibs {
+            // 离线语音（sherpa-onnx）带有 x86 的动态库，Flutter 不支持 x86，打进通用安装包只会白占体积。
+            excludes += "lib/x86/**"
+            // 动态库压缩后存放：语音识别的动态库约 27 MB，压缩后安装包小一半左右（安装时解压）。
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             // 没有配置发布密钥时（例如他人 fork 后本地构建）退回调试签名。

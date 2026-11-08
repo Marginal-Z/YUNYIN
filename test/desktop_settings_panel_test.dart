@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yunyin/assistant/assistant_settings.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yunyin/core/settings.dart';
@@ -38,6 +39,7 @@ void main() {
           ChangeNotifierProvider.value(value: LocalLibrary()),
           ChangeNotifierProvider.value(value: CloudDrives()),
           ChangeNotifierProvider.value(value: UpdateManager()),
+          ChangeNotifierProvider.value(value: AssistantSettings()..voiceWake = false),
           ChangeNotifierProvider.value(value: LxSources()),
           ChangeNotifierProvider.value(value: ListenStats()),
           ChangeNotifierProvider.value(value: AppNav()),

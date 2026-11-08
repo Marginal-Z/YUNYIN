@@ -8,10 +8,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 
+import '../assistant/assistant_controller.dart';
 import '../core/settings.dart';
 import '../data/cloud/cloud_drives.dart';
 import '../data/models.dart';
 import '../data/sources/source_manager.dart';
+import '../features/assistant/assistant_page.dart';
 import '../features/common/actions.dart';
 import '../features/settings/about_pages.dart';
 import '../features/shell/nav.dart';
@@ -391,6 +393,16 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   home();
   nav.push(AudioEffectsRoute());
   await shot('mobile-audio', settle: 1500);
+  // AI 助手：一条本地指令的对话。
+  home();
+  openAssistant(ctx());
+  await ctx().read<AssistantController>().submit('播放晴天');
+  await shot('mobile-assistant', settle: 3000);
+  navKey.currentState!.pop();
+  await wait(500);
+  home();
+  nav.push(AssistantSettingsRoute());
+  await shot('mobile-assistant-settings', settle: 1500);
   home();
   nav.push(LyricsOverlayRoute());
   await shot('mobile-lyrics-overlay', settle: 1500);
