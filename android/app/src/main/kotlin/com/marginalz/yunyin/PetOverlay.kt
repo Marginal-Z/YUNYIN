@@ -214,10 +214,10 @@ object PetOverlay {
         private var lastT = 0L
         private var dragging = false
         private var longPressed = false
+        // 长按时只振动提示，松手后再打开云音：手指还按着时打开，这一按剩下的部分会落进云音的界面造成误触。
         private val longPress = Runnable {
             longPressed = true
             performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            openApp(context.applicationContext)
         }
 
         override fun onInterceptTouchEvent(ev: MotionEvent): Boolean = true
@@ -272,6 +272,8 @@ object PetOverlay {
                         }
                         petChannel?.invokeMethod("drag", mapOf("active" to false, "vx" to 0.0))
                         savePosition(app)
+                    } else if (longPressed && e.actionMasked == MotionEvent.ACTION_UP) {
+                        openApp(app)
                     } else if (!longPressed && e.actionMasked == MotionEvent.ACTION_UP) {
                         petChannel?.invokeMethod("poke", null)
                         mainChannel?.invokeMethod("tap", null)

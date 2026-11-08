@@ -17,6 +17,17 @@ class AppIconController {
   final AppSettings settings;
   String? _applied;
 
+  /// Android：三星 Good Lock“主题公园”是否套用了图标主题。它按应用包名统一替换图标（不在主题里的应用
+  /// 显示默认图标），切换图标入口不会生效。其他系统或读取失败时为 false。
+  static Future<bool> iconThemeOverrides() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return false;
+    try {
+      return await _channel.invokeMethod<String>('iconTheme') != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _sync() async {
     final name = settings.iconAccent.name;
     // Android 关闭“跟随主题色”时使用默认入口：它带单色图层，系统开启主题图标时随壁纸变色；

@@ -153,7 +153,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         if (a.voiceError != null) ...[const SizedBox(height: 8), Text(a.voiceError!, style: ts(13, color: p.danger))],
         const SizedBox(height: 8),
         Text(
-          '唤醒词与语音识别完全在本机离线完成，录音不会上传。第一次打开语音功能时下载离线模型（高精度约 260 MB，标准约 110 MB）。'
+          '唤醒词与语音识别完全在本机离线完成，录音不会上传。第一次打开语音功能时下载离线模型（高精度约 ${AsrModel.senseVoice.sizeMb} MB，标准约 ${AsrModel.paraformer.sizeMb} MB）。'
           '可以直接说：“播放晴天”“我想听周杰伦的歌”“下一首”“暂停”“音量调到五十”“三十分钟后停止播放”“切换到摇滚音效”“收藏这首歌”。',
           style: ts(13, height: 1.55, color: p.text2),
         ),

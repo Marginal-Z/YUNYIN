@@ -172,6 +172,8 @@ class PetHost with WindowListener {
     if (key != _config) {
       _config = key;
       _last = '';
+      // 刚打开（或换了）桌宠：从现在开始计算“多久没人理”，不要一出来就打瞌睡。
+      _rules.touch();
       if (_isAndroid) {
         unawaited(_android.invokeMethod<void>('configure', {'enabled': k != null}).catchError((Object e) => debugPrint('pet: $e')));
       } else if (isDesktopPlatform) {

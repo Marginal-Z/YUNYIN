@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/app_icon.dart';
 import '../../core/settings.dart';
 import '../../core/lyric_fonts.dart';
 import '../../core/theme/palette.dart';
@@ -14,6 +15,9 @@ import '../common/actions.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
 import 'settings_page.dart';
+
+/// 三星主题公园的图标主题是否在替换桌面图标（只检查一次）。
+final Future<bool> _iconThemeOverrides = AppIconController.iconThemeOverrides();
 
 /// 外观设置（二级页面）。
 class AppearancePage extends StatelessWidget {
@@ -49,6 +53,19 @@ class AppearancePage extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(s.iconFollowsAccent ? '跟随主题色：${s.accent.label}' : '默认图标', style: ts(13, color: p.text2)),
+                      FutureBuilder<bool>(
+                        future: _iconThemeOverrides,
+                        builder: (context, snap) => snap.data == true
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  '你正在使用三星“主题公园”的图标主题，它会按应用统一替换桌面图标，这里选择的颜色在桌面上不会显示。'
+                                  '可以在主题公园中移除图标主题，或在其中为云音单独指定图标。',
+                                  style: ts(12.5, height: 1.45, color: p.text2),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
                     ],
                   ),
                 ),

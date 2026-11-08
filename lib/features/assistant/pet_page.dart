@@ -14,6 +14,8 @@ import '../../core/lyrics_overlay.dart';
 import '../../pet/pet_host.dart';
 import '../../pet/pet_rig.dart';
 import '../../pet/pet_view.dart';
+import '../../voice/engines/local_engine.dart';
+import '../../voice/tts_types.dart';
 import '../../voice/voice_library.dart';
 import '../../voice/voice_settings.dart';
 import '../common/layout.dart';
@@ -33,6 +35,39 @@ class _PetPageState extends State<PetPage> with WidgetsBindingObserver {
   final _stage = PetViewController();
   bool? _canDraw;
 
+  /// 各音色的中文离线声音是否已下载（没下载、也没配置云端引擎时，桌宠只能用系统朗读，几个桌宠声音都一样）。
+  final _voiceInstalled = <String, bool>{};
+  double? _voiceProgress;
+  String? _voiceError;
+
+  static LocalVoiceModel? _localModel(PetKind k) => LocalVoiceModels.byId(VoicePresets.byId(k.voiceId).binding('local')?.voices[VoiceLanguage.zh] ?? '');
+
+  Future<void> _checkVoices() async {
+    for (final k in PetKind.values) {
+      final m = _localModel(k);
+      if (m != null) _voiceInstalled[k.voiceId] = await LocalTtsEngine.isInstalled(m);
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _downloadVoice(PetKind k) async {
+    final binding = VoicePresets.byId(k.voiceId).binding('local');
+    if (binding == null || _voiceProgress != null) return;
+    setState(() {
+      _voiceProgress = 0;
+      _voiceError = null;
+    });
+    try {
+      await LocalTtsEngine().prepare(binding, VoiceLanguage.zh, onProgress: (p) {
+        if (mounted) setState(() => _voiceProgress = p);
+      });
+    } catch (e) {
+      _voiceError = '下载失败：${'$e'.replaceFirst('Exception: ', '')}';
+    }
+    _voiceProgress = null;
+    await _checkVoices();
+  }
+
   static bool get _android => !kIsWeb && Platform.isAndroid;
 
   static const _greetings = {
@@ -46,6 +81,7 @@ class _PetPageState extends State<PetPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkPermission();
+    _checkVoices();
   }
 
   @override
@@ -131,6 +167,7 @@ class _PetPageState extends State<PetPage> with WidgetsBindingObserver {
               Text('${_preview.label} · ${_preview.style}', style: ts(17, weight: w600, color: p.text)),
               const SizedBox(height: 4),
               Text('${_preview.description} · 音色：${VoicePresets.byId(_preview.voiceId).name}', style: ts(13, color: p.text2)),
+              _voiceHint(p),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 6,
@@ -195,6 +232,44 @@ class _PetPageState extends State<PetPage> with WidgetsBindingObserver {
           style: ts(13, height: 1.55, color: p.text2),
         ),
       ],
+    );
+  }
+}
+
+extension on _PetPageState {
+  /// 桌宠的音色还不能用时（没有离线声音，也没配置云端引擎）提示下载离线声音。
+  Widget _voiceHint(Palette p) {
+    final k = _preview;
+    final cloud = const ['cosyvoice', 'elevenlabs', 'fish'].any((e) => context.read<VoiceSettings>().engine(e).usable);
+    final m = _PetPageState._localModel(k);
+    if (cloud || m == null || _voiceInstalled[k.voiceId] != false) return const SizedBox.shrink();
+    final voice = VoicePresets.byId(k.voiceId).name;
+    final progress = _voiceProgress;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        children: [
+          Text(
+            _voiceError ?? '${k.label}的声音（$voice）还没有下载，现在说话用的是系统朗读。',
+            textAlign: TextAlign.center,
+            style: ts(12.5, color: _voiceError != null ? p.danger : p.text2),
+          ),
+          const SizedBox(height: 6),
+          if (progress != null)
+            SizedBox(
+              width: 180,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(value: progress, minHeight: 4, color: k.color, backgroundColor: p.separator),
+              ),
+            )
+          else
+            Pressable(
+              onTap: () => _downloadVoice(k),
+              child: Text('下载$voice的离线声音（${m.sizeMb} MB）', style: ts(14, weight: w600, color: p.accentText)),
+            ),
+        ],
+      ),
     );
   }
 }

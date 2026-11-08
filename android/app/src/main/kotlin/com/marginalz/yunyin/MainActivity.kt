@@ -143,6 +143,14 @@ class MainActivity : AudioServiceActivity() {
                         result.success(null)
                     }
                 }
+                // 三星 Good Lock“主题公园”的图标主题按应用包名替换图标，不区分入口：使用中时切换入口看不到效果。
+                "iconTheme" -> result.success(
+                    try {
+                        Settings.System.getString(contentResolver, "current_sec_appicon_theme_package")?.takeIf { it.isNotBlank() }
+                    } catch (e: Exception) {
+                        null
+                    },
+                )
                 else -> result.notImplemented()
             }
         }
