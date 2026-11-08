@@ -46,4 +46,16 @@ void main() {
     expect(PlayerController.effectGains(eq: const [], bass: 1)[1], 5.0);
     expect(PlayerController.audioFilter(gains: bass), contains('equalizer=f=62:width_type=o:width=1:g=5.0'));
   });
+
+  test('mpv 的音量是三次方曲线：线性的振幅系数开三次方根后再交给播放器，衰减不会被放大到三倍', () {
+    double db(double v) => 60 * math.log(v / 100) / math.ln10; // 音量 v 对应 20·log10((v/100)³) dB。
+    expect(PlayerController.mpvVolume(base: 1, gain: 1), 100);
+    // 峰值余量 0.8414（-1.5 dB）在播放器上正好是 -1.5 dB，而不是 -4.5 dB。
+    expect(db(PlayerController.mpvVolume(base: 1, gain: PlayerController.peakHeadroom)), closeTo(-1.5, 0.01));
+    // 语音助手压低到 0.25（-12 dB）。
+    expect(db(PlayerController.mpvVolume(base: 1, gain: 0.25)), closeTo(-12.04, 0.01));
+    // 音量滑块按听感直接使用。
+    expect(PlayerController.mpvVolume(base: 0.5, gain: 1), 50);
+    expect(PlayerController.mpvVolume(base: 1, gain: 0), 0);
+  });
 }

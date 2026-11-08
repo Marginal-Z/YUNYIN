@@ -350,11 +350,19 @@ class PlayerController extends ChangeNotifier {
     final boost = softwareBoost(
       boostDb: _boostHandled ? 0 : settings.volumeBoost,
       peak: _peak,
-      level: base * level * _eqHeadroom,
+      level: math.pow(base, 3) * level * _eqHeadroom,
       eqPeakDb: _eqApplied.isEmpty ? 0 : _filterGains.fold<double>(0, math.max),
     );
-    return (base * _fade * _duck * level * boost * _eqHeadroom * 100).clamp(0, 200).toDouble();
+    return mpvVolume(base: base * _fade, gain: _duck * level * boost * _eqHeadroom);
   }
+
+  /// 换算为 mpv 的音量。mpv 的音量是三次方曲线：音量 v 对应的振幅是 (v / 100)³。
+  /// [base] 是音量滑块与淡入淡出（按听感变化，直接使用）；[gain] 是线性的振幅系数（音量均衡、峰值余量、
+  /// 均衡器余量、音量增强与语音助手压低），需要先开三次方根。此前直接相乘，所有衰减在分贝上都被放大到三倍：
+  /// 例如均衡器有 +4 dB 提升时整体本应只压低 2.4 dB，实际压低了 7 dB 多，均衡器的提升几乎被抵消，听不出变化。
+  @visibleForTesting
+  static double mpvVolume({required double base, required double gain}) =>
+      (base * math.pow(math.max(gain, 0), 1 / 3) * 100).clamp(0, 200).toDouble();
 
   /// 语音助手听指令时压低音乐的系数。
   double _duck = 1;
@@ -526,12 +534,20 @@ class PlayerController extends ChangeNotifier {
     await _applyVolume();
   }
 
+  /// 记一次滤镜失败（每次启动最多记一次）。
+  final Set<String> _failedThisRun = {};
+  Future<void> _countFailure(String key) async {
+    if (!_failedThisRun.add(key)) return;
+    final p = await SharedPreferences.getInstance();
+    await p.setInt(key, (p.getInt(key) ?? 0) + 1);
+  }
+
   Future<void> _onEqFailed() async {
     // 滤镜链中有限幅器且还没确认过：先认为是限幅器不可用（精简版播放引擎没有 alimiter），去掉它再试，
     // 不连带关闭均衡器。
     if (_eqApplied.contains('alimiter') && !limiterUnsupported) {
       limiterUnsupported = true;
-      unawaited(SharedPreferences.getInstance().then((p) => p.setBool('limiterUnsupported', true)));
+      unawaited(_countFailure('limiterFailures.v2'));
       final p = _player;
       final want = _wantedFilter;
       if (p != null && await setMpvProperty(p, 'af', want)) _eqApplied = want;
@@ -541,7 +557,7 @@ class PlayerController extends ChangeNotifier {
     }
     if (eqUnsupported) return;
     eqUnsupported = true;
-    unawaited(SharedPreferences.getInstance().then((p) => p.setBool('eqUnsupported', true)));
+    unawaited(_countFailure('eqFailures.v2'));
     // 低频增强改由系统的 BassBoost 完成。
     _scheduleFx();
     final p = _player;
@@ -1201,8 +1217,10 @@ class PlayerController extends ChangeNotifier {
         _liked.add(song.key);
       }
     } catch (_) {}
-    eqUnsupported = p.getBool('eqUnsupported') ?? false;
-    limiterUnsupported = p.getBool('limiterUnsupported') ?? false;
+    // 两次启动中都失败才认为不支持（偶尔一次失败，例如切换音频设备时，不应永久关闭均衡器）。
+    // 旧版本一次失败就永久记下的标记不再沿用。
+    eqUnsupported = (p.getInt('eqFailures.v2') ?? 0) >= 2;
+    limiterUnsupported = (p.getInt('limiterFailures.v2') ?? 0) >= 2;
     try {
       final h = p.getString('player.history');
       if (h != null) {
