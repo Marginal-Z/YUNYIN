@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models.dart';
+import '../json_decode.dart';
 import '../music_source.dart';
 import '../net_retry.dart';
 import '../netease/netease_source.dart' show parseLrc;
@@ -224,7 +225,7 @@ class QQMusicSource extends MusicSource {
       }),
       options: Options(headers: {'User-Agent': 'QQMusic 20090008(android 14)'}),
     );
-    final r = (jsonDecode(res.data ?? '{}') as Map)['req_0'] as Map? ?? const {};
+    final r = ((await decodeJson(res.data)) as Map)['req_0'] as Map? ?? const {};
     final code = (r['code'] as num?)?.toInt() ?? -1;
     if (code != 0) throw QQApiException(code);
     return (r['data'] as Map?)?.cast<String, dynamic>() ?? const {};
@@ -248,7 +249,7 @@ class QQMusicSource extends MusicSource {
       data: jsonEncode(body),
       options: Options(headers: {if (_uin != null) 'Cookie': _cookie}),
     );
-    return jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    return (await decodeJson(res.data)) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> _one(String module, String method, Map<String, dynamic> param) async {
@@ -410,7 +411,7 @@ class QQMusicSource extends MusicSource {
       'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
       queryParameters: {'key': keyword, 'format': 'json', 'g_tk': 5381},
     );
-    final d = ((jsonDecode(res.data ?? '{}') as Map)['data'] as Map?) ?? const {};
+    final d = (((await decodeJson(res.data)) as Map)['data'] as Map?) ?? const {};
     List<Map> items(String k) => ((d[k] as Map?)?['itemlist'] as List? ?? const []).cast<Map>();
     return (
       artists: [
@@ -443,7 +444,7 @@ class QQMusicSource extends MusicSource {
         'flag_qc': 0,
       },
     );
-    final list = (((jsonDecode(res.data ?? '{}') as Map)['data'] as Map?)?['list'] as List? ?? const []).cast<Map>();
+    final list = ((((await decodeJson(res.data)) as Map)['data'] as Map?)?['list'] as List? ?? const []).cast<Map>();
     return [
       for (final p in list)
         PlaylistInfo(
@@ -544,7 +545,7 @@ class QQMusicSource extends MusicSource {
       queryParameters: {'type': 1, 'json': 1, 'utf8': 1, 'onlysong': 0, 'new_format': 1, 'disstid': disstid, 'format': 'json', 'g_tk': 5381},
       options: Options(headers: {if (_uin != null) 'Cookie': _cookie}),
     );
-    final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    final j = (await decodeJson(res.data)) as Map<String, dynamic>;
     final cd = ((j['cdlist'] as List?)?.firstOrNull as Map?)?.cast<String, dynamic>() ?? const {};
     final songs = [for (final x in (cd['songlist'] as List? ?? const []).cast<Map<String, dynamic>>()) _song(x)];
     return PlaylistInfo(
@@ -843,7 +844,7 @@ class QQMusicSource extends MusicSource {
         queryParameters: {'hostuin': _uin, 'sin': 0, 'size': 60, 'format': 'json', 'g_tk': 5381},
         options: Options(headers: {'Cookie': _cookie}),
       );
-      final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+      final j = (await decodeJson(res.data)) as Map<String, dynamic>;
       for (final x in ((j['data'] as Map?)?['disslist'] as List? ?? const []).cast<Map>()) {
         if ('${x['tid']}' != '0') out.add(_diss(x, mine: true));
       }
@@ -1058,7 +1059,7 @@ class QQMusicSource extends MusicSource {
       }),
       options: Options(headers: {if (_uin != null) 'Cookie': _cookie}),
     );
-    final r = (jsonDecode(res.data ?? '{}') as Map)['req_0'] as Map? ?? const {};
+    final r = ((await decodeJson(res.data)) as Map)['req_0'] as Map? ?? const {};
     final code = (r['code'] as num?)?.toInt() ?? -1;
     if (code != 0) throw QQApiException(code);
     return (r['data'] as Map?)?.cast<String, dynamic>() ?? const {};
@@ -1141,7 +1142,7 @@ class QQMusicSource extends MusicSource {
         'https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg',
         queryParameters: {'songmid': _ids(song).mid, 'format': 'json', 'nobase64': 1, 'g_tk': 5381},
       );
-      final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+      final j = (await decodeJson(res.data)) as Map<String, dynamic>;
       final lyric = '${j['lyric'] ?? ''}';
       if (lyric.contains('[')) {
         final ly = parseLrc(lyric, translation: '${j['trans'] ?? ''}');
@@ -1433,7 +1434,7 @@ class QQMusicSource extends MusicSource {
         ),
       );
       _checkLoginGeneration(generation);
-      final body = jsonDecode(login.data ?? '{}') as Map<String, dynamic>;
+      final body = (await decodeJson(login.data)) as Map<String, dynamic>;
       final resultCode = int.tryParse('${(body['req'] as Map?)?['code'] ?? body['code'] ?? -1}') ?? -1;
       debugPrint('qq login exchange (${scoped ? 'scoped' : 'all'}): ${login.data}');
       if (resultCode == 0) {
@@ -1488,7 +1489,7 @@ class QQMusicSource extends MusicSource {
         queryParameters: {'cid': 205360838, 'userid': uin, 'reqfrom': 1, 'format': 'json', 'g_tk': _hash33(key, 5381)},
         options: Options(headers: {'Cookie': _cookie}),
       );
-      final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+      final j = (await decodeJson(res.data)) as Map<String, dynamic>;
       final creator = ((j['data'] as Map?)?['creator'] as Map?) ?? const {};
       final m = await membership();
       if (generation != _loginGeneration || _uin != uin || _key != key) return;

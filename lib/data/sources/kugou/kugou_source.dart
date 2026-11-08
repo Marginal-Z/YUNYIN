@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/text_decode.dart';
 import '../../models.dart';
+import '../json_decode.dart';
 import '../music_source.dart';
 import '../net_retry.dart';
 import '../netease/netease_source.dart' show parseLrc;
@@ -263,7 +264,7 @@ class KugouSource extends MusicSource {
     };
     params['signature'] = _sign(_webKey, params);
     final res = await _dio.get<String>(url, queryParameters: params, options: Options(validateStatus: (_) => true, headers: {'User-Agent': _appUa}));
-    return jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    return (await decodeJson(res.data)) as Map<String, dynamic>;
   }
 
   /// 客户端接口，返回完整的 JSON（不检查 status）。[withToken] 为 false 时不带账号（按游客请求）。
@@ -313,7 +314,7 @@ class KugouSource extends MusicSource {
       ),
     );
     try {
-      return jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+      return (await decodeJson(res.data)) as Map<String, dynamic>;
     } catch (_) {
       throw _KugouRefusal('HTTP ${res.statusCode}', '');
     }
@@ -527,7 +528,7 @@ class KugouSource extends MusicSource {
     );
     Map<String, dynamic> j;
     try {
-      j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+      j = (await decodeJson(res.data)) as Map<String, dynamic>;
     } catch (_) {
       throw _KugouRefusal('HTTP ${res.statusCode}', '');
     }
@@ -1451,7 +1452,7 @@ class KugouSource extends MusicSource {
         receiveTimeout: const Duration(seconds: 6),
       ),
     );
-    final j = jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    final j = (await decodeJson(res.data)) as Map<String, dynamic>;
     final data = j['data'];
     final code = j['err_code'] ?? j['error_code'] ?? j['errcode'];
     if ('$code' == '30020' && data is Map) {

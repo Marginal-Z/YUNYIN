@@ -129,6 +129,49 @@ class ProfilePage extends StatelessWidget {
   _ => (const Color(0xFF3A3A40), const Color(0xFF111114)),
 };
 
+/// 平台标志：平台主色的圆形徽标，中间是平台的简写（网易云为音符，QQ 音乐为 Q，酷狗为 K，洛雪为“洛”）。
+/// [inverted] 为 true 时白底彩字（用于选中的彩色按钮上）。
+class PlatformMark extends StatelessWidget {
+  const PlatformMark(this.id, {super.key, this.size = 30, this.inverted = false});
+
+  final String id;
+  final double size;
+  final bool inverted;
+
+  @override
+  Widget build(BuildContext context) {
+    final (a, b) = _platformColors(id);
+    final fg = inverted ? b : Colors.white;
+    final glyph = switch (id) {
+      'qq' => 'Q',
+      'kugou' => 'K',
+      'lx' => '洛',
+      _ => null,
+    };
+    final netease = id == 'netease';
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: inverted ? Colors.white : null,
+        gradient: inverted
+            ? null
+            // 网易云标志使用品牌红（平台配色中的深色用于会员卡片）。
+            : LinearGradient(
+                colors: netease ? const [Color(0xFFFF4E5F), Color(0xFFD7102A)] : [a, b],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+      ),
+      child: glyph == null
+          ? YIcon(YIcons.note, size: size * 0.56, strokeWidth: 2.4, color: inverted && netease ? const Color(0xFFD7102A) : fg)
+          : Text(glyph, style: ts(size * (glyph == '洛' ? 0.46 : 0.52), weight: FontWeight.w800, height: 1, color: fg)),
+    );
+  }
+}
+
 class _PlatformTile extends StatelessWidget {
   const _PlatformTile({required this.source, required this.selected, required this.onTap});
 
@@ -145,7 +188,7 @@ class _PlatformTile extends StatelessWidget {
       semanticLabel: '${source.name}模式${selected ? '，当前' : ''}',
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
-        height: 86,
+        height: 82,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
@@ -158,6 +201,8 @@ class _PlatformTile extends StatelessWidget {
           children: [
             Row(
               children: [
+                PlatformMark(source.id, size: 26, inverted: selected),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     // 平台按钮较窄，使用简称。
@@ -193,10 +238,10 @@ class _MembershipCard extends StatelessWidget {
     final (a, b) = _platformColors(source.id);
     final gold = source.id == 'netease';
     Widget card(Widget child) => YBox(
-      radius: BorderRadius.circular(26),
+      radius: BorderRadius.circular(22),
       gradient: LinearGradient(colors: [a, b], begin: Alignment.topLeft, end: Alignment.bottomRight),
-      shadows: [Shadow2(0, 16, 32, b.withValues(alpha: 0.3))],
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      shadows: [Shadow2(0, 10, 22, b.withValues(alpha: 0.26))],
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: DefaultTextStyle(
         style: ts(14, color: Colors.white),
         child: child,
@@ -204,23 +249,31 @@ class _MembershipCard extends StatelessWidget {
     );
     final accent = gold ? const Color(0xFFF3D7A1) : Colors.white;
     if (source.user == null) {
+      // 未登录：一行紧凑的提示（标志 + 平台会员 + 说明），不占用大块空间。
       return card(
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
           children: [
-            Text(
-              source.supports(SourceFeature.login) ? '${source.name}会员' : source.name,
-              style: ts(13, weight: w600, color: const Color(0xCCFFFFFF)),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              source.supports(SourceFeature.login) ? '登录后查看会员信息' : '游客模式',
-              style: ts(22, weight: w700, color: accent),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              source.supports(SourceFeature.login) ? '会员账号可播放会员歌曲与更高音质。' : '${source.name}不需要账号：${source.description}。曲库与音源在“设置 → 洛雪音源”中管理。',
-              style: ts(13, height: 1.5, color: const Color(0xD9FFFFFF)),
+            PlatformMark(source.id, size: 38, inverted: true),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    source.supports(SourceFeature.login) ? '登录后查看会员信息' : '游客模式',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ts(16, weight: w700, color: accent),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    source.supports(SourceFeature.login) ? '${source.name}会员可播放会员歌曲与更高音质' : '无需账号，曲库与音源在“设置 → 洛雪音源”中管理',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: ts(12.5, height: 1.4, color: const Color(0xD9FFFFFF)),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -230,7 +283,7 @@ class _MembershipCard extends StatelessWidget {
       load: source.membership,
       loading: card(
         const SizedBox(
-          height: 96,
+          height: 64,
           child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
         ),
       ),
@@ -242,6 +295,8 @@ class _MembershipCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  PlatformMark(source.id, size: 22, inverted: true),
+                  const SizedBox(width: 8),
                   Text(
                     source.supports(SourceFeature.login) ? '${source.name}会员' : source.name,
                     style: ts(13, weight: w600, color: const Color(0xCCFFFFFF)),
@@ -262,34 +317,45 @@ class _MembershipCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
-              Text(
-                m?.title ?? '暂时无法获取会员信息',
-                style: ts(24, weight: FontWeight.w800, color: accent),
+              // 会员名称与到期时间放在同一行，卡片更紧凑。
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Flexible(
+                    child: Text(
+                      m?.title ?? '暂时无法获取会员信息',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: ts(19, weight: FontWeight.w800, color: accent),
+                    ),
+                  ),
+                  if (expires != null) ...[
+                    const SizedBox(width: 10),
+                    Text('${expires.year}.${expires.month}.${expires.day} 到期', style: ts(12, color: const Color(0xD9FFFFFF))),
+                  ],
+                ],
               ),
-              if (expires != null) ...[
-                const SizedBox(height: 4),
-                Text('${expires.year} 年 ${expires.month} 月 ${expires.day} 日到期', style: ts(13, color: const Color(0xD9FFFFFF))),
-              ],
               if (m != null && m.benefits.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
-                    for (final b in m.benefits)
+                    for (final b in m.benefits.take(4))
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: const Color(0x26FFFFFF), borderRadius: BorderRadius.circular(12)),
                         child: Text(
                           b,
-                          style: ts(12, weight: w500, color: Colors.white),
+                          style: ts(11.5, weight: w500, color: Colors.white),
                         ),
                       ),
                   ],
                 ),
               ],
-              if (m != null && !m.active && !m.relogin) ...[const SizedBox(height: 8), Text('开通会员后可播放会员歌曲与更高音质。', style: ts(13, color: const Color(0xD9FFFFFF)))],
-              const SizedBox(height: 14),
+              if (m != null && !m.active && !m.relogin) ...[const SizedBox(height: 6), Text('开通会员后可播放会员歌曲与更高音质。', style: ts(12.5, color: const Color(0xD9FFFFFF)))],
+              const SizedBox(height: 10),
               Row(
                 children: [
                   if (m?.relogin ?? false) ...[
@@ -328,7 +394,7 @@ class _CardButton extends StatelessWidget {
       onTap: onTap,
       scale: 0.94,
       child: Container(
-        height: 34,
+        height: 30,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(color: const Color(0x33FFFFFF), borderRadius: BorderRadius.circular(17)),
         child: Row(

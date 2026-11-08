@@ -25,24 +25,36 @@ class LyricsPage extends StatefulWidget {
 }
 
 class _LyricsPageState extends State<LyricsPage> {
-  static final _immersive = Platform.isAndroid;
+  static final _android = Platform.isAndroid;
 
   /// 上下的歌曲信息与播放控件是否显示：只有点按“全屏歌词”按钮才隐藏，不会自动隐藏。
   bool _controls = true;
 
+  /// 沉浸状态栏：竖屏时保留透明的状态栏（时间、电量照常显示，页面画到状态栏后面），顶部按钮紧贴状态栏；
+  /// 此前一直隐藏状态栏，但页面仍按状态栏（或挖孔）高度留白，按钮下面空出一截，看起来往下沉。
+  /// 只有横屏与“全屏歌词”时才完全隐藏系统栏。
+  void _syncBars() {
+    if (!_android || !mounted) return;
+    final size = MediaQuery.sizeOf(context);
+    SystemBars.immersive(this, size.width > size.height * 1.3 || !_controls);
+  }
+
   @override
-  void initState() {
-    super.initState();
-    if (_immersive) SystemBars.immersive(this, true);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncBars();
   }
 
   @override
   void dispose() {
-    if (_immersive) SystemBars.immersive(this, false);
+    if (_android) SystemBars.immersive(this, false);
     super.dispose();
   }
 
-  void _setFullscreen(bool on) => setState(() => _controls = !on);
+  void _setFullscreen(bool on) {
+    setState(() => _controls = !on);
+    _syncBars();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +90,7 @@ class _LyricsPageState extends State<LyricsPage> {
             curve: Curves.easeOutCubic,
             left: 28,
             right: land && _controls ? side + 40 : 28,
-            top: pad.top + (land ? 76 : (_controls ? 168 : 12)),
+            top: pad.top + (land ? 64 : (_controls ? 148 : 12)),
             bottom: pad.bottom + (!land && _controls ? 172 : 0),
             child: const LyricsView(desktop: false, anchor: 0.3),
           ),
@@ -89,12 +101,12 @@ class _LyricsPageState extends State<LyricsPage> {
             child: fade(
               top: true,
               SizedBox(
-                height: pad.top + 160,
+                height: pad.top + 140,
                 child: Stack(
                   children: [
                     Positioned(
                       left: 16,
-                      top: pad.top + 20,
+                      top: pad.top + 8,
                       child: YIconButton(
                         YIcons.chevronDown,
                         size: 44,
@@ -107,7 +119,7 @@ class _LyricsPageState extends State<LyricsPage> {
                     Positioned(
                       left: 76,
                       right: 76,
-                      top: pad.top + 20,
+                      top: pad.top + 8,
                       height: 44,
                       child: Center(
                         child: Text(
@@ -118,12 +130,12 @@ class _LyricsPageState extends State<LyricsPage> {
                     ),
                     Positioned(
                       right: 64,
-                      top: pad.top + 20,
+                      top: pad.top + 8,
                       child: YIconButton(YIcons.fullscreen, size: 44, iconSize: 22, color: p.text, label: '全屏歌词', onTap: () => _setFullscreen(true)),
                     ),
                     Positioned(
                       right: 16,
-                      top: pad.top + 20,
+                      top: pad.top + 8,
                       child: YIconButton(
                         YIcons.more,
                         size: 44,
@@ -146,7 +158,7 @@ class _LyricsPageState extends State<LyricsPage> {
                     Positioned(
                       left: land ? size.width - side - 20 : 20,
                       right: 20,
-                      top: pad.top + 84,
+                      top: pad.top + 64,
                       // 歌曲信息不加卡片背景。
                       child: Container(
                         height: 72,

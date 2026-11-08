@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -6,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../lx/lx_sources.dart';
 import '../../models.dart';
 import '../kugou/kugou_source.dart';
+import '../json_decode.dart';
 import '../music_source.dart';
 import '../netease/netease_source.dart';
 import '../qq/qq_source.dart';
@@ -110,7 +110,7 @@ class LxLibrarySource extends MusicSource {
 
   Future<Map<String, dynamic>> _get(String url) async {
     final res = await _dio.get<String>(url, options: Options(responseType: ResponseType.plain, headers: {'User-Agent': 'Mozilla/5.0'}));
-    return jsonDecode(res.data ?? '{}') as Map<String, dynamic>;
+    return (await decodeJson(res.data)) as Map<String, dynamic>;
   }
 
   static String? _cover(String? short, {int size = 500}) {

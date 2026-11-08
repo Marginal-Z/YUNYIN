@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/text_decode.dart';
 import '../../models.dart';
+import '../json_decode.dart';
 import '../music_source.dart';
 import '../net_retry.dart';
 import 'netease_crypto.dart';
@@ -221,12 +222,12 @@ class NeteaseSource extends MusicSource {
     debugPrint('netease anonymous: code=${j['code']} hasToken=${token != null} MUSIC_A=${_cookies.containsKey('MUSIC_A')}');
   }
 
-  Map<String, dynamic> _parse(Response<String> res) {
+  Future<Map<String, dynamic>> _parse(Response<String> res) async {
     _absorbCookies(res.headers);
     final text = res.data ?? '';
     final Map<String, dynamic> j;
     try {
-      j = jsonDecode(text) as Map<String, dynamic>;
+      j = (await decodeJson(text)) as Map<String, dynamic>;
     } catch (_) {
       throw NeteaseApiException(res.statusCode ?? -1, '服务返回了无法解析的内容（${res.statusCode}）');
     }
@@ -857,7 +858,7 @@ class NeteaseSource extends MusicSource {
       queryParameters: {'id': song.id, 'lv': -1, 'kv': -1, 'tv': -1, 'yv': -1},
       options: Options(headers: {'User-Agent': _ua, 'Referer': 'https://music.163.com', 'Cookie': _cookieHeader}),
     );
-    final j = _parse(res);
+    final j = await _parse(res);
     final lrc = j['lrc']?['lyric'] as String? ?? '';
     final tr = j['tlyric']?['lyric'] as String? ?? '';
     final yrc = j['yrc']?['lyric'] as String? ?? '';

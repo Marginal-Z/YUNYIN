@@ -201,7 +201,7 @@ class PrivacyPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Frame(title: '隐私政策', subtitle: '更新于 2026 年 11 月 · 适用于云音 1.1.12 及以后版本', children: [...kPrivacySections]);
+    return _Frame(title: '隐私政策', subtitle: '更新于 2026 年 11 月 · 适用于云音的所有版本', children: [...kPrivacySections]);
   }
 }
 

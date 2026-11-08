@@ -351,7 +351,7 @@ class PlayerController extends ChangeNotifier {
       boostDb: _boostHandled ? 0 : settings.volumeBoost,
       peak: _peak,
       level: base * level * _eqHeadroom,
-      eqPeakDb: _eqApplied.isEmpty ? 0 : settings.eqGains.fold<double>(0, math.max),
+      eqPeakDb: _eqApplied.isEmpty ? 0 : _filterGains.fold<double>(0, math.max),
     );
     return (base * _fade * level * boost * _eqHeadroom * 100).clamp(0, 200).toDouble();
   }
@@ -378,6 +378,25 @@ class PlayerController extends ChangeNotifier {
 
   /// 均衡器在当前设备上不可用（滤镜创建失败）。
   bool eqUnsupported = false;
+
+  /// 低频增强（强度 1 时）在各频段的提升：集中在 30–120 Hz 的鼓点与贝斯，250 Hz 以上不变，人声不会发闷。
+  static const bassCurve = [4.5, 5.0, 3.5, 1.5, 0, 0, 0, 0, 0, 0];
+
+  /// 空间音效（强度 1 时）的声场曲线：略微降低 500 Hz–1 kHz 的中频“箱体感”，提升 4 kHz 以上的空气感与细节，
+  /// 听感更开阔。系统的虚拟环绕在部分设备（尤其外放）上不生效，这条曲线保证所有设备都能听出变化。
+  static const spatialCurve = [0.0, 0, 0, 0, -1.5, -1.0, 0, 1.0, 2.0, 2.5];
+
+  /// 播放器均衡器的各频段增益：用户均衡器（打开时）+ 低频增强 + 空间音效，每个频段限制在 ±12 dB。
+  @visibleForTesting
+  static List<double> effectGains({required List<double> eq, double bass = 0, double spatial = 0}) => [
+    for (var i = 0; i < kEqBands.length; i++)
+      ((i < eq.length ? eq[i] : 0) + bassCurve[i] * bass + spatialCurve[i] * spatial).clamp(-12.0, 12.0),
+  ];
+
+  /// 当前设置下播放器均衡器的各频段增益（均衡器滤镜不可用时为空）。
+  List<double> get _filterGains => eqUnsupported
+      ? const []
+      : effectGains(eq: settings.eqEnabled ? settings.eqGains : const [], bass: settings.bassEnhance, spatial: settings.spatial);
 
   /// 由 10 个频段的增益生成 mpv 的音频滤镜：每个频段一个倍频程宽的峰值均衡器。
   ///
@@ -437,7 +456,8 @@ class PlayerController extends ChangeNotifier {
     _fxTimer = Timer(const Duration(milliseconds: 150), _applyFx);
   }
 
-  String get _fxKey => '${settings.volumeBoost}|${settings.spatial.toStringAsFixed(2)}|${settings.bassEnhance.toStringAsFixed(2)}|${settings.eqEnabled}';
+  String get _fxKey =>
+      '${settings.volumeBoost}|${settings.spatial.toStringAsFixed(2)}|${settings.bassEnhance.toStringAsFixed(2)}|${settings.eqEnabled}|${_filterGains.any((g) => g > 0)}|$eqUnsupported';
 
   Future<void> _applyFx() async {
     if (!_isAndroid || _fxSession == 0) return;
@@ -446,13 +466,14 @@ class PlayerController extends ChangeNotifier {
       final r = await _fxChannel.invokeMapMethod<String, Object?>('configure', {
         'boostDb': settings.volumeBoost.toDouble(),
         // 均衡器有提升或者开了音量增强时保留限幅器，其余时候不改变原始声音。
-        'limiter': settings.volumeBoost > 0 || (settings.eqEnabled && settings.eqGains.any((g) => g > 0)),
+        'limiter': settings.volumeBoost > 0 || _filterGains.any((g) => g > 0),
         'spatial': settings.spatial,
-        'bass': settings.bassEnhance,
+        // 低频增强在播放器的均衡器中完成（所有设备都有效）；只有均衡器滤镜不可用时才交给系统的 BassBoost。
+        'bass': eqUnsupported ? settings.bassEnhance : 0.0,
       });
       _nativeBoost = settings.volumeBoost > 0 && r?['limiter'] == true;
       spatialUnsupported = settings.spatial > 0 && r?['spatial'] == false;
-      bassUnsupported = settings.bassEnhance > 0 && r?['bass'] == false;
+      bassUnsupported = eqUnsupported && settings.bassEnhance > 0 && r?['bass'] == false;
     } catch (e) {
       debugPrint('audio fx: $e');
       _nativeBoost = false;
@@ -463,18 +484,18 @@ class PlayerController extends ChangeNotifier {
 
   /// 均衡器有提升时整体降低一部分电平（通过播放器音量，而不是 volume 滤镜），减少削波。
   double get _eqHeadroom {
-    if (_eqApplied.isEmpty || !settings.eqEnabled || eqUnsupported) return 1;
+    if (_eqApplied.isEmpty || eqUnsupported) return 1;
     // 后面有限幅器时不需要预先压低电平。Android 的系统限幅器在 mpv 之后：只有以浮点格式交给系统时
     // （高解析输出），超过满刻度的采样才能完整到达限幅器，否则在转换为 16 位时已经削波。
     if (_eqApplied.contains('alimiter') || (_isAndroid && _fxSession != 0 && settings.hiResOutput)) return 1;
-    final peak = settings.eqGains.reduce(math.max);
+    final peak = _filterGains.fold<double>(0, math.max);
     return peak > 0 ? math.pow(10, -peak * 0.6 / 20).toDouble() : 1;
   }
 
   /// 拖动滑块时连续变化：合并为每 120ms 最多更新一次滤镜。
   /// 当前设置对应的滤镜：均衡器（打开且设备支持时），以及桌面端的音量增强与限幅。
   String get _wantedFilter => audioFilter(
-    gains: settings.eqEnabled && !eqUnsupported ? settings.eqGains : const [],
+    gains: _filterGains,
     boostDb: _limiterBoost ? settings.volumeBoost : 0,
   );
 
@@ -510,6 +531,8 @@ class PlayerController extends ChangeNotifier {
     if (eqUnsupported) return;
     eqUnsupported = true;
     unawaited(SharedPreferences.getInstance().then((p) => p.setBool('eqUnsupported', true)));
+    // 低频增强改由系统的 BassBoost 完成。
+    _scheduleFx();
     final p = _player;
     if (p != null) await setMpvProperty(p, 'af', '');
     _eqApplied = '';

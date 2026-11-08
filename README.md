@@ -4,8 +4,8 @@
 
 #  YunYin
 
-**一款开源、跨平台的第三方音乐客户端**
-网易云音乐 · QQ 音乐 · 酷狗音乐 · 洛雪曲库 · 本地音乐 · 网盘，一个应用全部搞定
+**所有的歌，一处安放。**
+开源、跨平台的音乐客户端：网易云音乐 · QQ 音乐 · 酷狗音乐 · 洛雪曲库 · 本地音乐 · 网盘 · AI 助手
 
 [![最新版本](https://img.shields.io/github/v/release/Marginal-Z/YUNYIN?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC&color=e8304a)](https://github.com/Marginal-Z/YUNYIN/releases/latest)
 [![构建](https://img.shields.io/github/actions/workflow/status/Marginal-Z/YUNYIN/build.yml?branch=main&label=%E6%9E%84%E5%BB%BA)](https://github.com/Marginal-Z/YUNYIN/actions/workflows/build.yml)

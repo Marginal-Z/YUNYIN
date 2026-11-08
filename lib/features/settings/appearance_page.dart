@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -47,7 +48,7 @@ class AppearancePage extends StatelessWidget {
                         style: ts(17, weight: w600, color: p.text),
                       ),
                       const SizedBox(height: 3),
-                      Text(s.iconFollowsAccent ? '跟随主题色：${s.accent.label}' : '固定为朱红', style: ts(13, color: p.text2)),
+                      Text(s.iconFollowsAccent ? '跟随主题色：${s.accent.label}' : '默认图标', style: ts(13, color: p.text2)),
                     ],
                   ),
                 ),
@@ -189,6 +190,11 @@ class AppearancePage extends StatelessWidget {
               icon: YIcons.sparkle,
               tile: TileColor.values[s.accent.index],
               title: '应用图标跟随主题色',
+              // 桌面通常在回到桌面后才刷新图标；关闭时使用默认图标，可随系统的“主题图标”变色。
+              subtitle: defaultTargetPlatform == TargetPlatform.android
+                  ? (s.iconFollowsAccent ? '回到桌面后生效，开启系统主题图标时仍显示主题色' : '使用默认图标，可随系统主题图标变色')
+                  : null,
+              height: defaultTargetPlatform == TargetPlatform.android ? 64 : 52,
               trailing: YSwitch(value: s.iconFollowsAccent, label: '应用图标跟随主题色', onChanged: (v) => s.setFlag('iconFollowsAccent', v)),
             ),
             SettingsRow(

@@ -38,8 +38,8 @@ class _ToneSource extends MusicSource {
   Future<StreamInfo> stream(Song song, AudioQuality quality) async => StreamInfo(url: path, gainDb: -11.2);
 }
 
-/// 生成 6 秒 440Hz 正弦波 WAV（44.1kHz / 16bit / 单声道）。
-Future<String> _writeTone() async {
+/// 生成 6 秒正弦波 WAV（44.1kHz / 16bit / 单声道，默认 440Hz）。
+Future<String> _writeTone({int freq = 440}) async {
   const rate = 44100, seconds = 6;
   final samples = rate * seconds;
   final data = ByteData(44 + samples * 2);
@@ -63,7 +63,7 @@ Future<String> _writeTone() async {
   str(36, 'data');
   data.setUint32(40, samples * 2, Endian.little);
   for (var i = 0; i < samples; i++) {
-    data.setInt16(44 + i * 2, (math.sin(2 * math.pi * 440 * i / rate) * 12000).round(), Endian.little);
+    data.setInt16(44 + i * 2, (math.sin(2 * math.pi * freq * i / rate) * 12000).round(), Endian.little);
   }
   Directory dir;
   try {
@@ -72,7 +72,7 @@ Future<String> _writeTone() async {
     dir = Directory.systemTemp; // 在主机上以普通测试方式运行时没有 path_provider 插件。
   }
   await dir.create(recursive: true);
-  final f = File('${dir.path}/yunyin_tone.wav');
+  final f = File('${dir.path}/yunyin_tone_$freq.wav');
   await f.writeAsBytes(data.buffer.asUint8List());
   return f.path;
 }
@@ -208,4 +208,83 @@ void main() {
     }
     player.dispose();
   });
+  testWidgets('音效真正改变输出：低频增强把 62Hz 测试音提升，空间音效提升 8kHz（录下播放器输出比较电平）', (tester) async {
+    /// 用 ao=pcm 把播放器的实际输出写入 WAV，返回跳过开头淡入后的均方根电平（dBFS）。
+    Future<double> render(int freq, {double bass = 0, double spatial = 0}) async {
+      SharedPreferences.setMockInitialValues({});
+      final path = await _writeTone(freq: freq);
+      final settings = AppSettings();
+      await settings.init();
+      settings.setBassEnhance(bass);
+      settings.setSpatial(spatial);
+      final sources = SourceManager([_ToneSource(path)]);
+      await sources.init();
+      final player = PlayerController(sources, settings);
+      await player.init();
+      final native = player.engine!.platform as NativePlayer;
+      final out = '${File(path).parent.path}/yunyin_out_${freq}_${bass}_$spatial.wav';
+      if (File(out).existsSync()) File(out).deleteSync();
+      await native.setProperty('ao-pcm-file', out);
+      await native.setProperty('ao-pcm-waveheader', 'yes');
+      await native.setProperty('ao', 'pcm');
+      await player.playSongs([Song(id: 'fx$freq$bass$spatial', sourceId: 'tone', name: '测试音', duration: const Duration(seconds: 6))]);
+      final sw = Stopwatch()..start();
+      while (player.position.value < const Duration(milliseconds: 4500) && sw.elapsed < const Duration(seconds: 30)) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      final af = await native.getProperty('af');
+      player.dispose();
+      await tester.pump(const Duration(milliseconds: 800));
+      final level = _rmsDb(File(out).readAsBytesSync(), skipSeconds: 1.5);
+      // ignore: avoid_print
+      print('fx freq=$freq bass=$bass spatial=$spatial level=${level.toStringAsFixed(2)} dB af=$af');
+      return level;
+    }
+
+    final bassOff = await render(62);
+    final bassOn = await render(62, bass: 1);
+    expect(bassOn - bassOff, greaterThan(2.0), reason: '低频增强没有提升低频电平');
+    final airOff = await render(8000);
+    final airOn = await render(8000, spatial: 1);
+    expect(airOn - airOff, greaterThan(1.0), reason: '空间音效的声场曲线没有生效');
+  });
+}
+
+/// 解析 WAV（16 / 32 位整数或 32 位浮点），返回跳过开头 [skipSeconds] 秒后的均方根电平（dBFS）。
+double _rmsDb(Uint8List bytes, {double skipSeconds = 0}) {
+  final d = ByteData.sublistView(bytes);
+  var pos = 12, format = 1, channels = 2, rate = 44100, bits = 16, dataStart = -1;
+  while (pos + 8 <= bytes.length) {
+    final id = String.fromCharCodes(bytes.sublist(pos, pos + 4));
+    final size = d.getUint32(pos + 4, Endian.little);
+    if (id == 'fmt ') {
+      format = d.getUint16(pos + 8, Endian.little);
+      channels = d.getUint16(pos + 10, Endian.little);
+      rate = d.getUint32(pos + 12, Endian.little);
+      bits = d.getUint16(pos + 22, Endian.little);
+      if (format == 0xFFFE) format = d.getUint16(pos + 32, Endian.little);
+    } else if (id == 'data') {
+      dataStart = pos + 8;
+      break;
+    }
+    pos += 8 + size + (size & 1);
+  }
+  expect(dataStart, greaterThan(0), reason: '没有录到播放器输出');
+  final width = bits ~/ 8;
+  final frame = width * channels;
+  final start = dataStart + (skipSeconds * rate).round() * frame;
+  var sum = 0.0;
+  var n = 0;
+  for (var o = start; o + width <= bytes.length; o += width) {
+    final double v = switch ((format, bits)) {
+      (3, 32) => d.getFloat32(o, Endian.little),
+      (_, 16) => d.getInt16(o, Endian.little) / 32768,
+      (_, 32) => d.getInt32(o, Endian.little) / 2147483648,
+      _ => 0,
+    };
+    sum += v * v;
+    n++;
+  }
+  expect(n, greaterThan(rate), reason: '录到的音频太短');
+  return 10 * math.log(sum / n + 1e-12) / math.ln10;
 }

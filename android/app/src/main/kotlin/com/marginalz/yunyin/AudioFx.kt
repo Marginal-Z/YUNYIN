@@ -1,6 +1,7 @@
 package com.marginalz.yunyin
 
 import android.content.Context
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.audiofx.BassBoost
 import android.media.audiofx.DynamicsProcessing
@@ -15,8 +16,9 @@ import android.util.Log
  * - 音量增强：Android 9 起用 DynamicsProcessing，先按增强量提升输入增益，再经过限幅器（-1 dBFS），
  *   响亮的母带也不会削波破音；更早的系统用 LoudnessEnhancer（自带压缩限幅）。
  *   mpv 自己的软件音量在交给系统之前就截断了超过满刻度的采样，所以增强不能放在 mpv 中做。
- * - 空间音效：系统虚拟环绕（Virtualizer）。
- * - 低频增强：系统 BassBoost。
+ * - 空间音效：系统虚拟环绕（Virtualizer），按当前输出强制使用耳机（双耳）或外放（跨耳）模式；
+ *   不指定时多数设备按“自动”处理，外放时直接不生效。播放器的均衡器另外加一条声场曲线，保证都能听出变化。
+ * - 低频增强：在播放器的均衡器中完成；只有均衡器不可用时才使用系统 BassBoost（很多设备上它没有效果）。
  *
  * 个别设备不支持某种音效时跳过它，其余照常工作，并把实际生效的结果返回给 Dart。
  */
@@ -46,7 +48,7 @@ object AudioFx {
         val result = HashMap<String, Any>()
         result["session"] = id
         result["limiter"] = applyDynamics(id, boostDb, limiter)
-        result["spatial"] = applyVirtualizer(id, spatial)
+        result["spatial"] = applyVirtualizer(context, id, spatial)
         result["bass"] = applyBass(id, bassLevel)
         return result
     }
@@ -95,7 +97,20 @@ object AudioFx {
         }
     }
 
-    private fun applyVirtualizer(id: Int, strength: Float): Boolean {
+    /** 当前是否在用耳机（有线、USB、蓝牙）输出。 */
+    private fun headphones(context: Context): Boolean {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val types = mutableSetOf(
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+        )
+        if (Build.VERSION.SDK_INT >= 31) types.add(AudioDeviceInfo.TYPE_BLE_HEADSET)
+        return am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in types }
+    }
+
+    private fun applyVirtualizer(context: Context, id: Int, strength: Float): Boolean {
         if (strength <= 0f) {
             virtualizer?.release()
             virtualizer = null
@@ -105,6 +120,13 @@ object AudioFx {
             val v = virtualizer ?: Virtualizer(0, id).also { virtualizer = it }
             if (v.strengthSupported) v.setStrength((strength * 1000).toInt().coerceIn(0, 1000).toShort())
             v.enabled = true
+            val mode = if (headphones(context)) Virtualizer.VIRTUALIZATION_MODE_BINAURAL else Virtualizer.VIRTUALIZATION_MODE_TRANSAURAL
+            val forced = try {
+                v.forceVirtualizationMode(mode)
+            } catch (e: Throwable) {
+                false
+            }
+            Log.i(TAG, "virtualizer strength=$strength mode=$mode forced=$forced")
             true
         } catch (e: Throwable) {
             Log.w(TAG, "Virtualizer unavailable", e)

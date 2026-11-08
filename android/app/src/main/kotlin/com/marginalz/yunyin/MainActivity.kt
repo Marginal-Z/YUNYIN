@@ -25,18 +25,38 @@ class MainActivity : AudioServiceActivity() {
         private const val NOTIFY_REQUEST = 4202
     }
 
-    private val themes = listOf("red", "blue", "teal", "orange", "graphite")
+    private val themes = listOf("red", "blue", "teal", "orange", "graphite", "default")
     private var pendingScan: Result? = null
     private var pendingIcon: String? = null
 
-    /**
-     * 在应用退到后台时切换桌面图标。许多桌面（ZUI、MIUI、ColorOS 等）在应用位于前台时不会刷新
-     * activity-alias 的启用状态，桌面上会一直显示旧图标；退到后台后切换，桌面回到前台时即可重新加载。
-     */
     // 云音在前台时隐藏桌面歌词与状态栏歌词。
     override fun onResume() {
         super.onResume()
         LyricsOverlay.setAppVisible(this, true)
+        preferHighRefreshRate()
+    }
+
+    /**
+     * 使用屏幕支持的最高刷新率。Flutter 不会自己请求高刷新率：三星（自适应刷新率）、小米、一加等机型上
+     * 没有请求的应用被系统限制在 60Hz，而系统界面是 120Hz，切换页面与滚动明显不如系统流畅。
+     * 这里选择分辨率与当前相同、刷新率最高的显示模式；省电模式下系统仍可能限制刷新率。
+     */
+    private fun preferHighRefreshRate() {
+        try {
+            val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
+            if (display == null) return
+            val current = display.mode
+            val best = display.supportedModes
+                .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
+                .maxByOrNull { it.refreshRate } ?: return
+            val attrs = window.attributes
+            if (attrs.preferredDisplayModeId == best.modeId && attrs.preferredRefreshRate == best.refreshRate) return
+            attrs.preferredDisplayModeId = best.modeId
+            attrs.preferredRefreshRate = best.refreshRate
+            window.attributes = attrs
+        } catch (e: Throwable) {
+            android.util.Log.w("YunYin", "refresh rate: $e")
+        }
     }
 
     override fun onPause() {
@@ -44,6 +64,10 @@ class MainActivity : AudioServiceActivity() {
         LyricsOverlay.setAppVisible(this, false)
     }
 
+    /**
+     * 在应用退到后台时切换桌面图标。许多桌面（ZUI、MIUI、ColorOS 等）在应用位于前台时不会刷新
+     * activity-alias 的启用状态，桌面上会一直显示旧图标；退到后台后切换，桌面回到前台时即可重新加载。
+     */
     override fun onStop() {
         super.onStop()
         pendingIcon?.let {
@@ -278,15 +302,36 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    /** 启用对应主题色的桌面入口并停用其他入口；DONT_KILL_APP 保证当前界面不被关闭。 */
+    /**
+     * 启用对应主题色的桌面入口并停用其他入口；DONT_KILL_APP 保证当前界面不被关闭。
+     *
+     * 先启用新入口、再停用旧入口：此前按列表顺序逐个设置，切换时会有一瞬间所有入口都被停用，
+     * 三星、MIUI 等桌面会因此移除桌面上的图标或不再刷新。Android 13 起一次提交全部变更，桌面只刷新一次。
+     */
     private fun setIcon(name: String) {
         val pm = packageManager
+        fun component(t: String) = ComponentName(this, "$packageName.Icon${t.replaceFirstChar { it.uppercase() }}")
+        val changes = mutableListOf<Pair<ComponentName, Int>>()
+        val target = component(name)
+        if (pm.getComponentEnabledSetting(target) != PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+            changes.add(target to PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
+        }
         for (t in themes) {
-            val component = ComponentName(this, "$packageName.Icon${t.replaceFirstChar { it.uppercase() }}")
-            val state = if (t == name) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-            if (pm.getComponentEnabledSetting(component) != state) {
-                pm.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP)
+            if (t == name) continue
+            val c = component(t)
+            val state = pm.getComponentEnabledSetting(c)
+            // 清单中默认启用的入口（IconRed）在未设置过时报告 DEFAULT，同样需要停用。
+            if (state != PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                changes.add(c to PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
             }
+        }
+        if (changes.isEmpty()) return
+        if (Build.VERSION.SDK_INT >= 33) {
+            pm.setComponentEnabledSettings(
+                changes.map { (c, s) -> PackageManager.ComponentEnabledSetting(c, s, PackageManager.DONT_KILL_APP) },
+            )
+        } else {
+            for ((c, s) in changes) pm.setComponentEnabledSetting(c, s, PackageManager.DONT_KILL_APP)
         }
     }
 }

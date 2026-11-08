@@ -34,10 +34,11 @@ class AdaptiveScale extends StatelessWidget {
     // 比设计尺寸小时按比例缩小；比设计尺寸大时只放大一半（大屏既让卡片与文字变大，也多显示一些内容）。
     double damp(double raw, double min, double max) => (raw <= 1 ? raw : 1 + (raw - 1) * 0.5).clamp(min, max);
     if (isDesktopLayout(size, desktopBreakpoint)) {
-      // 桌面窗口按 0.05 一档缩放，接近设计尺寸时正好 1 倍：拖动改变窗口大小时界面不会跟着连续缩放（发抖），
-      // 常见窗口尺寸下按 1:1 渲染，文字与细线清晰。
-      final raw = damp(math.min(size.width / _desktopDesignSize.width, size.height / _desktopDesignSize.height), 0.8, 1.3);
-      if ((raw - 1).abs() < 0.06) return 1;
+      // 桌面窗口不放大：窗口大于设计尺寸时按 1:1 渲染、显示更多内容。此前大窗口（例如 2560 宽的屏幕上最大化）
+      // 整体放大到 1.3 倍，所有文字、细线与圆角都落在半个像素上，看起来发虚、有锯齿；界面大小应由系统的缩放比例决定，
+      // 系统缩放会按真实的像素密度渲染，始终清晰。窗口小于设计尺寸时按 0.05 一档缩小，接近设计尺寸时正好 1 倍。
+      final raw = math.min(size.width / _desktopDesignSize.width, size.height / _desktopDesignSize.height).clamp(0.8, 1.0);
+      if (1 - raw < 0.06) return 1;
       return (raw * 20).floorToDouble() / 20;
     }
     // 按短边缩放：竖屏即宽度；横屏时不会因为宽度大而把高度压得过矮。平板竖屏最多放大 1.4 倍。

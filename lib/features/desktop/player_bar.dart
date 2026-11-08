@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -178,6 +180,46 @@ class PlayerBarFade extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = Palette.of(context).bg;
+    final image = context.select<AppSettings, bool>((s) => s.background != BackgroundMode.glow && s.uiStyle == UiStyle.glass);
+    if (image) {
+      // 自定义图片与封面取色背景：不用不透明的底色盖住背景，改为由上到下逐渐加强的模糊（分三段）加一层淡淡的底色，
+      // 背景图片在播放控件后面依然可见，列表文字被模糊掉，不会和控件叠在一起。
+      Widget blur(double top, double sigma) => Positioned(
+        left: 0,
+        right: 0,
+        bottom: 0,
+        top: top,
+        child: ClipRect(
+          child: BackdropFilter(filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp), child: const SizedBox.expand()),
+        ),
+      );
+      return IgnorePointer(
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final h = c.maxHeight;
+            return Stack(
+              children: [
+                blur(h * 0.3, 3),
+                blur(h * 0.45, 8),
+                blur(h * 0.6, 18),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [bg.withValues(alpha: 0), bg.withValues(alpha: 0.45), bg.withValues(alpha: 0.6)],
+                        stops: const [0, 0.55, 1],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
     return IgnorePointer(
       child: DecoratedBox(
         decoration: BoxDecoration(

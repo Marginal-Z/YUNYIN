@@ -82,7 +82,7 @@ class PlayerPage extends StatelessWidget {
             const titleGap = 26.0;
             // 封面以外的内容约占 500 高度（加上歌词间距）；矮屏缩小封面（不小于 120），仍放不下（横屏）时整页可滚动。
             // 卡片流、3D 封面流与照片墙的内容区比封面高 24（见 art）。
-            final fixed = 500.0 + (lyricGap - 22) + titleGap + (style.wide ? 24 : 0);
+            final fixed = 500.0 + (lyricGap - 22) + titleGap + (style.wide ? 24 : 0) + (_LyricPreview.heightOf(context) - 54);
             final double coverSize = math.max(120.0, math.min(math.min(c.maxWidth - 80, 310.0), h - fixed - (topGap - 28)));
             final scroll = h < fixed + 120;
             final page = Padding(
@@ -550,16 +550,24 @@ class PlayButton extends StatelessWidget {
 class _LyricPreview extends StatelessWidget {
   const _LyricPreview();
 
+  /// 两行歌词的高度，按实际字号计算：系统字体调大（不少三星机型默认就大于 100%）时，
+  /// 此前固定的 54 放不下两行，第二句被截掉。字号为 100% 时约 56。
+  static double heightOf(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return (scaler.scale(20) + scaler.scale(16)) * 1.35 + 3 + 4;
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = Palette.of(context);
     final player = context.read<PlayerController>();
     final lyrics = context.select<PlayerController, Lyrics>((c) => c.lyrics);
+    final height = heightOf(context);
     return Pressable(
       onTap: () => openLyrics(context),
       scale: 1,
       child: SizedBox(
-        height: 54,
+        height: height,
         width: double.infinity,
         child: ValueListenableBuilder<Duration>(
           valueListenable: player.position,

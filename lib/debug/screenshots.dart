@@ -219,6 +219,13 @@ Future<void> runScreenshots(GlobalKey<NavigatorState> navKey) async {
   _spec.value = _desktop;
   home();
   await shot('desktop-home-cover', settle: 3500);
+  // 深色模式下的封面取色背景：导航栏、迷你播放条与播放栏应透出背景（透明 / 模糊），而不是深色块。
+  settings.setThemeMode(ThemeMode.dark);
+  await shot('desktop-home-cover-dark', settle: 2500);
+  _spec.value = _mobile;
+  home();
+  await shot('mobile-home-cover-dark', settle: 3000);
+  settings.setThemeMode(ThemeMode.light);
   settings.setBackground(BackgroundMode.glow);
 
   // 适配检查。

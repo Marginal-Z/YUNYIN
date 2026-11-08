@@ -41,7 +41,21 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- 桌面图标跟随主题色：每种主题色一个入口，同一时间只启用一个（见 MainActivity.setIcon）。 -->
+        <!-- 桌面图标跟随主题色：每种主题色一个入口，同一时间只启用一个（见 MainActivity.setIcon）。
+             彩色入口不提供单色图层：系统开启“主题图标”（Android 13 起）时，带单色图层的图标会被统一染成壁纸色，
+             选择的主题色就看不出来了。关闭“图标跟随主题色”时使用 IconDefault，它带单色图层，参与系统的主题图标。 -->
+        <activity-alias
+            android:name=".IconDefault"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
         <activity-alias
             android:name=".IconRed"
             android:targetActivity=".MainActivity"

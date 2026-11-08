@@ -30,3 +30,31 @@ jobs:
           path: website
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # 每次部署成功后只保留最新的一次：删除旧的 github-pages 部署记录与旧的官网工作流运行记录。
+  cleanup:
+    name: 清理历史部署
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      deployments: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: 删除旧的部署记录
+        run: |
+          latest=$(gh api "repos/$REPO/deployments?environment=github-pages&per_page=1" --jq '.[0].id')
+          echo "保留最新部署 $latest"
+          for id in $(gh api --paginate "repos/$REPO/deployments?environment=github-pages&per_page=100" --jq '.[].id'); do
+            [ "$id" = "$latest" ] && continue
+            # 进行中（active）的部署不能直接删除，先标记为 inactive。
+            gh api -X POST "repos/$REPO/deployments/$id/statuses" -f state=inactive > /dev/null || true
+            gh api -X DELETE "repos/$REPO/deployments/$id" && echo "已删除部署 $id" || echo "删除部署 $id 失败"
+          done
+      - name: 删除旧的官网工作流运行记录
+        run: |
+          for run in $(gh api --paginate "repos/$REPO/actions/workflows/pages.yml/runs?per_page=100" --jq ".workflow_runs[] | select(.id != $GITHUB_RUN_ID) | .id"); do
+            gh api -X DELETE "repos/$REPO/actions/runs/$run" && echo "已删除运行记录 $run" || echo "删除运行记录 $run 失败"
+          done

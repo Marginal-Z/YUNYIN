@@ -35,21 +35,23 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('网易云音乐会员'), findsOneWidget);
+    expect(find.text('网易云音乐会员可播放会员歌曲与更高音质'), findsOneWidget);
     expect(find.text('登录后查看会员信息'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.text('酷狗音乐'));
     await tester.pump(const Duration(milliseconds: 500));
     expect(sm.current.id, 'kugou');
-    expect(find.text('酷狗音乐会员'), findsOneWidget);
+    expect(find.text('酷狗音乐会员可播放会员歌曲与更高音质'), findsOneWidget);
     // 酷狗也支持登录：未登录时提示登录查看会员信息。
     expect(find.text('登录后查看会员信息'), findsOneWidget);
 
     await tester.tap(find.text('QQ 音乐'));
     await tester.pump(const Duration(milliseconds: 500));
     expect(sm.current.id, 'qq');
-    expect(find.text('QQ 音乐会员'), findsOneWidget);
+    expect(find.text('QQ 音乐会员可播放会员歌曲与更高音质'), findsOneWidget);
+    // 平台切换按钮带平台标志。
+    expect(find.byType(PlatformMark), findsWidgets);
     await tester.pumpAndSettle(const Duration(seconds: 3));
   });
 }

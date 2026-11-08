@@ -43,7 +43,7 @@ class AudioEffectsPage extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '高保真引擎使用更高精度的重采样滤镜与三角高通抖动，采样率转换和 16 位输出时保留更多细节；播放音质优先取平台的最高音质（Hi-Res / 无损），没有时逐级降低。',
+          '高保真引擎使用更高精度的重采样滤镜与三角高通抖动，减少采样率转换与 16 位输出时的失真，是细节上的改善，并不改变音色；想明显改变声音请使用下面的均衡器、空间音效与低频增强。播放音质优先取平台的最高音质（Hi-Res / 无损），没有时逐级降低（未登录或没有会员时平台只给标准音质）。',
           style: ts(13, height: 1.5, color: p.text2),
         ),
         const GroupLabel('均衡器'),
@@ -102,7 +102,7 @@ class AudioEffectsPage extends StatelessWidget {
             ),
           ],
         ),
-        if (android) ...[
+        ...[
           const GroupLabel('空间与低频'),
           CardList(
             indent: 14,
@@ -122,7 +122,12 @@ class AudioEffectsPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text('空间音效使用系统的虚拟环绕，戴耳机时声场更开阔；低频增强提升鼓点与贝斯的力度。个别设备不支持时显示“不支持”。', style: ts(13, height: 1.5, color: p.text2)),
+          Text(
+            android
+                ? '空间音效使用系统的虚拟环绕（按耳机或外放选择模式），并加一条声场曲线让高频更通透；低频增强在播放器中提升 30–120 Hz 的鼓点与贝斯，所有设备都有效，与均衡器可以叠加。'
+                : '空间音效加一条声场曲线：中频略收、高频更通透，听感更开阔；低频增强提升 30–120 Hz 的鼓点与贝斯。两者与均衡器可以叠加。',
+            style: ts(13, height: 1.5, color: p.text2),
+          ),
         ],
         const GroupLabel('音量'),
         CardList(
