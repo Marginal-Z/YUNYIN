@@ -17,8 +17,8 @@ WORK="$(mktemp -d)"
 mkdir -p "$DIST"
 test -x "$BUNDLE/yunyin" || { echo "找不到 $BUNDLE/yunyin，请先 flutter build linux --release"; exit 1; }
 
-fetch() { # 下载 AppImage 工具
-  curl -fsSL -o "$WORK/$1" "$2"
+fetch() { # 下载 AppImage 工具（GitHub 发布文件，官方地址失败时改用 GitHub API）
+  "$ROOT/tool/ci/gh_release_download.sh" "$2" "$WORK/$1"
   chmod +x "$WORK/$1"
 }
 export APPIMAGE_EXTRACT_AND_RUN=1

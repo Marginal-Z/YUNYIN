@@ -60,18 +60,10 @@ jobs:
         with:
           path: build/media_kit_libs_android_audio
           key: libmpv-android-${{ hashFiles('pubspec.lock') }}
-      - name: 预先下载 Gradle 与 libmpv（失败自动重试）
-        run: |
-          # media_kit 在构建时从 GitHub 下载 libmpv 的 jar，已存在且 MD5 一致时跳过；这里先带重试下载好。
-          gradle_file=$(find "${PUB_CACHE:-$HOME/.pub-cache}" -type f -path '*media_kit_libs_android_audio-*/android/build.gradle' | head -1)
-          for url in $(grep -oE 'https://github.com/media-kit/[^"]+\.jar' "$gradle_file"); do
-            dest="build/media_kit_libs_android_audio/$(echo "$url" | cut -d/ -f8)/$(basename "$url")"
-            [ -f "$dest" ] || curl -fsSL --retry 6 --retry-all-errors --retry-delay 20 --create-dirs -o "$dest" "$url"
-          done
-          # gradlew 由 Flutter 生成（不在仓库里）：只生成构建配置，不构建。
-          flutter build apk --config-only > /dev/null
-          cd android
-          for i in 1 2 3 4 5; do ./gradlew --version > /dev/null && break; [ "$i" = 5 ] && exit 1; echo "Gradle 下载失败，20 秒后重试（$i）"; sleep 20; done
+      - name: 预先下载 Gradle 与 libmpv（官方地址失败时改用 GitHub API，下载后校验）
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: tool/ci/prefetch_android.sh
       - name: 发布签名
         env:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -128,6 +120,8 @@ jobs:
       - run: flutter pub get
       - run: flutter build linux --release
       - run: tool/linux/package.sh "$VERSION"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - uses: actions/upload-artifact@v5
         with:
           name: YunYin-linux-${{ matrix.arch }}
@@ -147,6 +141,11 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: 预先下载 libmpv（官方地址失败时改用 GitHub API，下载后校验）
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: tool/ci/prefetch_windows.sh
       - run: flutter build windows --release
       - name: 打包
         shell: pwsh
@@ -236,18 +235,10 @@ jobs:
         with:
           path: build/media_kit_libs_android_audio
           key: libmpv-android-${{ hashFiles('pubspec.lock') }}
-      - name: 预先下载 Gradle 与 libmpv（失败自动重试）
-        run: |
-          # media_kit 在构建时从 GitHub 下载 libmpv 的 jar，已存在且 MD5 一致时跳过；这里先带重试下载好。
-          gradle_file=$(find "${PUB_CACHE:-$HOME/.pub-cache}" -type f -path '*media_kit_libs_android_audio-*/android/build.gradle' | head -1)
-          for url in $(grep -oE 'https://github.com/media-kit/[^"]+\.jar' "$gradle_file"); do
-            dest="build/media_kit_libs_android_audio/$(echo "$url" | cut -d/ -f8)/$(basename "$url")"
-            [ -f "$dest" ] || curl -fsSL --retry 6 --retry-all-errors --retry-delay 20 --create-dirs -o "$dest" "$url"
-          done
-          # gradlew 由 Flutter 生成（不在仓库里）：只生成构建配置，不构建。
-          flutter build apk --config-only > /dev/null
-          cd android
-          for i in 1 2 3 4 5; do ./gradlew --version > /dev/null && break; [ "$i" = 5 ] && exit 1; echo "Gradle 下载失败，20 秒后重试（$i）"; sleep 20; done
+      - name: 预先下载 Gradle 与 libmpv（官方地址失败时改用 GitHub API，下载后校验）
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: tool/ci/prefetch_android.sh
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -287,6 +278,12 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - name: 预先下载 libmpv（官方地址失败时改用 GitHub API，下载后校验）
+        if: matrix.device == 'windows'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: tool/ci/prefetch_windows.sh
       - name: 运行（CI 机器没有声卡，使用 mpv 的 null 音频输出验证解码与滤镜链）
         shell: bash
         run: |
