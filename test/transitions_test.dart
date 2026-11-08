@@ -117,8 +117,9 @@ void main() {
     expect(ticking('发现'), isFalse);
     expect(find.text('发现'), findsNothing);
 
-    // 0 → 2：新标签在上层，淡入。
+    // 0 → 2：新标签在上层，淡入。切换的那一帧停在起点（延后起步，见 TransitionStart），之后才开始计时。
     await tester.pumpWidget(app(2));
+    await tester.pump(const Duration(milliseconds: 16));
     await tester.pump(const Duration(milliseconds: 60));
     expect(find.text('首页'), findsOneWidget);
     expect(find.text('乐库'), findsOneWidget);
@@ -130,6 +131,7 @@ void main() {
 
     // 2 → 0：旧标签在上层，改为淡出旧标签。
     await tester.pumpWidget(app(0));
+    await tester.pump(const Duration(milliseconds: 16));
     await tester.pump(const Duration(milliseconds: 60));
     expect(opacity('乐库'), inExclusiveRange(0.0, 1.0));
     expect(opacity('首页'), 1);

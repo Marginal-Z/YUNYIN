@@ -88,11 +88,13 @@ class _TabStackState extends State<TabStack> with SingleTickerProviderStateMixin
     ..addStatusListener((s) {
       if (s == AnimationStatus.completed && _from != null) setState(() => _from = null);
     });
-  late final CurvedAnimation _in = CurvedAnimation(parent: _c, curve: const Interval(0, 0.6, curve: Curves.easeOutCubic));
+  /// 切换时延后起步：第一次打开某个标签时先完成它的首帧，再开始动画（见 TransitionStart）。
+  late final Animation<double> _progress = TransitionStart.of(_c);
+  late final CurvedAnimation _in = CurvedAnimation(parent: _progress, curve: const Interval(0, 0.6, curve: Curves.easeOutCubic));
   late final Animation<double> _out = ReverseAnimation(_in);
 
   /// 位移与缩放用弹簧（Q 弹落定），淡入在前 60% 的时间内完成。
-  late final CurvedAnimation _move = CurvedAnimation(parent: _c, curve: Motion.spring);
+  late final CurvedAnimation _move = CurvedAnimation(parent: _progress, curve: Motion.spring);
 
   /// 正在淡出的标签。
   int? _from;
@@ -102,6 +104,7 @@ class _TabStackState extends State<TabStack> with SingleTickerProviderStateMixin
     super.didUpdateWidget(old);
     if (old.index != widget.index) {
       _from = old.index;
+      TransitionStart.hold();
       _c.forward(from: 0);
     }
   }
