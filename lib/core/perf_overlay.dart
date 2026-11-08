@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:developer' show Timeline;
 import 'dart:ui' as ui;
 
 import 'package:flutter/scheduler.dart';
@@ -5,6 +7,19 @@ import 'package:flutter/widgets.dart';
 
 /// 流畅度检测：右上角显示最近一秒的帧率与最慢一帧，并把超出帧预算的帧（构建 / 渲染各用多少毫秒）
 /// 写进日志（标签 perf），用来定位“页面切换掉帧”是界面线程还是渲染线程慢。
+///
+/// 另有几个对照实验开关（[PerfLab]），只在打开流畅度检测时显示，用来找出绘制开销大的部分。
+abstract final class PerfLab {
+  /// 页面切换时不缩放新旧页面（只保留滑动）。
+  static bool noScale = false;
+
+  /// 不绘制卡片的外阴影。
+  static bool noShadow = false;
+
+  /// 隐藏底部导航栏与迷你播放条。
+  static bool noChrome = false;
+}
+
 class PerfOverlay extends StatefulWidget {
   const PerfOverlay({super.key, required this.enabled, required this.child});
 
@@ -19,6 +34,9 @@ class _PerfOverlayState extends State<PerfOverlay> {
   final _stats = ValueNotifier<String>('');
   final _window = <ui.FrameTiming>[];
   bool _listening = false;
+
+  /// 每 0.5 秒更新一次显示：如果每批帧数据都更新文字，更新本身又会产生新的帧，安静时也一直在出帧。
+  Timer? _refresh;
 
   @override
   void initState() {
@@ -35,9 +53,11 @@ class _PerfOverlayState extends State<PerfOverlay> {
   void _sync() {
     if (widget.enabled && !_listening) {
       SchedulerBinding.instance.addTimingsCallback(_onTimings);
+      _refresh = Timer.periodic(const Duration(milliseconds: 500), (_) => _show());
       _listening = true;
     } else if (!widget.enabled && _listening) {
       SchedulerBinding.instance.removeTimingsCallback(_onTimings);
+      _refresh?.cancel();
       _listening = false;
       _window.clear();
     }
@@ -49,6 +69,10 @@ class _PerfOverlayState extends State<PerfOverlay> {
     return 1000 / (rate <= 0 ? 60 : rate);
   }
 
+  /// 帧完成时的墙上时间（FrameTiming 用的是单调时钟，换算成墙上时间方便按“最近一秒”筛选）。
+  final _clockOffset = DateTime.now().microsecondsSinceEpoch - Timeline.now;
+  int _wall(ui.FrameTiming t) => t.timestampInMicroseconds(ui.FramePhase.rasterFinish) + _clockOffset;
+
   void _onTimings(List<ui.FrameTiming> timings) {
     final budget = _budget;
     for (final t in timings) {
@@ -59,11 +83,17 @@ class _PerfOverlayState extends State<PerfOverlay> {
             '渲染 ${(t.rasterDuration.inMicroseconds / 1000).toStringAsFixed(1)}ms，排队 ${(t.vsyncOverhead.inMicroseconds / 1000).toStringAsFixed(1)}ms）');
       }
     }
-    // 只保留最近一秒。
-    final end = _window.last.timestampInMicroseconds(ui.FramePhase.rasterFinish);
-    _window.removeWhere((t) => end - t.timestampInMicroseconds(ui.FramePhase.rasterFinish) > 1000000);
+  }
+
+  void _show() {
+    // 只统计最近一秒。
+    final now = DateTime.now().microsecondsSinceEpoch;
+    _window.removeWhere((t) => now - _wall(t) > 1000000);
     final worst = _window.fold<ui.FrameTiming?>(null, (a, b) => a == null || b.totalSpan > a.totalSpan ? b : a);
-    if (worst == null) return;
+    if (worst == null) {
+      _stats.value = '0 fps';
+      return;
+    }
     _stats.value = '${_window.length} fps · 最慢 ${(worst.totalSpan.inMicroseconds / 1000).toStringAsFixed(0)}ms'
         '（构建 ${(worst.buildDuration.inMicroseconds / 1000).toStringAsFixed(0)} / 渲染 ${(worst.rasterDuration.inMicroseconds / 1000).toStringAsFixed(0)}）';
   }
@@ -71,6 +101,7 @@ class _PerfOverlayState extends State<PerfOverlay> {
   @override
   void dispose() {
     if (_listening) SchedulerBinding.instance.removeTimingsCallback(_onTimings);
+    _refresh?.cancel();
     _stats.dispose();
     super.dispose();
   }

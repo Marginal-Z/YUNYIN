@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../core/perf_overlay.dart';
 import '../../core/ui/motion.dart';
 
 /// 桌面端内容区的页面。
@@ -196,6 +197,7 @@ class _SpringPageRoute<T> extends PageRoute<T> with CupertinoRouteTransitionMixi
   @override
   Widget buildTransitions(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
     final slide = CupertinoRouteTransitionMixin.buildPageTransitions<T>(this, context, animation, secondaryAnimation, child);
+    if (PerfLab.noScale) return slide;
     return AnimatedBuilder(
       animation: Listenable.merge([animation, secondaryAnimation]),
       builder: (context, child) {

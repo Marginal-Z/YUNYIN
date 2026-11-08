@@ -180,6 +180,9 @@ class AppSettings extends ChangeNotifier {
 
   /// 流畅度检测：右上角显示帧率，掉帧时把构建 / 渲染耗时写进日志。
   bool perfOverlay = false;
+
+  /// 流畅度检测的对照实验（见 PerfLab），不保存。
+  bool perfNoScale = false, perfNoShadow = false, perfNoChrome = false;
   bool pushNotify = true;
   bool personalized = true;
   bool showTranslation = false;
@@ -464,6 +467,18 @@ class AppSettings extends ChangeNotifier {
         glass = v;
       case 'perfOverlay':
         perfOverlay = v;
+      case 'perfNoScale':
+        perfNoScale = v;
+        notifyListeners();
+        return;
+      case 'perfNoShadow':
+        perfNoShadow = v;
+        notifyListeners();
+        return;
+      case 'perfNoChrome':
+        perfNoChrome = v;
+        notifyListeners();
+        return;
       case 'pushNotify':
         pushNotify = v;
       case 'personalized':
