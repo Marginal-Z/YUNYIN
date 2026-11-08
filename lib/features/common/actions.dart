@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/ui/transition_snapshot.dart';
 import '../../core/theme/cover_colors.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
@@ -53,10 +54,10 @@ Route<T> fadeRoute<T>(Widget page) => PageRouteBuilder<T>(
   pageBuilder: (_, _, _) => BackdropGroup(child: page),
   transitionsBuilder: (_, a, _, child) {
     final c = CurvedAnimation(parent: a, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
-    // 淡入加轻微上移（不缩放：满屏歌词连续缩放时每帧都要重新光栅化文字）。
     return FadeTransition(
       opacity: c,
-      child: SlideTransition(position: Tween(begin: const Offset(0, 0.03), end: Offset.zero).animate(c), child: child),
+      // 缩放作用在快照上（见 TransitionSnapshot），满屏歌词不用每帧重新光栅化。
+      child: ScaleTransition(scale: Tween(begin: 0.97, end: 1.0).animate(c), child: TransitionSnapshot(animations: [a], child: child)),
     );
   },
 );
@@ -298,7 +299,7 @@ Future<void> showSongMenu(BuildContext context, Song song) async {
       if (desktop) {
         return FadeTransition(
           opacity: curved,
-          child: SlideTransition(position: Tween(begin: const Offset(0, 0.04), end: Offset.zero).animate(curved), child: child),
+          child: ScaleTransition(scale: Tween(begin: 0.96, end: 1.0).animate(curved), child: TransitionSnapshot(animations: [a], child: child)),
         );
       }
       return SlideTransition(
