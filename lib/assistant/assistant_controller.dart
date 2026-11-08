@@ -176,6 +176,7 @@ class AssistantController extends ChangeNotifier {
   }
 
   void _fail(String message) {
+    debugPrint('assistant: $message');
     voiceError = message;
     notifyListeners();
   }

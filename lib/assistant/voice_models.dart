@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
@@ -42,6 +41,12 @@ class VoiceModelStore {
     return f.existsSync() && sha256.convert(f.readAsBytesSync()).toString() == _expected(path);
   }
 
+  /// 在后台 isolate 中校验（[compute] 只传静态函数与路径列表：用闭包时会连同所在作用域里的其他变量
+  /// 一起发送，例如进度回调引用的播放器，无法发送到其他 isolate）。
+  static Future<bool> _allValid(List<String> files) => compute(_checkAll, files);
+
+  static bool _checkAll(List<String> files) => files.every(_valid);
+
   static Future<String> _root() async => '${(await getApplicationSupportDirectory()).path}/voice';
 
   static Future<VoiceModelPaths> paths() async {
@@ -53,7 +58,7 @@ class VoiceModelStore {
   static Future<bool> ready() async {
     final p = await paths();
     if (!p.files.every((f) => File(f).existsSync())) return false;
-    return Isolate.run(() => p.files.every(_valid));
+    return _allValid(p.files);
   }
 
   /// 下载并解压两个模型。[onProgress] 为 0..1。
@@ -66,7 +71,7 @@ class VoiceModelStore {
     ];
     Object? lastError;
     for (final (name, tag, dir, files, from, to) in parts) {
-      if (await Isolate.run(() => files.every(_valid))) continue;
+      if (await _allValid(files)) continue;
       void progress(double f) => onProgress?.call(from + (to - from) * f);
       var done = false;
       // GitHub 发布页与下载加速：整个压缩包下载后只解出需要的文件。
@@ -75,9 +80,9 @@ class VoiceModelStore {
           final archive = '${(await getTemporaryDirectory()).path}/$name.tar.bz2';
           await dio.download(base, archive, cancelToken: cancel, onReceiveProgress: (r, t) => t > 0 ? progress(r / t * 0.9) : null);
           final wanted = files.map((f) => f.split('/').last).toSet();
-          await Isolate.run(() => _extract(archive, dir, wanted));
+          await compute(_extract, (archive, dir, wanted));
           File(archive).deleteSync();
-          if (await Isolate.run(() => files.every(_valid))) {
+          if (await _allValid(files)) {
             done = true;
             break;
           }
@@ -102,7 +107,7 @@ class VoiceModelStore {
             );
             File('$f.part').renameSync(f);
           }
-          done = await Isolate.run(() => files.every(_valid));
+          done = await _allValid(files);
         } catch (e) {
           if (e is DioException && CancelToken.isCancel(e)) rethrow;
           lastError = e;
@@ -116,7 +121,8 @@ class VoiceModelStore {
   }
 
   /// 从 tar.bz2 中只解出需要的文件（在后台 isolate 中运行）。
-  static void _extract(String archive, String dir, Set<String> wanted) {
+  static void _extract((String, String, Set<String>) args) {
+    final (archive, dir, wanted) = args;
     final tar = TarDecoder().decodeBytes(BZip2Decoder().decodeBytes(File(archive).readAsBytesSync()));
     Directory(dir).createSync(recursive: true);
     for (final f in tar.files) {
