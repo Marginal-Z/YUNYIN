@@ -14,6 +14,7 @@ class CommandFixer {
     '上一首', '下一首', '暂停', '继续播放', '单曲循环', '随机播放', '顺序播放', '收藏这首歌', '取消收藏',
     '打开歌词', '大声一点', '小声一点', '静音', '取消定时', '这是什么歌', '打开桌面歌词', '关闭桌面歌词',
     '下载这首歌', '播放每日推荐', '播放我喜欢的音乐', '打开设置', '打开深色模式', '打开浅色模式',
+    '切换到深色模式', '切换到浅色模式', '关闭深色模式', '打开歌词翻译', '关闭歌词翻译', '打开状态栏歌词', '关闭状态栏歌词',
   ];
 
   late final _targets = [for (final c in commands) (c, _syllables(c))];
@@ -64,8 +65,9 @@ class CommandFixer {
         d += x;
         if (x > 0) changed++;
       }
-      // 最多一个音节有差别（两个字的指令不允许差别），差别不超过两个字母。
-      if (changed > (heard.length >= 3 ? 1 : 0) || d > 2) continue;
+      // 两个字的指令不允许差别；三到五个字最多一个音节、两个字母不同；六个字以上最多两个音节、三个字母不同。
+      final long = heard.length >= 6;
+      if (changed > (long ? 2 : (heard.length >= 3 ? 1 : 0)) || d > (long ? 3 : 2)) continue;
       if (best == null || d < best.$2) {
         if (best != null) second = best.$2;
         best = (command, d);

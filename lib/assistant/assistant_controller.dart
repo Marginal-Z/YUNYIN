@@ -265,9 +265,16 @@ class AssistantController extends ChangeNotifier {
         status = AssistantStatus.idle;
         unawaited(player.duck(false));
         notifyListeners();
+        // 正在听的时候又说了唤醒词：去掉它；只说了唤醒词时继续听。
+        final said = WakeWords.strip(text, custom: settings.wakeWord);
+        if (said.isEmpty && text.isNotEmpty && _worker != null) {
+          _worker!.listen();
+          _beginListening();
+          return;
+        }
         // 只有“嗯”“啊”这类语气词（多半是背景声或犹豫）：不当作提问。
-        if (text.isNotEmpty && !_filler.hasMatch(text)) {
-          unawaited(submit(text, spoken: true));
+        if (said.isNotEmpty && !_filler.hasMatch(said)) {
+          unawaited(submit(said, spoken: true));
         } else if (!settings.voiceWake) {
           unawaited(_stopVoice());
         }

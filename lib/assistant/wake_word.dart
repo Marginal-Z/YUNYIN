@@ -81,6 +81,16 @@ abstract final class WakeWords {
     return ('${parts.join(' ')} @$w', null);
   }
 
+  static final _spokenWake = RegExp(r'^[，。！？、,.!?\s]*(?:(?:你好|嗨|哈喽|喂)[，,\s]*(?:云音|语音|云英|云因|运营|云云)|云音云音)[，。！？、,.!?\s]*');
+
+  /// 去掉一句话开头的唤醒词（识别结果常把“你好云音”写成“你好语音”“你好云英”）与自定义唤醒词 [custom]。
+  static String strip(String text, {String custom = ''}) {
+    var t = text.trim();
+    final c = custom.trim();
+    if (c.isNotEmpty && t.startsWith(c)) t = t.substring(c.length);
+    return t.replaceFirst(_spokenWake, '').trim();
+  }
+
   /// 读取唤醒模型的标记表。
   static Set<String> readTokens(String tokensFile) => {
     for (final line in File(tokensFile).readAsLinesSync())

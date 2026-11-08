@@ -29,4 +29,13 @@ void main() {
     final (lx, _) = WakeWords.convert('绿色音乐', table, tokens);
     expect(lx, startsWith('l ǜ s'));
   });
+
+  test('去掉一句话开头的唤醒词，正常的话不受影响', () {
+    expect(WakeWords.strip('你好语音'), '');
+    expect(WakeWords.strip('你好云音，下一首'), '下一首');
+    expect(WakeWords.strip('嗨云英播放晴天'), '播放晴天');
+    expect(WakeWords.strip('小美同学放首歌', custom: '小美同学'), '放首歌');
+    expect(WakeWords.strip('语音助手能做什么'), '语音助手能做什么');
+    expect(WakeWords.strip('运营商是哪家'), '运营商是哪家');
+  });
 }
