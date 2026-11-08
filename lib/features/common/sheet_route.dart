@@ -41,16 +41,24 @@ class SheetRoute<T> extends PageRoute<T> {
   Widget buildPage(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation) => BackdropGroup(child: builder(context));
 
   @override
+  TickerFuture didPush() {
+    // 播放页先在起点完成首帧（构建、布局、截图），下一帧再开始弹出动画（见 TransitionStart）。
+    TransitionStart.hold();
+    return super.didPush();
+  }
+
+  @override
   Widget buildTransitions(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
+    final progress = TransitionStart.of(animation);
     final page = dismissible ? _SheetDrag(route: this, child: child) : child;
     return AnimatedBuilder(
-      animation: animation,
+      animation: progress,
       builder: (context, child) {
-        final v = animation.value;
+        final v = progress.value;
         final gesture = _dragging || navigator?.userGestureInProgress == true;
         // 三种状态共用同一组件结构（只改参数），拖动开始时页面不会被重建、状态不会丢失。
         double opacity, dy, scale, radius;
-        if (gesture || animation.status == AnimationStatus.reverse) {
+        if (gesture || progress.status == AnimationStatus.reverse) {
           // 拖动时页面跟随手指；收起时整页滑回下方。
           final t = gesture ? v : Curves.easeInCubic.transform(v);
           opacity = 1;
@@ -77,7 +85,7 @@ class SheetRoute<T> extends PageRoute<T> {
                 clipBehavior: v < 1 ? Clip.antiAlias : Clip.none,
                 borderRadius: BorderRadius.circular(radius),
                 // 缩放作用在快照上（见 TransitionSnapshot），播放页满屏的文字不用每帧重新光栅化。
-                child: TransitionSnapshot(animations: [animation], child: child!),
+                child: TransitionSnapshot(animations: [progress], child: child!),
               ),
             ),
           ),

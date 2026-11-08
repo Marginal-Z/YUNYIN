@@ -197,22 +197,31 @@ class _SpringPageRoute<T> extends PageRoute<T> with CupertinoRouteTransitionMixi
   Duration get transitionDuration => Motion.page;
 
   @override
+  TickerFuture didPush() {
+    // 新页面先在起点完成首帧（构建、布局、截图），下一帧再开始动画，首帧再慢也不会在动画中途卡一下。
+    TransitionStart.hold();
+    return super.didPush();
+  }
+
+  @override
   Widget buildTransitions(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
+    final enterProgress = TransitionStart.of(animation);
+    final coverProgress = TransitionStart.of(secondaryAnimation);
     // 缩放作用在快照上（见 TransitionSnapshot）：直接缩放满屏文字时每帧都要重新光栅化，页面切换掉帧严重。
     final slide = CupertinoRouteTransitionMixin.buildPageTransitions<T>(
       this,
       context,
-      animation,
-      secondaryAnimation,
-      TransitionSnapshot(animations: [animation, secondaryAnimation], child: child),
+      enterProgress,
+      coverProgress,
+      TransitionSnapshot(animations: [enterProgress, coverProgress], child: child),
     );
     return AnimatedBuilder(
-      animation: Listenable.merge([animation, secondaryAnimation]),
+      animation: Listenable.merge([enterProgress, coverProgress]),
       builder: (context, child) {
         // 只有打开时用弹簧；手势返回与关闭时线性跟随，避免松手瞬间跳动。组件树结构始终不变。
-        final forward = animation.status == AnimationStatus.forward && navigator?.userGestureInProgress != true;
-        final enter = forward ? Motion.spring.transform(animation.value) : animation.value;
-        final covered = Curves.easeOutCubic.transform(secondaryAnimation.value);
+        final forward = enterProgress.status == AnimationStatus.forward && navigator?.userGestureInProgress != true;
+        final enter = forward ? Motion.spring.transform(enterProgress.value) : enterProgress.value;
+        final covered = Curves.easeOutCubic.transform(coverProgress.value);
         final scale = (0.96 + 0.04 * enter) * (1 - 0.035 * covered);
         return Transform.scale(scale: scale, child: child);
       },
