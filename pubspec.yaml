@@ -69,6 +69,8 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -86,6 +88,7 @@ flutter:
 
   assets:
     - assets/icon/themes/
+    - assets/pinyin/
     - shaders/THIRD_PARTY_NOTICES.txt
 
   shaders:

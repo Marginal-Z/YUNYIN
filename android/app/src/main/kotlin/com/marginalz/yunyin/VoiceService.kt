@@ -70,6 +70,41 @@ class VoiceService : Service() {
             tts?.stop()
         }
 
+        /** 用系统的文字转语音合成到 WAV 文件（音色系统的最后降级），完成后回调是否成功。 */
+        fun synthesize(context: Context, text: String, path: String, rate: Float, lang: String, callback: (Boolean) -> Unit) {
+            // 合成结果可能经由多个回调到达（onDone / 两个 onError），只回报一次。
+            val reported = java.util.concurrent.atomic.AtomicBoolean(false)
+            val done: (Boolean) -> Unit = { ok -> if (reported.compareAndSet(false, true)) callback(ok) }
+            fun run(engine: TextToSpeech) {
+                engine.language = when (lang) {
+                    "en" -> Locale.US
+                    "th" -> Locale("th", "TH")
+                    else -> Locale.SIMPLIFIED_CHINESE
+                }
+                engine.setSpeechRate(rate)
+                val id = "yunyin-${System.nanoTime()}"
+                engine.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) { if (utteranceId == id) done(true) }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) { if (utteranceId == id) done(false) }
+                    override fun onError(utteranceId: String?, errorCode: Int) { if (utteranceId == id) done(false) }
+                })
+                val r = engine.synthesizeToFile(text, null, java.io.File(path), id)
+                if (r != TextToSpeech.SUCCESS) done(false)
+            }
+            val engine = tts
+            if (engine != null && ttsReady) {
+                run(engine)
+                return
+            }
+            tts = TextToSpeech(context.applicationContext) { status ->
+                ttsReady = status == TextToSpeech.SUCCESS
+                val t = tts
+                if (ttsReady && t != null) run(t) else done(false)
+            }
+        }
+
         /** 调整媒体音量：[level] 为 0..1 的绝对音量，或 [delta] 为相对调整。 */
         fun volume(context: Context, level: Double?, delta: Double?): Double {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager

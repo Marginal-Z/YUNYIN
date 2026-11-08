@@ -164,6 +164,16 @@ class MainActivity : AudioServiceActivity() {
                     result.success(null)
                 }
                 "volume" -> result.success(VoiceService.volume(app, call.argument<Double>("level"), call.argument<Double>("delta")))
+                "synthesize" -> {
+                    val main = android.os.Handler(android.os.Looper.getMainLooper())
+                    VoiceService.synthesize(
+                        app,
+                        call.argument<String>("text") ?: "",
+                        call.argument<String>("path") ?: "",
+                        (call.argument<Double>("rate") ?: 1.0).toFloat(),
+                        call.argument<String>("lang") ?: "zh",
+                    ) { ok -> main.post { result.success(ok) } }
+                }
                 else -> result.notImplemented()
             }
         }

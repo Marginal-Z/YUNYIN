@@ -10,6 +10,8 @@ import 'app.dart';
 import 'debug/lx_selftest.dart';
 import 'assistant/assistant_controller.dart';
 import 'assistant/assistant_settings.dart';
+import 'voice/speech_output.dart';
+import 'voice/voice_settings.dart';
 import 'core/app_icon.dart';
 import 'core/data_cache.dart';
 import 'core/lyrics_overlay.dart';
@@ -118,7 +120,11 @@ Future<void> main(List<String> args) async {
   // 云音助手（语音唤醒打开时在这里开始监听）。
   final assistantSettings = AssistantSettings();
   await assistantSettings.init();
-  final assistant = AssistantController(settings: assistantSettings, app: settings, player: player, sources: sources, stats: stats);
+  // 音色系统：助手说话时压低音乐。
+  final voiceSettings = VoiceSettings();
+  await voiceSettings.init();
+  final speech = SpeechOutput(voiceSettings, onDuck: player.duck);
+  final assistant = AssistantController(settings: assistantSettings, app: settings, player: player, sources: sources, stats: stats, speech: speech);
   if (!benchmarkRequested && !screenshotsRequested) unawaited(assistant.init());
 
   if (splashShotsRequested) prepareSplashShots();

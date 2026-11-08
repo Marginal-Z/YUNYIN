@@ -6,7 +6,7 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 import 'package:yunyin/assistant/voice_engine.dart';
 
 /// 需要下载好的模型与 sherpa-onnx 动态库，默认跳过：
-/// `YUNYIN_VOICE_MODELS=模型目录（含 kws 与 asr） SHERPA_LIB=动态库目录 flutter test test/voice_engine_test.dart`
+/// `YUNYIN_VOICE_MODELS=模型目录（含 kws/<唤醒模型>、asr/<SenseVoice 模型> 与 asr/silero_vad.onnx） SHERPA_LIB=动态库目录 flutter test test/voice_engine_test.dart`
 final _models = Platform.environment['YUNYIN_VOICE_MODELS'];
 final _lib = Platform.environment['SHERPA_LIB'];
 
@@ -40,8 +40,8 @@ void main() {
   test('唤醒词检测后自动开始识别；识别一句话后回到唤醒检测', () {
     sherpa.initBindings(_lib);
     final kws = Directory('$_models/kws').listSync().whereType<Directory>().first.path;
-    final asr = Directory('$_models/asr').listSync().whereType<Directory>().first.path;
-    final paths = VoiceModelPaths(kwsDir: kws, asrDir: asr);
+    final asr = Directory('$_models/asr').listSync().whereType<Directory>().firstWhere((d) => d.path.contains('sense-voice')).path;
+    final paths = VoiceModelPaths(kwsDir: kws, asrDir: asr, vad: '$_models/asr/silero_vad.onnx');
     // 模型自带的测试音频中的关键词。
     final words = File('$kws/test_wavs/test_keywords.txt').readAsLinesSync().where((l) => l.trim().isNotEmpty).toList();
     final r = VoiceRecognizer(paths, wakeWords: words);
@@ -56,8 +56,8 @@ void main() {
     }
     expect(wakes, greaterThan(0));
 
-    // 手动开始识别：模型自带的测试句子能识别出文字。
-    for (final f in Directory('$asr/test_wavs').listSync().whereType<File>().where((f) => f.path.endsWith('0.wav') || f.path.endsWith('1.wav'))) {
+    // 手动开始识别：模型自带的中文测试句子能识别出文字。
+    for (final f in Directory('$asr/test_wavs').listSync().whereType<File>().where((f) => f.path.endsWith('zh.wav'))) {
       r.listen();
       final events = _feed(r, _wav(f.path));
       final text = events.whereType<VoiceFinal>().map((e) => e.text).join();

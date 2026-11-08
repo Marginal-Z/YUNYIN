@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'voice_engine.dart';
+
 /// 兼容 OpenAI 接口的大模型服务预设（用户填写自己的密钥）。
 class AiProvider {
   const AiProvider(this.name, this.baseUrl, this.model, this.keyUrl);
@@ -38,6 +40,16 @@ class AssistantSettings extends ChangeNotifier {
   /// 用户自己的密钥，只保存在本机，只发送给上面的接口地址。
   String apiKey = '';
 
+  /// 语音识别模型。
+  AsrModel asrModel = AsrModel.senseVoice;
+
+  /// 自定义唤醒词（为空时使用默认的“你好云音”）。
+  String wakeWord = '';
+
+  /// 自定义唤醒词转换成的模型标记（由 [setWakeWord] 生成），为空时使用默认唤醒词。
+  List<String> get wakeWordTokens => _wakeTokens.isEmpty ? kWakeWords : [_wakeTokens, ...kWakeWords.take(1)];
+  String _wakeTokens = '';
+
   bool get llmConfigured => apiKey.trim().isNotEmpty && baseUrl.trim().isNotEmpty && model.trim().isNotEmpty;
 
   Future<void> init() async {
@@ -47,6 +59,24 @@ class AssistantSettings extends ChangeNotifier {
     baseUrl = _p.getString('assistant.baseUrl') ?? baseUrl;
     model = _p.getString('assistant.model') ?? model;
     apiKey = _p.getString('assistant.apiKey') ?? '';
+    asrModel = AsrModel.values.asNameMap()[_p.getString('assistant.asr')] ?? AsrModel.senseVoice;
+    wakeWord = _p.getString('assistant.wakeWord') ?? '';
+    _wakeTokens = _p.getString('assistant.wakeTokens') ?? '';
+  }
+
+  void setAsrModel(AsrModel m) {
+    asrModel = m;
+    _p.setString('assistant.asr', m.name);
+    notifyListeners();
+  }
+
+  /// 设置自定义唤醒词：[tokens] 为拼音标记（见 [wakeWordToTokens]），为空表示恢复默认。
+  void setWakeWord(String word, String tokens) {
+    wakeWord = word;
+    _wakeTokens = tokens;
+    _p.setString('assistant.wakeWord', word);
+    _p.setString('assistant.wakeTokens', tokens);
+    notifyListeners();
   }
 
   void setVoiceWake(bool v) {

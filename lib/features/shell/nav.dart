@@ -134,6 +134,15 @@ class SettingsRoute extends AppRoute {
   String get sideKey => 'settings';
 }
 
+/// 音色中心：云音助手的音色与语音引擎。
+class VoiceCenterRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.none;
+
+  @override
+  String get sideKey => 'settings';
+}
+
 /// 云音助手设置：语音唤醒与大模型接口。
 class AssistantSettingsRoute extends AppRoute {
   @override

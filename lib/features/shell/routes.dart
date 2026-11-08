@@ -15,6 +15,7 @@ import '../profile/profile_page.dart';
 import '../search/search_page.dart';
 import '../search/search_result_page.dart';
 import '../settings/about_pages.dart';
+import '../voice/voice_center_page.dart';
 import '../settings/appearance_page.dart';
 import '../settings/audio_effects_page.dart';
 import '../settings/lx_page.dart';
@@ -36,6 +37,7 @@ Widget buildMobileRoute(AppRoute r) => switch (r) {
   SettingsRoute() => const SettingsPage(),
   SettingsMoreRoute() => const SettingsMorePage(),
   AssistantSettingsRoute() => const AssistantSettingsPage(),
+  VoiceCenterRoute() => const VoiceCenterPage(),
   AppearanceRoute() => const AppearancePage(),
   StatsRoute() => const StatsPage(),
   AboutRoute(:final page) => buildAboutPage(page),

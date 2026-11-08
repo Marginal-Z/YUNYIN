@@ -83,6 +83,10 @@ class YunyinApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: lx),
         ChangeNotifierProvider.value(value: assistant),
         ChangeNotifierProvider.value(value: assistant.settings),
+        if (assistant.speech != null) ...[
+          ChangeNotifierProvider.value(value: assistant.speech!),
+          ChangeNotifierProvider.value(value: assistant.speech!.settings),
+        ],
         ChangeNotifierProvider(create: (_) => AppNav()),
       ],
       child: Consumer<AppSettings>(

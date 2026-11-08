@@ -12,11 +12,13 @@ import '../data/models.dart';
 import '../data/sources/music_source.dart';
 import '../data/sources/source_manager.dart';
 import '../player/player_controller.dart';
+import '../voice/speech_output.dart';
 import 'assistant_settings.dart';
 import 'intents.dart';
 import 'llm_client.dart';
 import 'voice_engine.dart';
 import 'voice_models.dart';
+import 'wake_word.dart';
 
 /// 对话中的一条消息。
 class AssistantMessage {
@@ -36,7 +38,7 @@ enum AssistantStatus { idle, listening, thinking }
 /// 常用指令（播放控制、点歌、音量、定时、音效）在本机解析，不需要大模型也能用；
 /// 其余的话交给大模型，大模型通过函数调用操作播放器（见 [_tools]）。
 class AssistantController extends ChangeNotifier {
-  AssistantController({required this.settings, required this.app, required this.player, required this.sources, required this.stats, LlmClient? llm}) {
+  AssistantController({required this.settings, required this.app, required this.player, required this.sources, required this.stats, LlmClient? llm, this.speech}) {
     _llm = llm ?? LlmClient(settings);
     _channel.setMethodCallHandler((call) async {
       // Android 常驻通知上点了“关闭”。
@@ -50,6 +52,9 @@ class AssistantController extends ChangeNotifier {
   final PlayerController player;
   final SourceManager sources;
   final ListenStats stats;
+
+  /// 语音输出（音色系统）；为 null 时不朗读（测试）。
+  final SpeechOutput? speech;
   late final LlmClient _llm;
 
   static const _channel = MethodChannel('yunyin/voice');
@@ -91,7 +96,14 @@ class AssistantController extends ChangeNotifier {
   // ── 语音 ──────────────────────────────────────────
 
   /// 打开 / 关闭语音唤醒时启动或停止麦克风。
+  /// 当前识别引擎使用的模型与唤醒词：变化时重启。
+  String? _workerKey;
+  String get _wantedKey => '${settings.asrModel.name}|${settings.wakeWordTokens.join(';')}';
+
   Future<void> _syncVoice() async {
+    if (_worker != null && _workerKey != _wantedKey && status != AssistantStatus.listening) {
+      await _stopVoice();
+    }
     if (settings.voiceWake && _worker == null) {
       await _startVoice();
     } else if (!settings.voiceWake && _worker != null && status != AssistantStatus.listening) {
@@ -107,10 +119,11 @@ class AssistantController extends ChangeNotifier {
     _starting = true;
     voiceError = null;
     try {
-      if (!await VoiceModelStore.ready()) {
+      if (!await VoiceModelStore.ready(settings.asrModel)) {
         downloadProgress = 0;
         notifyListeners();
         await VoiceModelStore.download(
+          settings.asrModel,
           onProgress: (p) {
             downloadProgress = p;
             notifyListeners();
@@ -122,8 +135,9 @@ class AssistantController extends ChangeNotifier {
       if (!await recorder.hasPermission()) {
         throw Exception('没有麦克风权限：请在系统设置中允许云音使用麦克风');
       }
-      final worker = await VoiceWorker.start(await VoiceModelStore.paths(), wake: settings.voiceWake);
+      final worker = await VoiceWorker.start(await VoiceModelStore.paths(settings.asrModel), wake: settings.voiceWake, wakeWords: settings.wakeWordTokens);
       _worker = worker;
+      _workerKey = _wantedKey;
       _voiceSub = worker.events.listen(_onVoice);
       final stream = await recorder.startStream(
         const RecordConfig(
@@ -214,6 +228,10 @@ class AssistantController extends ChangeNotifier {
       case VoiceWake():
         _beginListening();
         _wakeEvents.add(null);
+      case VoiceBargeIn():
+        // 助手说话时用户开口：立即停止朗读，开始听。
+        unawaited(speech?.stop());
+        _beginListening();
       case VoicePartial(:final text):
         partial = text;
         notifyListeners();
@@ -571,41 +589,41 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
 
   // ── 朗读 ──────────────────────────────────────────
 
-  Process? _say;
-
+  /// 朗读回答：使用音色中心选择的音色（引擎降级与情绪由 [SpeechOutput] 处理）。
   Future<void> _speak(String text) async {
-    // 朗读时去掉 Markdown 符号，太长的回答只读前面一段。
-    final t = text.replaceAll(RegExp(r'[*#`>|_~]'), '').trim();
-    if (t.isEmpty) return;
-    final short = t.length > 160 ? '${t.substring(0, 160)}……' : t;
-    try {
-      if (_android) {
-        await _channel.invokeMethod('speak', {'text': short});
-      } else if (Platform.isMacOS) {
-        _say = await Process.start('say', [short]);
-      } else if (Platform.isWindows) {
-        final escaped = short.replaceAll("'", "''");
-        _say = await Process.start('powershell', [
-          '-NoProfile',
-          '-Command',
-          "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('$escaped')",
-        ]);
-      } else if (Platform.isLinux) {
-        _say = await Process.start('spd-say', ['-l', 'zh', short]);
-      }
-    } catch (e) {
-      debugPrint('assistant speak: $e');
-    }
+    final out = speech;
+    if (out == null) return;
+    await out.say(text);
   }
 
-  Future<void> _stopSpeaking() async {
-    _say?.kill();
-    _say = null;
-    if (_android) {
-      try {
-        await _channel.invokeMethod('stopSpeaking');
-      } catch (_) {}
+  Future<void> _stopSpeaking() async => speech?.stop();
+
+  /// 设置自定义唤醒词（空字符串恢复默认）。返回错误原因，成功时为 null。
+  Future<String?> setWakeWord(String word) async {
+    if (word.trim().isEmpty) {
+      settings.setWakeWord('', '');
+      return null;
     }
+    // 读音校验需要唤醒模型的标记表：模型还没下载时先下载。
+    if (!await VoiceModelStore.ready(settings.asrModel)) {
+      downloadProgress = 0;
+      notifyListeners();
+      try {
+        await VoiceModelStore.download(settings.asrModel, onProgress: (p) {
+          downloadProgress = p;
+          notifyListeners();
+        });
+      } catch (e) {
+        return '$e'.replaceFirst('Exception: ', '');
+      } finally {
+        downloadProgress = null;
+        notifyListeners();
+      }
+    }
+    final (line, error) = await WakeWords.toTokens(word, (await VoiceModelStore.paths(settings.asrModel)).kwsTokens);
+    if (line == null) return error;
+    settings.setWakeWord(word.trim(), line);
+    return null;
   }
 
   /// 测试大模型连接。

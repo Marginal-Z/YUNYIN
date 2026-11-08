@@ -7,10 +7,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../assistant/assistant_controller.dart';
 import '../../assistant/assistant_settings.dart';
+import '../../assistant/voice_engine.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/box.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
+import '../../voice/voice_library.dart';
+import '../../voice/voice_settings.dart';
 import '../common/layout.dart';
 import '../shell/nav.dart';
 
@@ -97,6 +100,26 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               height: 64,
               trailing: YSwitch(value: s.voiceWake, label: '语音唤醒', onChanged: s.setVoiceWake),
             ),
+            Builder(
+              builder: (context) {
+                final v = context.watch<VoiceSettings>();
+                return SettingsRow(
+                  title: '音色中心',
+                  subtitle: '当前音色：${VoicePresets.byId(v.voiceId).name} · 试听、切换与语音引擎',
+                  height: 64,
+                  chevron: true,
+                  onTap: () => context.read<AppNav>().push(VoiceCenterRoute()),
+                );
+              },
+            ),
+            _WakeWordRow(),
+            SettingsRow(
+              title: '识别模型',
+              subtitle: '${s.asrModel.label}（约 ${s.asrModel.sizeMb} MB）· 点按切换${s.asrModel == AsrModel.senseVoice ? '，支持中英文混说' : '，体积更小'}',
+              height: 64,
+              chevron: true,
+              onTap: () => s.setAsrModel(AsrModel.values[(s.asrModel.index + 1) % AsrModel.values.length]),
+            ),
             SettingsRow(
               title: '朗读回答',
               subtitle: '语音提问时用系统语音读出回答',
@@ -117,7 +140,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         if (a.voiceError != null) ...[const SizedBox(height: 8), Text(a.voiceError!, style: ts(13, color: p.danger))],
         const SizedBox(height: 8),
         Text(
-          '唤醒词与语音识别完全在本机离线完成，录音不会上传。第一次打开语音功能时下载离线模型（约 31 MB）。'
+          '唤醒词与语音识别完全在本机离线完成，录音不会上传。第一次打开语音功能时下载离线模型（高精度约 260 MB，标准约 110 MB）。'
           '可以直接说：“播放晴天”“我想听周杰伦的歌”“下一首”“暂停”“音量调到五十”“三十分钟后停止播放”“切换到摇滚音效”“收藏这首歌”。',
           style: ts(13, height: 1.55, color: p.text2),
         ),
@@ -180,6 +203,75 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         ),
         const SizedBox(height: 40),
       ],
+    );
+  }
+}
+
+/// 自定义唤醒词：输入 3–6 个汉字，保存时转换为拼音并校验唤醒模型能否检测。
+class _WakeWordRow extends StatefulWidget {
+  const _WakeWordRow();
+
+  @override
+  State<_WakeWordRow> createState() => _WakeWordRowState();
+}
+
+class _WakeWordRowState extends State<_WakeWordRow> {
+  late final _c = TextEditingController(text: context.read<AssistantSettings>().wakeWord);
+  String? _error;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final e = await context.read<AssistantController>().setWakeWord(_c.text);
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _error = e;
+    });
+    if (e == null) FocusScope.of(context).unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Palette.of(context);
+    final s = context.watch<AssistantSettings>();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('唤醒词', style: ts(15, color: p.text)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _c,
+                  onSubmitted: (_) => _save(),
+                  style: ts(15, color: p.text),
+                  cursorColor: p.accentText,
+                  decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, hintText: '默认“你好云音”，可自定义 3–6 个汉字', hintStyle: ts(14, color: p.text3)),
+                ),
+              ),
+              Pressable(onTap: _saving ? null : _save, child: Text(_saving ? '校验中…' : '保存', style: ts(14, weight: w600, color: p.accentText))),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _error ?? (s.wakeWord.isEmpty ? '当前：你好云音 / 嗨云音 / 云音云音' : '当前：${s.wakeWord}（“你好云音”仍然有效）'),
+            style: ts(12.5, color: _error != null ? p.danger : p.text2),
+          ),
+        ],
+      ),
     );
   }
 }
