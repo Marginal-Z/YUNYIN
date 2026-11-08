@@ -29,10 +29,12 @@ const petWindowChannel = WindowMethodChannel('yunyin/desk_pet');
 ///
 /// 优先级：倾听 > 思考 > 说话 > 出错 > 刚完成 > 跟着音乐摇摆 > 打瞌睡 > 待机。
 class PetMoodRules {
-  PetMoodRules({DateTime Function()? now}) : _now = now ?? DateTime.now;
+  PetMoodRules({DateTime Function()? now}) : _now = now ?? DateTime.now {
+    _lastActive = _now();
+  }
 
   final DateTime Function() _now;
-  DateTime _lastActive = DateTime.now();
+  late DateTime _lastActive;
   DateTime? _happyUntil;
   DateTime? _sadUntil;
   String? _lastError;
