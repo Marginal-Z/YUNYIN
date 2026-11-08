@@ -177,6 +177,9 @@ class AppSettings extends ChangeNotifier {
   bool wifiOnlyDownload = true;
   bool autoClean = true;
   bool glass = true;
+
+  /// 流畅度检测：右上角显示帧率，掉帧时把构建 / 渲染耗时写进日志。
+  bool perfOverlay = false;
   bool pushNotify = true;
   bool personalized = true;
   bool showTranslation = false;
@@ -328,6 +331,7 @@ class AppSettings extends ChangeNotifier {
     wifiOnlyDownload = _read<bool>('wifiOnlyDownload') ?? true;
     autoClean = _read<bool>('autoClean') ?? true;
     glass = _read<bool>('glass') ?? true;
+    perfOverlay = _read<bool>('perfOverlay') ?? false;
     pushNotify = _read<bool>('pushNotify') ?? true;
     personalized = _read<bool>('personalized') ?? true;
     showTranslation = _read<bool>('showTranslation') ?? false;
@@ -458,6 +462,8 @@ class AppSettings extends ChangeNotifier {
         autoClean = v;
       case 'glass':
         glass = v;
+      case 'perfOverlay':
+        perfOverlay = v;
       case 'pushNotify':
         pushNotify = v;
       case 'personalized':

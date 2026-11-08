@@ -69,6 +69,7 @@ abstract final class VoicePresets {
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'XB0fDUnXU5powFXDhCwa'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.huayan}),
+      EngineVoice('system', {VoiceLanguage.zh: 'female'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );
 
@@ -86,6 +87,7 @@ abstract final class VoicePresets {
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'jBpfuIE2acCO8z3wKNLl'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.xiaoya}),
+      EngineVoice('system', {VoiceLanguage.zh: 'female'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );
 
@@ -103,6 +105,7 @@ abstract final class VoicePresets {
       EngineVoice('elevenlabs', {VoiceLanguage.zh: '21m00Tcm4TlvDq8ikWAM'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.baker}),
+      EngineVoice('system', {VoiceLanguage.zh: 'female'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );
 
@@ -120,6 +123,7 @@ abstract final class VoicePresets {
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'TxGEqnHWrfWFTfGW9XjX'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.chaowen}),
+      EngineVoice('system', {VoiceLanguage.zh: 'male'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );
 
@@ -137,6 +141,7 @@ abstract final class VoicePresets {
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'nPczCjzI2devNBz1zQrb'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.laozhe}),
+      EngineVoice('system', {VoiceLanguage.zh: 'male'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );
 

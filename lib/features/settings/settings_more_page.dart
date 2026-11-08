@@ -71,6 +71,13 @@ class SettingsMorePage extends StatelessWidget {
               title: '启动时检查更新',
               trailing: YSwitch(value: s.autoUpdate, label: '启动时检查更新', onChanged: (v) => s.setFlag('autoUpdate', v)),
             ),
+            SettingsRow(
+              icon: YIcons.equalizer,
+              tile: TileColor.graphite,
+              title: '流畅度检测',
+              subtitle: '右上角显示帧率与最慢一帧的耗时，用于反馈卡顿',
+              trailing: YSwitch(value: s.perfOverlay, label: '流畅度检测', onChanged: (v) => s.setFlag('perfOverlay', v)),
+            ),
           ],
         ),
         const GroupLabel('隐私与权限'),

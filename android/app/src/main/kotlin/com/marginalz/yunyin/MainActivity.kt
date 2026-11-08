@@ -183,7 +183,12 @@ class MainActivity : AudioServiceActivity() {
                         call.argument<String>("path") ?: "",
                         (call.argument<Double>("rate") ?: 1.0).toFloat(),
                         call.argument<String>("lang") ?: "zh",
+                        call.argument<String>("voice"),
                     ) { ok -> main.post { result.success(ok) } }
+                }
+                "systemVoices" -> {
+                    val main = android.os.Handler(android.os.Looper.getMainLooper())
+                    VoiceService.systemVoices(app) { voices -> main.post { result.success(voices) } }
                 }
                 else -> result.notImplemented()
             }

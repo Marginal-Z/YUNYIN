@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'core/perf_overlay.dart';
 import 'core/settings.dart';
 import 'core/ui/adaptive_scale.dart';
 import 'core/theme/palette.dart';
@@ -107,7 +108,8 @@ class YunyinApp extends StatelessWidget {
                 child: Builder(builder: (context) => _shell(context, child!, s, light, dark)),
               );
               if (splashShotsRequested) return ShotFrame(builder: (context) => _SplashGate(child: scaled(context)));
-              return screenshotsRequested ? ShotFrame(builder: scaled) : _SplashGate(child: scaled(context));
+              if (screenshotsRequested) return ShotFrame(builder: scaled);
+              return PerfOverlay(enabled: s.perfOverlay, child: _SplashGate(child: scaled(context)));
             },
             home: const _Root(),
           );

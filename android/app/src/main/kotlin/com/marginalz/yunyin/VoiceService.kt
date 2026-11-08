@@ -88,17 +88,44 @@ class VoiceService : Service() {
             tts?.stop()
         }
 
-        /** 用系统的文字转语音合成到 WAV 文件（音色系统的最后降级），完成后回调是否成功。 */
-        fun synthesize(context: Context, text: String, path: String, rate: Float, lang: String, callback: (Boolean) -> Unit) {
+        /** 确保系统朗读引擎已初始化，然后在主线程执行 [block]（初始化失败时传入 null）。 */
+        private fun withTts(context: Context, block: (TextToSpeech?) -> Unit) {
+            val engine = tts
+            if (engine != null && ttsReady) {
+                block(engine)
+                return
+            }
+            tts = TextToSpeech(context.applicationContext) { status ->
+                ttsReady = status == TextToSpeech.SUCCESS
+                block(if (ttsReady) tts else null)
+            }
+        }
+
+        /** 系统朗读中已安装、不需要联网的中文（大陆）声音的名称。 */
+        fun systemVoices(context: Context, callback: (List<String>) -> Unit) {
+            withTts(context) { engine ->
+                val voices = try {
+                    engine?.voices.orEmpty()
+                        .filter { it.locale.language == "zh" && (it.locale.country.isEmpty() || it.locale.country == "CN") }
+                        .filter { !it.isNetworkConnectionRequired && TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in it.features }
+                        .map { it.name }
+                        .sorted()
+                } catch (e: Exception) {
+                    Log.w(TAG, "voices: $e")
+                    emptyList()
+                }
+                callback(voices)
+            }
+        }
+
+        /** 用系统的文字转语音合成到 WAV 文件（音色系统的最后降级），完成后回调是否成功。[voice] 为空时用系统默认的中文声音。 */
+        fun synthesize(context: Context, text: String, path: String, rate: Float, lang: String, voice: String?, callback: (Boolean) -> Unit) {
             // 合成结果可能经由多个回调到达（onDone / 两个 onError），只回报一次。
             val reported = java.util.concurrent.atomic.AtomicBoolean(false)
             val done: (Boolean) -> Unit = { ok -> if (reported.compareAndSet(false, true)) callback(ok) }
             fun run(engine: TextToSpeech) {
-                engine.language = when (lang) {
-                    "en" -> Locale.US
-                    "th" -> Locale("th", "TH")
-                    else -> Locale.SIMPLIFIED_CHINESE
-                }
+                val chosen = voice?.let { name -> engine.voices?.firstOrNull { it.name == name } }
+                if (chosen != null) engine.voice = chosen else engine.language = Locale.SIMPLIFIED_CHINESE
                 engine.setSpeechRate(rate)
                 val id = "yunyin-${System.nanoTime()}"
                 engine.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
@@ -111,16 +138,7 @@ class VoiceService : Service() {
                 val r = engine.synthesizeToFile(text, null, java.io.File(path), id)
                 if (r != TextToSpeech.SUCCESS) done(false)
             }
-            val engine = tts
-            if (engine != null && ttsReady) {
-                run(engine)
-                return
-            }
-            tts = TextToSpeech(context.applicationContext) { status ->
-                ttsReady = status == TextToSpeech.SUCCESS
-                val t = tts
-                if (ttsReady && t != null) run(t) else done(false)
-            }
+            withTts(context) { engine -> if (engine != null) run(engine) else done(false) }
         }
 
         /** 调整媒体音量：[level] 为 0..1 的绝对音量，或 [delta] 为相对调整。 */

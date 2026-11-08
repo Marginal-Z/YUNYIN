@@ -18,7 +18,9 @@ import '../data/sources/source_manager.dart';
 import '../pet/pet_rig.dart';
 import '../player/player_controller.dart';
 import '../voice/prosody.dart';
+import '../voice/engines/local_engine.dart';
 import '../voice/speech_output.dart';
+import '../voice/tts_types.dart';
 import '../voice/voice_library.dart';
 import 'assistant_settings.dart';
 import 'command_fixer.dart';
@@ -59,6 +61,33 @@ class AssistantController extends ChangeNotifier {
     });
     settings.addListener(_syncVoice);
     speech?.addListener(_syncMonitor);
+    speech?.settings.addListener(_onVoiceSettings);
+  }
+
+  void _onVoiceSettings() => unawaited(_ensureVoiceModel());
+
+  /// 正在下载的离线声音。
+  final Set<String> _voiceFetching = {};
+
+  /// 使用语音功能时，在后台下载所选音色的离线声音：没有它（也没配置云端引擎）时只能用系统朗读，
+  /// 五个音色听起来几乎一样。
+  Future<void> _ensureVoiceModel() async {
+    final out = speech;
+    if (out == null || !(settings.voiceWake || settings.speakReplies)) return;
+    if (const ['cosyvoice', 'elevenlabs', 'fish'].any((e) => out.settings.engine(e).usable)) return;
+    final binding = out.voice.binding('local');
+    final model = LocalVoiceModels.byId(binding?.voices[VoiceLanguage.zh] ?? '');
+    if (binding == null || model == null || _voiceFetching.contains(model.id)) return;
+    if (await LocalTtsEngine.isInstalled(model)) return;
+    _voiceFetching.add(model.id);
+    try {
+      await LocalTtsEngine().prepare(binding, VoiceLanguage.zh);
+      debugPrint('assistant: 已下载离线声音 ${model.id}');
+    } catch (e) {
+      debugPrint('assistant: 下载离线声音失败：$e');
+    } finally {
+      _voiceFetching.remove(model.id);
+    }
   }
 
   final AssistantSettings settings;
@@ -112,6 +141,7 @@ class AssistantController extends ChangeNotifier {
 
   Future<void> init() async {
     await _syncVoice();
+    unawaited(_ensureVoiceModel());
   }
 
   // ── 语音 ──────────────────────────────────────────
@@ -122,6 +152,7 @@ class AssistantController extends ChangeNotifier {
   String get _wantedKey => '${settings.asrModel.name}|${settings.wakeWordTokens.join(';')}';
 
   Future<void> _syncVoice() async {
+    unawaited(_ensureVoiceModel());
     if (_worker != null && _workerKey != _wantedKey && status != AssistantStatus.listening) {
       await _stopVoice();
     }
@@ -902,6 +933,7 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
   void dispose() {
     settings.removeListener(_syncVoice);
     speech?.removeListener(_syncMonitor);
+    speech?.settings.removeListener(_onVoiceSettings);
     unawaited(_stopVoice());
     _recorder?.dispose();
     _wakeEvents.close();
