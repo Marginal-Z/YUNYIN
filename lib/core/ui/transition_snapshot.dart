@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
@@ -8,7 +10,8 @@ import 'package:flutter/widgets.dart';
 /// 一遍（三星 S23 Ultra 上实测 16 次页面切换掉帧约 300 帧）。改为缩放快照后视觉效果不变，开销只剩一次截图。
 /// Flutter 自带的安卓缩放转场（ZoomPageTransitionsBuilder）也是这样做的。
 ///
-/// 动画期间页面内容冻结在开始那一刻（转场只有零点几秒，看不出来）。
+/// 动画期间每 80 毫秒重拍一次快照：动画开始后才加载出来的图标、封面也会在动画中出现，不用等动画结束。
+/// 重拍一次的开销相当于正常绘制一帧页面，一次转场只有三四次。
 class TransitionSnapshot extends StatefulWidget {
   const TransitionSnapshot({super.key, required this.animations, required this.child});
 
@@ -25,11 +28,19 @@ class _TransitionSnapshotState extends State<TransitionSnapshot> {
 
   bool get _animating => widget.animations.any((a) => a.status == AnimationStatus.forward || a.status == AnimationStatus.reverse);
 
+  Timer? _refresh;
+
   void _sync(AnimationStatus _) {
     final animating = _animating;
     // 每次开始新的动画都重新截图（页面内容可能已经变了）。
     if (animating && !_controller.allowSnapshotting) _controller.clear();
     _controller.allowSnapshotting = animating;
+    if (animating) {
+      _refresh ??= Timer.periodic(const Duration(milliseconds: 80), (_) => _controller.clear());
+    } else {
+      _refresh?.cancel();
+      _refresh = null;
+    }
   }
 
   @override
@@ -38,7 +49,7 @@ class _TransitionSnapshotState extends State<TransitionSnapshot> {
     for (final a in widget.animations) {
       a.addStatusListener(_sync);
     }
-    _controller.allowSnapshotting = _animating;
+    _sync(AnimationStatus.dismissed);
   }
 
   @override
@@ -55,6 +66,7 @@ class _TransitionSnapshotState extends State<TransitionSnapshot> {
 
   @override
   void dispose() {
+    _refresh?.cancel();
     for (final a in widget.animations) {
       a.removeStatusListener(_sync);
     }
