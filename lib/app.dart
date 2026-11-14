@@ -97,6 +97,7 @@ class YunyinApp extends StatelessWidget {
             title: '云音',
             debugShowCheckedModeBanner: false,
             navigatorKey: rootNavigatorKey,
+            onNavigationNotification: _frameworkHandlesBack,
             themeMode: s.themeMode,
             theme: _themeOf(light),
             darkTheme: _themeOf(dark),
@@ -115,6 +116,16 @@ class YunyinApp extends StatelessWidget {
         },
       ),
     );
+  }
+
+  /// 返回键始终交给云音处理（外壳的 PopScope 与 AppNav.handleBack 决定返回上一页、回到首页标签还是退出）。
+  ///
+  /// Android 13 起（targetSdk 36 默认开启预测性返回）只有框架声明“能处理返回”时返回键才会交给 Flutter，
+  /// 否则系统直接关闭应用。框架只在导航状态变化时声明，启动后还没跳转过页面时一次都没有声明过（应用生命周期
+  /// 还没就绪时的通知也会被丢掉），这时在其他标签按返回键会直接退出，而不是回到首页标签。
+  static bool _frameworkHandlesBack(NavigationNotification _) {
+    SystemNavigator.setFrameworkHandlesBack(true);
+    return true;
   }
 
   /// 应用外壳：主题色板、毛玻璃开关、桌面 / 移动布局与全局快捷键。

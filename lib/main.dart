@@ -142,6 +142,8 @@ Future<void> main(List<String> args) async {
 
   if (splashShotsRequested) prepareSplashShots();
   runApp(YunyinApp(settings: settings, sources: sources, player: player, downloads: downloads, local: local, drives: drives, updater: updater, stats: stats, lyricsOverlay: lyricsOverlay, lx: lx, assistant: assistant));
+  // 启动后先声明由云音处理返回键（见 YunyinApp._frameworkHandlesBack）。
+  WidgetsBinding.instance.addPostFrameCallback((_) => SystemNavigator.setFrameworkHandlesBack(true));
   if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
   if (screenshotsRequested) unawaited(runScreenshots(rootNavigatorKey));
   if (splashShotsRequested) unawaited(runSplashShots());
