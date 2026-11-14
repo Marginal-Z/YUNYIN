@@ -26,7 +26,7 @@ flutter test --no-pub -j 4
 ```
 
 - 当前结果：analyze 无问题；181 个测试通过，12 个跳过。跳过的测试需要真实模型或网络。
-- 本机**没有 cmake，也没有 Android SDK 和 adb**：Linux 桌面程序和 Android 都只能靠 CI 编译，也没有连接手机。
+- 本机**没有 cmake，也没有 Android SDK**：Linux 桌面程序和 Android 都只能靠 CI 编译。adb 在 `~/platform-tools/adb`。
 - 需要离线语音模型的测试默认跳过。运行方法见对应测试文件开头的说明（`test/voice_engine_test.dart`、`test/voice_local_engine_test.dart`）。sherpa-onnx 的 Linux 动态库在 `~/.pub-cache/hosted/pub.dev/sherpa_onnx_linux-1.13.8/linux/x64`。
 
 ## 3. 本轮已完成的提交（都已推送）
@@ -42,6 +42,20 @@ flutter test --no-pub -j 4
 | `ae9a8e9` | 把下载脚本接进 CI 工作流，CI 全部通过 |
 
 `CHANGELOG.md` 的 v1.1.25 一节已经写好了以上内容。
+
+之后的提交（都已推送，`git log ae9a8e9..HEAD` 可看全部）：
+
+| 提交 | 内容 |
+| --- | --- |
+| `dc859e7` `21e72c7` | 实时语音对话（SSE 流式、边生成边朗读、连续对话、打断）；语音控制云音本身 |
+| `d49cfac` `9c8dfee` | 只说中文；唤醒词设置改成弹窗；音色全是男声的修复（自动下载离线声音，系统朗读按音高选男女声） |
+| `766259e` | 酷狗概念版账号（appid 3116 等常量来自 MakcRe/KuGouMusicApi，MIT） |
+| `5174a20` `c1ea73d` `e6eb86c` `8db6f65` | 页面转场掉帧：缩放与淡入作用在快照上（`lib/core/ui/transition_snapshot.dart`），动画延后一帧起步，动画中每 80 毫秒重拍快照 |
+| `5b7382a` | 酷狗登录页、音效页的显示修复 |
+| `23fcb07` | “流畅度检测”换成“问题诊断”（`lib/core/diagnostics.dart`、`lib/features/settings/diagnostics_page.dart`） |
+| `a5e7e81` | 晚星的模型被上游重新上传，校验值更新；CI 增加 `tool/ci/check_model_digests.sh` |
+| `3749176` | 小柚、清川换成完整精度的 Piper 模型 |
+| `632ae67` | Android 16 预测性返回：启动时就声明由云音处理返回键（此前可能按返回直接退出） |
 
 ## 4. 主要代码位置
 
@@ -132,6 +146,13 @@ flutter test --no-pub -j 4
 - **三星图标问题已查清**：用户套用了 Good Lock 主题公园的图标主题（`current_sec_appicon_theme_package`）。它按包名替换图标，与云音的图标入口无关，所以无法也不应该绕过。外观页检测到这种情况时会给出说明。
 
 ### 6.2 还需要注意
+
+- **音色评测**（2026-11-14，`test/zz_tts_eval_test.dart` 只在本地用，未提交）：同两句话，SenseVoice 回识准确率与合成速度（RTF，Ryzen 9 8945HX 两线程）：
+  - 现有：云汐 huayan 94.6% / 0.04，小柚 xiaoya int8 100% / 0.16，晚星 baker 97.3% / 0.04，清川 chaowen int8 98.6% / 0.15，暮言 ZhiHuiLaoZhe 94.6% / 0.22（16 kHz 角色声）。
+  - 完整精度 xiaoya、chaowen：都是 100% / 0.05（已换上）。
+  - 候选：MeloTTS zh_en 95.9% / 0.29（44.1 kHz，单个女声，fp32 159 MB；发布包里的 int8 文件只有 133 字节，是坏的）；Matcha zh-en 98.6% / 0.03（16 kHz，要配 vocos-16khz-univ）；Kokoro v1.1 int8 多个声音 98–100%，但 RTF 0.8–1.1、加线程几乎不变，骁龙 865 上做实时对话太慢。
+  - 试听页（17 个样本）：https://claude.ai/artifact/ToRPyR2apLKr8gGqHdzdZ1 ，等用户听完选定后再替换云汐、暮言等音色。
+- **退出原因**：`adb shell dumpsys activity exit-info com.marginalz.yunyin` 里近期全是三星 MARs 在后台 FORCE STOP（内存 0.8–1.9 GB），没有崩溃记录。
 
 - **默认朗读的声音**：没下载离线声音、也没配置云端引擎时，所有音色都退回系统朗读（三星上是 com.samsung.SMT），听起来是同一个声音。桌宠页和音色中心都有下载提示，可以考虑在打开语音唤醒时引导下载默认音色。
 - **识别结果**：真机上偶尔整句识别得比实时字幕还差（字幕是“切换到浅色模”，最终结果却是“切换到检设模式”），目前靠读音纠错兜底。
