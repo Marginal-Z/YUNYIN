@@ -14,6 +14,7 @@ import 'voice/speech_output.dart';
 import 'voice/voice_settings.dart';
 import 'core/app_icon.dart';
 import 'core/data_cache.dart';
+import 'core/diagnostics.dart';
 import 'core/lyrics_overlay.dart';
 import 'core/widget_bridge.dart';
 import 'data/listen_stats.dart';
@@ -49,6 +50,8 @@ Future<void> main(List<String> args) async {
     }
     return;
   }
+  // 问题诊断：日志、错误与卡顿记录写进本机日志文件（桌面歌词、桌宠等子窗口不记录）。
+  unawaited(Diagnostics.instance.install());
   SmoothWheel.install();
 
   if (isDesktopPlatform) {

@@ -316,6 +316,22 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/diagnostics").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "device" -> result.success(
+                    mapOf(
+                        "manufacturer" to Build.MANUFACTURER,
+                        "model" to Build.MODEL,
+                        "hardware" to (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Build.SOC_MODEL else Build.HARDWARE),
+                        "release" to Build.VERSION.RELEASE,
+                        "sdk" to Build.VERSION.SDK_INT,
+                    ),
+                )
+                "exitReasons" -> result.success(exitReasons())
+                "shareFile" -> result.success(shareFile(File(call.argument<String>("path")!!)))
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/update").setMethodCallHandler { call, result ->
             when (call.method) {
                 "installApk" -> result.success(installApk(File(call.argument<String>("path")!!)))
@@ -379,6 +395,67 @@ class MainActivity : AudioServiceActivity() {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
         return "ok"
+    }
+
+    /** 问题诊断：通过系统分享面板分享日志文件。文件需位于缓存目录的 yunyin-share 中。 */
+    private fun shareFile(file: File): Boolean {
+        return try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.update", file)
+            val send = Intent(Intent.ACTION_SEND)
+                .setType("text/plain")
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .putExtra(Intent.EXTRA_SUBJECT, file.name)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(Intent.createChooser(send, "导出诊断日志").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 问题诊断：系统记录的最近几次退出原因（Android 11 起），崩溃与无响应时附上系统保存的堆栈。 */
+    private fun exitReasons(): List<Map<String, Any?>> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return emptyList()
+        return try {
+            val am = getSystemService(android.app.ActivityManager::class.java)
+            am.getHistoricalProcessExitReasons(packageName, 0, 5).map { info ->
+                val trace = if (info.reason == android.app.ApplicationExitInfo.REASON_ANR || info.reason == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE) {
+                    try {
+                        info.traceInputStream?.use { it.readBytes().decodeToString().take(16000) }
+                    } catch (e: Exception) {
+                        null
+                    }
+                } else null
+                mapOf(
+                    "time" to info.timestamp,
+                    "reason" to exitReasonName(info.reason),
+                    "status" to info.status,
+                    "importance" to info.importance,
+                    "description" to info.description,
+                    "process" to info.processName,
+                    "trace" to trace,
+                )
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun exitReasonName(reason: Int): String = when (reason) {
+        android.app.ApplicationExitInfo.REASON_EXIT_SELF -> "自行退出"
+        android.app.ApplicationExitInfo.REASON_SIGNALED -> "被信号结束"
+        android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "内存不足"
+        android.app.ApplicationExitInfo.REASON_CRASH -> "崩溃（Java）"
+        android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "崩溃（原生）"
+        android.app.ApplicationExitInfo.REASON_ANR -> "无响应"
+        android.app.ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "启动失败"
+        android.app.ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "权限变化"
+        android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "资源占用过高"
+        android.app.ApplicationExitInfo.REASON_USER_REQUESTED -> "用户结束"
+        android.app.ApplicationExitInfo.REASON_USER_STOPPED -> "用户停止"
+        android.app.ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "依赖进程退出"
+        android.app.ApplicationExitInfo.REASON_OTHER -> "系统结束"
+        else -> "未知（$reason）"
     }
 
     /** 通过系统分享面板分享图片（听歌海报）。图片需位于缓存目录的 yunyin-share 中。 */

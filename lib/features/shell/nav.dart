@@ -161,6 +161,15 @@ class AssistantSettingsRoute extends AppRoute {
   String get sideKey => 'settings';
 }
 
+/// 问题诊断（关于云音的二级页面）。
+class DiagnosticsRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
 class SettingsMoreRoute extends AppRoute {
   @override
   Chrome get chrome => Chrome.navOnly;

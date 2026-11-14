@@ -4,7 +4,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show CircularProgressIndicator, Theme;
 import 'package:provider/provider.dart';
 
-import '../../core/perf_overlay.dart';
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/app_background.dart';
@@ -124,7 +123,7 @@ class _MobileShellState extends State<MobileShell> {
                 ),
               ),
             ),
-          ] else if (!PerfLab.noChrome) ...[
+          ] else ...[
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
               curve: Motion.spring,

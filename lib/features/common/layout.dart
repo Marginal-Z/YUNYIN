@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/perf_overlay.dart';
 import '../../core/theme/palette.dart';
 import '../../core/ui/glow_background.dart';
 import '../../core/ui/app_background.dart';
@@ -286,7 +285,7 @@ class SliverCard extends StatelessWidget {
         color: p.card,
         borderRadius: BorderRadius.circular(radius),
         border: p.isDark ? Border.all(color: const Color.fromRGBO(255, 255, 255, 0.07)) : null,
-        boxShadow: PerfLab.noShadow ? null : [for (final s in p.cardShadow) BoxShadow(color: s.color, offset: s.offset, blurRadius: cssBlurRadius(s.blur))],
+        boxShadow: [for (final s in p.cardShadow) BoxShadow(color: s.color, offset: s.offset, blurRadius: cssBlurRadius(s.blur))],
       ),
       sliver: SliverList.builder(
         itemCount: itemCount + (hasHeader ? 1 : 0),

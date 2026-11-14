@@ -5,7 +5,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../perf_overlay.dart';
 import '../settings.dart';
 import '../theme/palette.dart';
 import 'cover.dart';
@@ -165,7 +164,7 @@ class _OuterShadowPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (shadows.isEmpty || PerfLab.noShadow) return;
+    if (shadows.isEmpty) return;
     final rrect = radius.toRRect(Offset.zero & size);
     if (clipInside) {
       canvas.save();
