@@ -30,6 +30,11 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze
+      # 上游重新上传同名模型后，写死的 SHA-256 会失效，用户下载时一直校验失败。
+      - name: 核对模型校验值
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tool/ci/check_model_digests.sh
       # 洛雪音源测试使用 flutter_js 自带的 QuickJS 动态库（x86_64）。
       - run: |
           export LIBQUICKJSC_TEST_PATH="$(find "${PUB_CACHE:-$HOME/.pub-cache}" -path '*flutter_js-*/linux/shared/libquickjs_c_bridge_plugin.so' | head -1)"

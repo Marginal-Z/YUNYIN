@@ -38,7 +38,7 @@ abstract final class LocalVoiceModels {
     LocalVoiceModel(LocalVoiceIds.xiaoya, 'vits-piper-zh_CN-xiao_ya-medium-int8.tar.bz2', 'eab027e194e70289233cf12308373611fa4e2e96ef2d97354ef433ab663d831f', 14),
     LocalVoiceModel(LocalVoiceIds.chaowen, 'vits-piper-zh_CN-chaowen-medium-int8.tar.bz2', 'f5f7c8628427fbb259ea4b7ec1a9a822a0c04e3f267071f0abfa0610371d9e0c', 14),
     LocalVoiceModel(LocalVoiceIds.huayan, 'vits-piper-zh_CN-huayan-medium.tar.bz2', 'dbdfec42b91d9cee31cce9ff4b3e9c305eb6fbf60546d071f7e46273554cce6b', 64),
-    LocalVoiceModel(LocalVoiceIds.baker, 'matcha-icefall-zh-baker.tar.bz2', '8da2e113b85dfea37b11bcdc994506aa86b584ee3348c2065271fb6f75cb83b8', 72, matcha: true),
+    LocalVoiceModel(LocalVoiceIds.baker, 'matcha-icefall-zh-baker.tar.bz2', 'ae70096b19c6e283ea351a26b8a718ce6427c8bde8c1da22eb46a5478d39a69b', 72, matcha: true),
     LocalVoiceModel(LocalVoiceIds.laozhe, 'vits-zh-hf-fanchen-ZhiHuiLaoZhe_new.tar.bz2', 'fa6b767c979846f1af3141666158ce91fdad116a15a29654d7e4a071d819af4c', 114),
   ];
 
