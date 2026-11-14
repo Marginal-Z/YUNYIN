@@ -38,19 +38,19 @@ class VoiceProfile {
   String preview(VoiceLanguage lang) => previewText[lang] ?? previewText[VoiceLanguage.zh] ?? '你好，我是$name。';
 }
 
-/// 本地离线声音模型的标识（见 [LocalVoiceModels]）。
+/// 本地离线声音的标识（见 [LocalVoiceModels]）：同一个 ZipVoice 模型，各用一段不同的真人参考录音。
 abstract final class LocalVoiceIds {
-  static const huayan = 'piper-zh-huayan';
-  static const xiaoya = 'piper-zh-xiaoya';
-  static const chaowen = 'piper-zh-chaowen';
-  static const baker = 'matcha-zh-baker';
-  static const laozhe = 'vits-zh-laozhe';
+  static const yunxi = 'zipvoice-yunxi';
+  static const xiaoyou = 'zipvoice-xiaoyou';
+  static const wanxing = 'zipvoice-wanxing';
+  static const qingchuan = 'zipvoice-qingchuan';
+  static const muyan = 'zipvoice-muyan';
 }
 
 /// 首批预设的五个音色。
 ///
 /// 云音助手只说中文。
-/// - 本地离线：每个音色都是独立的中文声音模型。
+/// - 本地离线：ZipVoice 模型，每个音色用一段不同的真人参考录音（THCHS-30）。
 /// - CosyVoice（阿里云百炼）：cosyvoice-v3-flash 的系统音色，听起来最像真人，填写密钥后优先使用：
 ///   云汐 龙安温（优雅知性女）、小柚 龙安欢（欢脱元气女）、晚星 龙婉（细腻柔声女）、
 ///   清川 龙安洋（阳光大男孩）、暮言 龙天（磁性理智男）。音色与模型必须对应，v3 的声音 ID 不能用于 cosyvoice-v2。
@@ -70,7 +70,7 @@ abstract final class VoicePresets {
       EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longanwen_v3'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'XB0fDUnXU5powFXDhCwa'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.huayan}),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.yunxi}),
       EngineVoice('system', {VoiceLanguage.zh: 'female'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );
@@ -88,7 +88,7 @@ abstract final class VoicePresets {
       EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longanhuan_v3'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'jBpfuIE2acCO8z3wKNLl'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.xiaoya}),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.xiaoyou}),
       EngineVoice('system', {VoiceLanguage.zh: 'female'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );
@@ -106,7 +106,7 @@ abstract final class VoicePresets {
       EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longwan_v3'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: '21m00Tcm4TlvDq8ikWAM'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.baker}),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.wanxing}),
       EngineVoice('system', {VoiceLanguage.zh: 'female'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );
@@ -124,7 +124,7 @@ abstract final class VoicePresets {
       EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longanyang'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'TxGEqnHWrfWFTfGW9XjX'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.chaowen}),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.qingchuan}),
       EngineVoice('system', {VoiceLanguage.zh: 'male'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );
@@ -142,7 +142,7 @@ abstract final class VoicePresets {
       EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longtian_v3'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'nPczCjzI2devNBz1zQrb'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.laozhe}),
+      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.muyan}),
       EngineVoice('system', {VoiceLanguage.zh: 'male'}, note: '系统朗读只区分男声 / 女声'),
     ],
   );

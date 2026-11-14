@@ -161,7 +161,7 @@ void main() {
     final out = SpeechOutput(settings, engines: VoiceEngines(settings, engines: [engine]), sink: _Sink());
     await out.say('[开心] 太好了！');
     await out.say('[难过] 有点遗憾。');
-    expect(engine.requests.map((r) => r.$1).toSet(), {LocalVoiceIds.huayan});
+    expect(engine.requests.map((r) => r.$1).toSet(), {LocalVoiceIds.yunxi});
     expect(engine.requests.map((r) => r.$2.prosody.emotion).toList(), [Emotion.happy, Emotion.sad]);
   });
 
