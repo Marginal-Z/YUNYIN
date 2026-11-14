@@ -35,12 +35,15 @@ class LocalVoiceModel {
 /// 本地离线声音模型目录：每个音色对应一个独立的中文声音模型。
 abstract final class LocalVoiceModels {
   static const all = [
-    LocalVoiceModel(LocalVoiceIds.xiaoya, 'vits-piper-zh_CN-xiao_ya-medium-int8.tar.bz2', 'eab027e194e70289233cf12308373611fa4e2e96ef2d97354ef433ab663d831f', 14),
-    LocalVoiceModel(LocalVoiceIds.chaowen, 'vits-piper-zh_CN-chaowen-medium-int8.tar.bz2', 'f5f7c8628427fbb259ea4b7ec1a9a822a0c04e3f267071f0abfa0610371d9e0c', 14),
+    LocalVoiceModel(LocalVoiceIds.xiaoya, 'vits-piper-zh_CN-xiao_ya-medium.tar.bz2', '9396a3dffbb95b037acaa18094500f58d0db9a7c4f2689554e2539717cf0db65', 57),
+    LocalVoiceModel(LocalVoiceIds.chaowen, 'vits-piper-zh_CN-chaowen-medium.tar.bz2', '1b69bdcf10bb6331c7f8a7591940febeb175c6bb86caa3802d96531f8e4ad211', 57),
     LocalVoiceModel(LocalVoiceIds.huayan, 'vits-piper-zh_CN-huayan-medium.tar.bz2', 'dbdfec42b91d9cee31cce9ff4b3e9c305eb6fbf60546d071f7e46273554cce6b', 64),
     LocalVoiceModel(LocalVoiceIds.baker, 'matcha-icefall-zh-baker.tar.bz2', 'ae70096b19c6e283ea351a26b8a718ce6427c8bde8c1da22eb46a5478d39a69b', 72, matcha: true),
     LocalVoiceModel(LocalVoiceIds.laozhe, 'vits-zh-hf-fanchen-ZhiHuiLaoZhe_new.tar.bz2', 'fa6b767c979846f1af3141666158ce91fdad116a15a29654d7e4a071d819af4c', 114),
   ];
+
+  /// 换成完整精度版之前用过的 int8 量化版（有底噪、合成反而更慢），装好新版后删除。
+  static const legacyFolders = ['vits-piper-zh_CN-xiao_ya-medium-int8', 'vits-piper-zh_CN-chaowen-medium-int8'];
 
   /// Matcha 模型使用的声码器。
   static const vocoder = ('vocos-22khz-univ.onnx', '0574a135aa1db2de6e181050db2ec528496cacd4a4701fc5d7faf9f9804c0081');
@@ -130,6 +133,10 @@ class LocalTtsEngine extends TtsEngine {
     await compute(_extract, (archive, root));
     File(archive).deleteSync();
     File('$root/${m.folder}/.ok').writeAsStringSync(m.sha256);
+    for (final old in LocalVoiceModels.legacyFolders) {
+      final d = Directory('$root/$old');
+      if (d.existsSync() && old.startsWith(m.folder)) d.deleteSync(recursive: true);
+    }
     onProgress?.call(1);
   }
 
