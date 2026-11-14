@@ -151,7 +151,9 @@ flutter test --no-pub -j 4
   - 现有：云汐 huayan 94.6% / 0.04，小柚 xiaoya int8 100% / 0.16，晚星 baker 97.3% / 0.04，清川 chaowen int8 98.6% / 0.15，暮言 ZhiHuiLaoZhe 94.6% / 0.22（16 kHz 角色声）。
   - 完整精度 xiaoya、chaowen：都是 100% / 0.05（已换上）。
   - 候选：MeloTTS zh_en 95.9% / 0.29（44.1 kHz，单个女声，fp32 159 MB；发布包里的 int8 文件只有 133 字节，是坏的）；Matcha zh-en 98.6% / 0.03（16 kHz，要配 vocos-16khz-univ）；Kokoro v1.1 int8 多个声音 98–100%，但 RTF 0.8–1.1、加线程几乎不变，骁龙 865 上做实时对话太慢。
-  - 试听页（17 个样本）：https://claude.ai/artifact/ToRPyR2apLKr8gGqHdzdZ1 ，等用户听完选定后再替换云汐、暮言等音色。
+  - 完整精度 Kokoro v1.1（fp32，下载约 350 MB）比 int8 快一倍：4 线程 RTF 0.25，100 个中文声音都已试听；但用户认为音调怪（词典外短语没有三声变调，例如“很好”“我给你”），不采用。
+  - 结论：要“正常人的声音”只能用云端大模型语音。CosyVoice 已换成 cosyvoice-v3-flash 的系统音色（见 docs/云音助手语音架构.md 2.2），用户填写自己的 DashScope 密钥后自动优先使用；还没用真实密钥在真机上听过。
+  - 试听页：https://claude.ai/artifact/ToRPyR2apLKr8gGqHdzdZ1
 - **退出原因**：`adb shell dumpsys activity exit-info com.marginalz.yunyin` 里近期全是三星 MARs 在后台 FORCE STOP（内存 0.8–1.9 GB），没有崩溃记录。
 
 - **默认朗读的声音**：没下载离线声音、也没配置云端引擎时，所有音色都退回系统朗读（三星上是 com.samsung.SMT），听起来是同一个声音。桌宠页和音色中心都有下载提示，可以考虑在打开语音唤醒时引导下载默认音色。

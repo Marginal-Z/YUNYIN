@@ -281,7 +281,7 @@ class SpeechOutput extends ChangeNotifier {
   /// 缓存键：音色、语言、文字与韵律相同的句子（试听、常用回答）直接复用。
   /// 系统朗读的结果不进缓存（见 [_write]）：下载离线声音或配置云端引擎后，同一句话要换成真正的音色。
   String _key(_Utterance u) => sha1
-      .convert(utf8.encode('v2|${u.voice.id}|${settings.preferredEngine}|${u.language.name}|${u.text}|${u.prosody.rate.toStringAsFixed(2)}|${u.prosody.emotion.name}'))
+      .convert(utf8.encode('v3|${u.voice.id}|${settings.preferredEngine}|${u.language.name}|${u.text}|${u.prosody.rate.toStringAsFixed(2)}|${u.prosody.emotion.name}'))
       .toString();
 
   Future<String?> _cached(_Utterance u) async {

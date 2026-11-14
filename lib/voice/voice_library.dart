@@ -51,7 +51,9 @@ abstract final class LocalVoiceIds {
 ///
 /// 云音助手只说中文。
 /// - 本地离线：每个音色都是独立的中文声音模型。
-/// - CosyVoice（阿里云百炼）：cosyvoice-v2 的系统音色。
+/// - CosyVoice（阿里云百炼）：cosyvoice-v3-flash 的系统音色，听起来最像真人，填写密钥后优先使用：
+///   云汐 龙安温（优雅知性女）、小柚 龙安欢（欢脱元气女）、晚星 龙婉（细腻柔声女）、
+///   清川 龙安洋（阳光大男孩）、暮言 龙天（磁性理智男）。音色与模型必须对应，v3 的声音 ID 不能用于 cosyvoice-v2。
 /// - ElevenLabs：官方预置音色（多语言模型说中文）。
 /// - Fish Audio：没有可以预置的官方音色 ID，需要在音色中心填写你在 Fish Audio 选择或克隆的声音（reference_id）。
 abstract final class VoicePresets {
@@ -65,7 +67,7 @@ abstract final class VoicePresets {
       VoiceLanguage.zh: '你好，我是云汐。今天想听点什么？我陪你慢慢挑。',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longxiaochun_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longanwen_v3'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'XB0fDUnXU5powFXDhCwa'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.huayan}),
@@ -83,7 +85,7 @@ abstract final class VoicePresets {
       VoiceLanguage.zh: '嗨嗨，我是小柚！今天的推荐我都替你挑好啦，要不要听听？',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longhua_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longanhuan_v3'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'jBpfuIE2acCO8z3wKNLl'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.xiaoya}),
@@ -101,7 +103,7 @@ abstract final class VoicePresets {
       VoiceLanguage.zh: '晚上好，我是晚星。夜深了，为你放一首安静的歌吧。',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longyue_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longwan_v3'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: '21m00Tcm4TlvDq8ikWAM'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.baker}),
@@ -119,7 +121,7 @@ abstract final class VoicePresets {
       VoiceLanguage.zh: '我是清川。想燃一点？交给我，节奏马上到位。',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longcheng_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longanyang'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'TxGEqnHWrfWFTfGW9XjX'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.chaowen}),
@@ -137,7 +139,7 @@ abstract final class VoicePresets {
       VoiceLanguage.zh: '我是暮言。好的音乐，值得慢慢听。今晚想聊哪首歌？',
     },
     bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longxiaocheng_v2'}, model: 'cosyvoice-v2'),
+      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longtian_v3'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'nPczCjzI2devNBz1zQrb'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
       EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.laozhe}),

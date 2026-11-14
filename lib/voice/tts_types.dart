@@ -62,7 +62,7 @@ class EngineVoice {
   /// 语言 → 声音模型 / 音色 ID。没有的语言表示这个音色在该引擎上不支持这种语言。
   final Map<VoiceLanguage, String> voices;
 
-  /// 引擎的合成模型（例如 cosyvoice-v2、eleven_multilingual_v2、s1）。
+  /// 引擎的合成模型（例如 cosyvoice-v3-flash、eleven_multilingual_v2、s1）。
   final String? model;
 
   /// 说明（在音色中心显示）。

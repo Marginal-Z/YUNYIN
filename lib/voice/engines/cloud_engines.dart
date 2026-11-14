@@ -191,7 +191,7 @@ class FishAudioEngine extends CloudTtsEngine {
 ///
 /// 协议：发送 run-task（模型、音色、格式、语速），收到 task-started 后发送 continue-task（文本）与 finish-task，
 /// 期间收到的二进制帧即音频，task-finished 结束，task-failed 为错误。语速 rate 0.5–2；情绪通过语速体现
-/// （cosyvoice-v2 的系统音色不支持情绪参数，适配层不发送）。
+/// （cosyvoice-v3-flash 的系统音色大多不支持 instruction 情绪指令，适配层不发送）。
 class CosyVoiceEngine extends CloudTtsEngine {
   CosyVoiceEngine(super.settings, {super.dio, this.connect});
 
@@ -207,7 +207,7 @@ class CosyVoiceEngine extends CloudTtsEngine {
   @override
   Set<VoiceLanguage> get languages => {VoiceLanguage.zh};
 
-  static const sampleRate = 22050;
+  static const sampleRate = 24000;
 
   @visibleForTesting
   static double rateFor(Prosody p) {
@@ -296,7 +296,7 @@ class CosyVoiceEngine extends CloudTtsEngine {
           'task_group': 'audio',
           'task': 'tts',
           'function': 'SpeechSynthesizer',
-          'model': model(voice, 'cosyvoice-v2'),
+          'model': model(voice, 'cosyvoice-v3-flash'),
           'parameters': {'text_type': 'PlainText', 'voice': v, 'format': 'pcm', 'sample_rate': sampleRate, 'volume': 50, 'rate': rateFor(request.prosody), 'pitch': 1},
           'input': {},
         },

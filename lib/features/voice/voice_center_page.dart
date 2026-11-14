@@ -28,7 +28,7 @@ abstract final class _C {
 
 /// 云端引擎的说明与申请密钥的页面。
 const _engineInfo = {
-  'cosyvoice': ('CosyVoice', '阿里云百炼的语音合成，中文自然、支持中英文。密钥与通义千问相同（DashScope API Key）。', 'https://bailian.console.aliyun.com/'),
+  'cosyvoice': ('CosyVoice', '阿里云百炼的大模型语音合成（cosyvoice-v3-flash），声调与停顿最接近真人。填写密钥后五个音色都优先用它，没有网络时自动换回本机声音。密钥与通义千问相同（DashScope API Key），新用户有免费额度。', 'https://bailian.console.aliyun.com/'),
   'elevenlabs': ('ElevenLabs', '表现力强的多语言语音，用中文朗读。', 'https://elevenlabs.io/app/settings/api-keys'),
   'fish': ('Fish Audio', '支持声音克隆。需要在音色的“高级”中填写你在 Fish Audio 选择或克隆的声音 ID。', 'https://fish.audio/app/api-keys/'),
 };

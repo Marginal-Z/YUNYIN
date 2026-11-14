@@ -213,6 +213,61 @@ void main() {
     await expectLater(engine.synthesize(b, const TtsRequest('你好', language: VoiceLanguage.zh)).toList(), throwsA(isA<TtsException>().having((e) => e.retryable, 'retryable', false)));
   });
 
+  test('CosyVoice：用 cosyvoice-v3-flash 的系统音色，带密钥连接；音频边收边交出，task-failed 报错', () async {
+    // 本地 WebSocket 服务扮演 DashScope：收到 run-task 回 task-started，收到 finish-task 后发两段 PCM 再回 task-finished。
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final runs = <Map>[];
+    final auth = <String?>[];
+    var failNext = false;
+    server.listen((req) async {
+      auth.add(req.headers.value('authorization'));
+      final ws = await WebSocketTransformer.upgrade(req);
+      ws.listen((m) {
+        final msg = jsonDecode(m as String) as Map;
+        final header = msg['header'] as Map;
+        final task = header['task_id'];
+        Map<String, Object> event(String name, [Map<String, Object> extra = const {}]) => {'header': {'event': name, 'task_id': task, ...extra}, 'payload': {}};
+        switch (header['action']) {
+          case 'run-task':
+            runs.add(msg['payload'] as Map);
+            if (failNext) {
+              ws.add(jsonEncode(event('task-failed', {'error_code': 'InvalidParameter', 'error_message': 'voice not found'})));
+            } else {
+              ws.add(jsonEncode(event('task-started')));
+            }
+          case 'finish-task':
+            ws.add(Uint8List(24000 * 2 ~/ 2));
+            ws.add(Uint8List(24000 * 2));
+            ws.add(jsonEncode(event('task-finished')));
+        }
+      });
+    });
+    addTearDown(() => server.close(force: true));
+    settings.setEngine('cosyvoice', EngineConfig(apiKey: 'sk-test', proxy: 'ws://127.0.0.1:${server.port}'));
+    final engine = CosyVoiceEngine(settings);
+    for (final preset in VoicePresets.all) {
+      final b = preset.binding('cosyvoice')!;
+      expect(b.model, 'cosyvoice-v3-flash', reason: preset.name);
+    }
+    final b = VoicePresets.yunxi.binding('cosyvoice')!;
+    final audio = await engine.synthesize(b, const TtsRequest('你好，我是云汐。', language: VoiceLanguage.zh)).toList();
+    expect(audio, isNotEmpty);
+    expect(audio.every((a) => a.format == 'pcm16' && a.sampleRate == 24000), isTrue);
+    expect(audio.fold<int>(0, (n, a) => n + a.bytes.length), 24000 * 3);
+    expect(auth.single, 'bearer sk-test');
+    final run = runs.single;
+    expect(run['model'], 'cosyvoice-v3-flash');
+    final params = run['parameters'] as Map;
+    expect(params['voice'], 'longanwen_v3');
+    expect(params['sample_rate'], 24000);
+    expect(params['format'], 'pcm');
+    failNext = true;
+    await expectLater(
+      engine.synthesize(b, const TtsRequest('你好', language: VoiceLanguage.zh)).toList(),
+      throwsA(isA<TtsException>().having((e) => e.message, 'message', contains('voice not found')).having((e) => e.retryable, 'retryable', false)),
+    );
+  });
+
   test('等待合成时不算发声，开始播放后才算（打断检测只在发声时打开）', () async {
     final engine = _FakeEngine('local', offline: true, delay: const Duration(milliseconds: 120));
     final sink = _Sink(ms: 120);
