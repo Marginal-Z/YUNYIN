@@ -107,8 +107,7 @@ class KugouLoginCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          '用手机上的酷狗音乐或酷狗概念版 App 扫码，确认后即可登录，可以查看歌单、收藏与会员，并按账号会员权限播放。'
-          '两个版本的登录凭据与会员互不通用：开通的是概念版 VIP，请用概念版扫码。',
+          '用酷狗音乐或酷狗概念版 App 扫码登录，按账号会员权限播放。两个版本的会员互不通用，概念版 VIP 请用概念版扫码。',
           style: ts(14, height: 1.5, color: p.text2),
         ),
         const SizedBox(height: 16),
@@ -122,9 +121,9 @@ class KugouLoginCard extends StatelessWidget {
               child: SecondaryButton(
                 label: kugouWebLoginSupported ? '网页登录' : '打开官网',
                 icon: YIcons.user,
-                iconSize: 18,
+                iconSize: 16,
                 height: 44,
-                fontSize: 14,
+                fontSize: 13.5,
                 onTap: () async {
                   if (!kugouWebLoginSupported) {
                     await launchUrl(Uri.parse('https://www.kugou.com/'), mode: LaunchMode.externalApplication);
@@ -137,7 +136,7 @@ class KugouLoginCard extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: SecondaryButton(label: '粘贴 Cookie', icon: YIcons.key, iconSize: 18, height: 44, fontSize: 14, onTap: () => _paste(context)),
+              child: SecondaryButton(label: '粘贴 Cookie', icon: YIcons.key, iconSize: 16, height: 44, fontSize: 13.5, onTap: () => _paste(context)),
             ),
           ],
         ),

@@ -177,15 +177,19 @@ class _SliderRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       child: Row(
         children: [
+          // 标题列留足四个字的宽度，滑块两侧各缩进一个滑块半径：值为 0 时滑块的圆点不会压到标题上。
           SizedBox(
-            width: 72,
-            child: Text(title, style: ts(16, color: p.text)),
+            width: 84,
+            child: Text(title, maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: ts(16, color: p.text)),
           ),
           Expanded(
-            child: SeekBar(value: value, height: 28, onSeek: (v) => onChanged(divisions == null ? v : (v * divisions!).round() / divisions!)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: SeekBar(value: value, height: 28, onSeek: (v) => onChanged(divisions == null ? v : (v * divisions!).round() / divisions!)),
+            ),
           ),
           SizedBox(
-            width: 64,
+            width: 56,
             child: Text(
               text,
               textAlign: TextAlign.right,

@@ -312,35 +312,39 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
-          Positioned(
-            left: 20,
-            right: 20,
-            top: 612,
-            child: Row(
-              children: [
-                Expanded(child: Container(height: 1, color: const Color.fromRGBO(60, 60, 67, 0.16))),
-                const SizedBox(width: 12),
-                Text('其他登录方式', style: ts(12, color: p.text2)),
-                const SizedBox(width: 12),
-                Expanded(child: Container(height: 1, color: const Color.fromRGBO(60, 60, 67, 0.16))),
-              ],
+          // 酷狗的登录方式都在卡片里（两个版本的扫码、网页登录与 Cookie），不支持邮箱与密码，不显示这一行；
+          // 卡片也比其他平台高，显示时会和它重叠。
+          if (!source.supports(SourceFeature.cookieLogin))
+            Positioned(
+              left: 20,
+              right: 20,
+              top: 612,
+              child: Row(
+                children: [
+                  Expanded(child: Container(height: 1, color: const Color.fromRGBO(60, 60, 67, 0.16))),
+                  const SizedBox(width: 12),
+                  Text('其他登录方式', style: ts(12, color: p.text2)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Container(height: 1, color: const Color.fromRGBO(60, 60, 67, 0.16))),
+                ],
+              ),
             ),
-          ),
-          Positioned(
-            left: 20,
-            right: 20,
-            top: 646,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _OtherLogin(icon: YIcons.mail, label: '邮箱', onTap: canPwd ? () => _passwordLogin(email: true) : null),
-                const SizedBox(width: 36),
-                _OtherLogin(icon: YIcons.qr, label: '扫码', onTap: canQr ? _qrLogin : null),
-                const SizedBox(width: 36),
-                _OtherLogin(icon: YIcons.key, label: '密码', onTap: canPwd ? () => _passwordLogin(email: false) : null),
-              ],
+          if (!source.supports(SourceFeature.cookieLogin))
+            Positioned(
+              left: 20,
+              right: 20,
+              top: 646,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _OtherLogin(icon: YIcons.mail, label: '邮箱', onTap: canPwd ? () => _passwordLogin(email: true) : null),
+                  const SizedBox(width: 36),
+                  _OtherLogin(icon: YIcons.qr, label: '扫码', onTap: canQr ? _qrLogin : null),
+                  const SizedBox(width: 36),
+                  _OtherLogin(icon: YIcons.key, label: '密码', onTap: canPwd ? () => _passwordLogin(email: false) : null),
+                ],
+              ),
             ),
-          ),
           Positioned(
             left: 0,
             right: 0,
@@ -684,8 +688,7 @@ class _QrSheetState extends State<_QrSheet> {
             style: ts(15, weight: w600, color: p.text),
           ),
           const SizedBox(height: 14),
-          if (_state == QrState.expired || _error != null)
-            PrimaryButton(label: '刷新二维码', icon: YIcons.refresh, height: 44, fontSize: 15, iconSize: 18, onTap: _create),
+          if (_state == QrState.expired || _error != null) PrimaryButton(label: '刷新二维码', icon: YIcons.refresh, height: 44, fontSize: 15, iconSize: 18, onTap: _create),
         ],
       ),
     );
