@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -9,7 +10,7 @@ const _desktopDesignSize = Size(1180, 760);
 
 /// 界面随设备等比缩放：先按设计尺寸排版，再整体缩放到屏幕上，
 /// 窄屏不会挤压、宽屏不会拉散，系统字体放大也限制在不会撑破布局的范围内。
-class AdaptiveScale extends StatelessWidget {
+class AdaptiveScale extends StatefulWidget {
   const AdaptiveScale({super.key, required this.desktopBreakpoint, required this.child});
 
   /// 宽度达到该值使用桌面布局（按缩放前的宽度判断，避免缩放后布局来回切换）。
@@ -49,12 +50,49 @@ class AdaptiveScale extends StatelessWidget {
   }
 
   @override
+  State<AdaptiveScale> createState() => _AdaptiveScaleState();
+}
+
+class _AdaptiveScaleState extends State<AdaptiveScale> {
+  /// 正在使用的缩放倍数，与等待生效的倍数。
+  double? _scale;
+  double? _pending;
+  Timer? _settle;
+
+  static bool get _desktopOs =>
+      !kIsWeb && (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.macOS);
+
+  @override
+  void dispose() {
+    _settle?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     final textScaler = mq.textScaler.clamp(minScaleFactor: 0.9, maxScaleFactor: 1.15);
-    var s = scaleFor(mq.size, desktopBreakpoint);
-    if ((s - 1).abs() < 0.01) s = 1;
-    final desktop = isDesktopLayout(mq.size, desktopBreakpoint);
+    var target = AdaptiveScale.scaleFor(mq.size, widget.desktopBreakpoint);
+    if ((target - 1).abs() < 0.01) target = 1;
+    // 电脑上拖动窗口边缘改变大小时，倍数按 0.05 一档变化，每跨一档整个界面突然放大或缩小 5%，看起来像窗口边缘在抖。
+    // 改为拖动过程中保持原来的倍数（只是多显示或少显示一些内容），停下 0.2 秒后再换成新的倍数，整个过程只变一次。
+    if (_scale == null || !_desktopOs) {
+      _scale = target;
+      _settle?.cancel();
+    } else if (target != _scale) {
+      if (target != _pending) {
+        _pending = target;
+        _settle?.cancel();
+        _settle = Timer(const Duration(milliseconds: 200), () {
+          if (mounted) setState(() => _scale = _pending);
+        });
+      }
+    } else {
+      _pending = null;
+      _settle?.cancel();
+    }
+    final s = _scale!;
+    final desktop = AdaptiveScale.isDesktopLayout(mq.size, widget.desktopBreakpoint);
     // 无论是否缩放都使用同一组件结构：调整窗口大小跨过设计尺寸时，整个应用不会被重新挂载。
     // 倍数为 1 时 FittedBox 的变换是单位矩阵，不会产生额外的图层。
     final logical = mq.size / s;
@@ -76,7 +114,7 @@ class AdaptiveScale extends StatelessWidget {
         child: SizedBox(
           width: logical.width,
           height: logical.height,
-          child: MediaQuery(data: data, child: child),
+          child: MediaQuery(data: data, child: widget.child),
         ),
       ),
     );

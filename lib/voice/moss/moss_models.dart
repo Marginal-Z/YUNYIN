@@ -101,19 +101,9 @@ abstract final class MossModels {
           for (var attempt = 0; attempt < 3 && !ok; attempt++) {
             final have = part.existsSync() ? part.lengthSync() : 0;
             if (have > size) part.deleteSync();
-            if (have < size) {
-              await dio.download(
-                url,
-                part.path,
-                cancelToken: cancel,
-                deleteOnError: false,
-                fileAccessMode: have > 0 ? FileAccessMode.append : FileAccessMode.write,
-                options: Options(headers: {if (have > 0) 'range': 'bytes=$have-'}),
-                onReceiveProgress: (r, _) => onProgress?.call((done + have + r) / total),
-              );
-            }
+            if (have < size) await fetch(dio, url, part, have, cancel, (r) => onProgress?.call((done + r) / total));
             if (part.lengthSync() != size) {
-              // 服务器不支持续传时会从头返回整个文件：大小不对就删掉重下。
+              // 连接中断：下一次从断点继续；比应有的大（不应出现）就删掉重下。
               if (part.lengthSync() > size) part.deleteSync();
               continue;
             }
@@ -136,6 +126,32 @@ abstract final class MossModels {
       onProgress?.call(done / total);
     }
     File('$d/.ok').writeAsStringSync(_stamp);
+  }
+
+  /// 下载一个文件到 [part]：已有 [have] 字节时请求从断点继续。服务器不支持续传（返回 200 与完整文件）时从头写入，
+  /// 不会把整个文件接在已下载的部分后面。[onBytes] 为这个文件已写入的总字节数。
+  @visibleForTesting
+  static Future<void> fetch(Dio dio, String url, File part, int have, CancelToken? cancel, void Function(int bytes) onBytes) async {
+    final res = await dio.get<ResponseBody>(
+      url,
+      cancelToken: cancel,
+      options: Options(responseType: ResponseType.stream, headers: {if (have > 0) 'range': 'bytes=$have-'}),
+    );
+    final resumed = have > 0 && res.statusCode == 206;
+    final sink = part.openWrite(mode: resumed ? FileMode.append : FileMode.write);
+    var written = resumed ? have : 0;
+    try {
+      await for (final chunk in res.data!.stream) {
+        if (cancel?.isCancelled ?? false) break;
+        sink.add(chunk);
+        written += chunk.length;
+        onBytes(written);
+      }
+    } finally {
+      await sink.flush();
+      await sink.close();
+    }
+    if (cancel?.isCancelled ?? false) throw DioException.requestCancelled(requestOptions: res.requestOptions, reason: 'cancelled');
   }
 
   /// 删除模型（释放约 720 MB）。

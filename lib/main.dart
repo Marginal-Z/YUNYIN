@@ -90,6 +90,9 @@ Future<void> main(List<String> args) async {
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks(['liquid-glass-studio', 'GLSL-Color-Functions'], await rootBundle.loadString('shaders/THIRD_PARTY_NOTICES.txt'));
     yield LicenseEntryWithLineBreaks(['平台图标', 'lx-music-desktop'], await rootBundle.loadString('assets/platforms/NOTICE.txt'));
+    // 本机语音的模型与推理库（模型文件在使用时下载，不随安装包分发）。
+    yield const LicenseEntryWithLineBreaks(['MOSS-TTS-Nano'], 'MOSS-TTS-Nano 与 MOSS-Audio-Tokenizer-Nano 由复旦大学 OpenMOSS 团队发布，Apache License 2.0。\nhttps://github.com/OpenMOSS/MOSS-TTS-Nano\n云音只在设备上运行官方发布的 ONNX 模型，推理流程参考官方 Android 示例（Apache License 2.0）。');
+    yield const LicenseEntryWithLineBreaks(['onnxruntime-android'], 'ONNX Runtime, Copyright (c) Microsoft Corporation. MIT License.\nhttps://github.com/microsoft/onnxruntime');
   });
   final settings = AppSettings();
   await settings.init();
