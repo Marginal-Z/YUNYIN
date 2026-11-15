@@ -674,12 +674,8 @@ class _LineView extends StatelessWidget {
       tween: Tween(end: sigma),
       duration: _dur,
       curve: Curves.easeOutCubic,
-      builder: (context, s, child) => ImageFiltered(
-        // 很轻的模糊（不到 0.8）看起来像重影而不是虚化，直接不加。
-        enabled: s >= 0.8,
-        imageFilter: ui.ImageFilter.blur(sigmaX: s, sigmaY: s, tileMode: TileMode.decal),
-        child: child,
-      ),
+      // 很轻的模糊（不到 0.8）看起来像重影而不是虚化，直接不加。模糊后的行缓存成图像（见 [_CachedBlur]）。
+      builder: (context, s, child) => _CachedBlur(sigma: s, devicePixelRatio: View.of(context).devicePixelRatio, child: child),
       child: content,
     );
     return Padding(
@@ -1121,4 +1117,98 @@ class _SpringCurve extends Curve {
 
   @override
   double transformInternal(double t) => _sim.x(t * 0.9);
+}
+
+/// 模糊的歌词行：模糊一次后缓存成图像，之后每一帧只画图像。
+///
+/// 此前直接用 ImageFiltered，Impeller 没有光栅缓存，逐字填色让歌词页每一帧都重绘，上下 8 行的模糊也每一帧重新计算一遍
+/// （手机上歌词页约六成的帧超时）。这一行自身重绘（颜色、缩放、模糊程度的动画，悬停）时缓存失效、重新生成；
+/// 滚动与其他行的变化只画缓存的图像。图像四周留出模糊外溢的边距，画面与直接模糊相同。
+class _CachedBlur extends SingleChildRenderObjectWidget {
+  const _CachedBlur({required this.sigma, required this.devicePixelRatio, super.child});
+
+  final double sigma;
+  final double devicePixelRatio;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderCachedBlur(sigma, devicePixelRatio);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderCachedBlur renderObject) => renderObject
+    ..sigma = sigma
+    ..devicePixelRatio = devicePixelRatio;
+}
+
+class _RenderCachedBlur extends RenderProxyBox {
+  _RenderCachedBlur(this._sigma, this._dpr);
+
+  double _sigma;
+  double _dpr;
+  ui.Image? _image;
+  Size? _imageSize;
+
+  set sigma(double v) {
+    if (v == _sigma) return;
+    _sigma = v;
+    markNeedsPaint();
+  }
+
+  set devicePixelRatio(double v) {
+    if (v == _dpr) return;
+    _dpr = v;
+    markNeedsPaint();
+  }
+
+  /// 子节点重绘时会沿父节点向上标记，经过这里时丢弃缓存。
+  @override
+  void markNeedsPaint() {
+    _drop();
+    super.markNeedsPaint();
+  }
+
+  void _drop() {
+    _image?.dispose();
+    _image = null;
+  }
+
+  @override
+  void dispose() {
+    _drop();
+    super.dispose();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (child == null) return;
+    if (_sigma < 0.8 || size.isEmpty) {
+      _drop();
+      context.paintChild(child, offset);
+      return;
+    }
+    final m = (_sigma * 3).ceilToDouble();
+    if (_image == null || _imageSize != size) {
+      _drop();
+      final layer = OffsetLayer();
+      final bounds = Rect.fromLTWH(0, 0, size.width + m * 2, size.height + m * 2);
+      final ctx = PaintingContext(layer, bounds);
+      ctx.pushLayer(
+        ImageFilterLayer(imageFilter: ui.ImageFilter.blur(sigmaX: _sigma, sigmaY: _sigma, tileMode: TileMode.decal)),
+        (c, o) => c.paintChild(child, o),
+        Offset(m, m),
+      );
+      // ignore: invalid_use_of_protected_member
+      ctx.stopRecordingIfNeeded();
+      _image = layer.toImageSync(bounds, pixelRatio: _dpr);
+      _imageSize = size;
+      layer.dispose();
+    }
+    final img = _image!;
+    context.canvas.drawImageRect(
+      img,
+      Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+      Rect.fromLTWH(offset.dx - m, offset.dy - m, size.width + m * 2, size.height + m * 2),
+      Paint()..filterQuality = FilterQuality.low,
+    );
+  }
 }
