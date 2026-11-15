@@ -171,6 +171,12 @@ flutter test --no-pub -j 4
   - 可以改进：声音解码器有 `decode_step`（流式），现在整句生成完再解码；模型可以量化到 INT8（约 180 MB），需要自己量化并托管。
 - **流畅度**：手机流畅度测试（`adb shell am start -S -n com.marginalz.yunyin/.MainActivity --ez yunyin_bench true`，结果在 logcat 的 `bench|` 行）。第二次结果：转场超时帧 48.8%（快照每 80 ms 重拍）→ 只拍一次后约 10%；首页滚动 16%（底栏玻璃约 4 ms 光栅、卡片阴影约 2.5 ms，阴影已改为预渲染九宫格）；播放页 84%、歌词页 58% 还没查。
 
+- **审查（2026-11-16）没有处理的项**：
+  - Linux Wayland 下桌面歌词与桌宠窗口不能置顶、不能恢复位置（GTK3 在 Wayland 上忽略 keep-above 与 move）；可以考虑 `GDK_BACKEND=x11`，但分数缩放下主窗口会发虚，没有改。
+  - 酷狗登录凭据没有续期，到期后需要重新扫码（有效期未知）。
+  - 单曲循环用 `seek(0)` + `play()`，有说法在播放结束后 seek 会卡在缓冲，没有复现。
+  - 本机语音的真机测试：`adb shell am start -S -n com.marginalz.yunyin/.MainActivity --ez yunyin_moss_test true`，结果在 logcat 的 `moss|` 行，音频在 `/sdcard/Android/data/com.marginalz.yunyin/files/moss_test/`。
+
 ### 6.3 测试手机
 
 - adb 在 `~/platform-tools/adb`。Android 安装包由 CI 构建，用 `gh run download <run> --name YunYin-android` 下载后，用 `adb install -r` 覆盖安装。
