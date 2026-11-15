@@ -17,7 +17,7 @@ import '../../core/settings.dart';
 import '../../core/ui/adaptive_scale.dart';
 import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
-import '../../voice/engines/local_engine.dart';
+import '../../voice/engines/system_engine.dart';
 import '../../voice/tts_types.dart';
 import '../../voice/voice_library.dart';
 import '../../voice/voice_settings.dart';
@@ -135,39 +135,31 @@ final List<DiagnosticCheck> diagnosticChecks = [
       '音质：${s.quality.name}；音量均衡：${s.normalize ? '开' : '关'}；高保真引擎：${s.hifiEngine ? '开' : '关'}',
     ]);
   }),
-  DiagnosticCheck('语音合成（本机声音）', (context, _) async {
+  DiagnosticCheck('助手的声音', (context, _) async {
     final voice = VoicePresets.byId(context.read<VoiceSettings>().voiceId);
     final cloud = const ['cosyvoice', 'elevenlabs', 'fish'].where((e) => context.read<VoiceSettings>().engine(e).usable).toList();
-    final binding = voice.binding('local');
-    final model = binding == null ? null : LocalVoiceModels.byId(binding.voices[VoiceLanguage.zh] ?? '');
-    final extra = [if (cloud.isNotEmpty) '已配置的云端引擎：${cloud.join('、')}（优先使用）'];
-    if (binding == null || model == null) return CheckResult(CheckStatus.info, '${voice.name}没有本机声音', extra);
-    if (!await LocalTtsEngine.isInstalled(model)) {
-      return CheckResult(CheckStatus.warn, '本机声音还没有下载', ['在“设置 → 云音助手 → 音色中心”下载（约 ${model.sizeMb} MB），之前朗读使用系统声音', ...extra]);
-    }
-    final engine = LocalTtsEngine();
+    final extra = [if (cloud.isNotEmpty) '已配置的云端引擎：${cloud.join('、')}（优先使用，不可用时换系统朗读）'];
+    final binding = voice.binding('system')!;
     try {
+      final (name, pitch) = await SystemTtsEngine.describe(binding.voices[VoiceLanguage.zh] ?? 'female');
       final sw = Stopwatch()..start();
-      final audio = await engine.synthesize(binding, const TtsRequest('你好，这是一次声音测试，听听清不清楚。', language: VoiceLanguage.zh)).toList();
+      final audio = await SystemTtsEngine().synthesize(binding, const TtsRequest('你好，这是一次声音测试，听听清不清楚。', language: VoiceLanguage.zh)).toList();
       final ms = sw.elapsedMilliseconds;
       final (samples, rate) = decodeWav16(audio.single.bytes);
       final seconds = samples.length / rate;
-      final rtf = ms / 1000 / seconds;
       final peak = samples.fold<double>(0, (m, v) => math.max(m, v.abs()));
       var glitches = 0;
       for (var i = 1; i < samples.length; i++) {
         if ((samples[i] - samples[i - 1]).abs() > 0.35) glitches++;
       }
-      final status = peak >= 0.99 || glitches >= 10 ? CheckStatus.fail : (rtf > 0.9 ? CheckStatus.warn : CheckStatus.ok);
-      return CheckResult(status, '${voice.name}：合成 ${seconds.toStringAsFixed(1)} 秒语音用了 ${(ms / 1000).toStringAsFixed(1)} 秒', [
-        '实时率 ${rtf.toStringAsFixed(2)}${rtf > 0.9 ? '（这台设备合成偏慢，句与句之间可能有停顿）' : ''}',
+      final status = peak >= 0.99 || glitches >= 10 ? CheckStatus.fail : CheckStatus.ok;
+      return CheckResult(status, '${voice.name}：系统朗读正常（${seconds.toStringAsFixed(1)} 秒语音用了 ${(ms / 1000).toStringAsFixed(1)} 秒）', [
+        '系统声音：${name ?? '系统默认'}${pitch == null ? '' : '（音高约 ${pitch.round()} Hz）'}，$rate Hz',
         '峰值 ${peak.toStringAsFixed(2)}${peak >= 0.99 ? '（削波）' : ''}，毛刺 $glitches 处',
         ...extra,
       ]);
     } catch (e) {
-      return CheckResult(CheckStatus.fail, '合成失败', ['$e', ...extra]);
-    } finally {
-      engine.dispose();
+      return CheckResult(CheckStatus.fail, '系统朗读不可用', ['$e', '请在系统设置的“文字转语音”中安装中文语音', ...extra]);
     }
   }),
   DiagnosticCheck('语音识别与唤醒', (context, _) async {

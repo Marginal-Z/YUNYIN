@@ -6,7 +6,7 @@
 # 用法：check_model_digests.sh（需要 gh 与 GITHUB_TOKEN 或已登录的 gh）
 set -euo pipefail
 
-files=(lib/voice/engines/local_engine.dart lib/assistant/voice_models.dart)
+files=(lib/assistant/voice_models.dart)
 digests=$(mktemp)
 trap 'rm -f "$digests"' EXIT
 for tag in asr-models tts-models vocoder-models kws-models; do

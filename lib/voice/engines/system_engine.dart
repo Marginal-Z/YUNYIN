@@ -78,6 +78,13 @@ class SystemTtsEngine extends TtsEngine {
   /// 系统里各个中文声音的音高（Hz），每次启动只测一次；声音列表没变时用上次的结果。
   static Future<Map<String, double>>? _pitches;
 
+  /// 问题诊断用：女声 / 男声实际用的是哪个系统声音（为 null 表示用系统默认），以及测到的音高。
+  static Future<(String?, double?)> describe(String gender) async {
+    final name = kIsWeb || !Platform.isAndroid ? null : await _voiceFor(gender);
+    final pitches = await (_pitches ??= _measure());
+    return (name, name == null ? null : pitches[name]);
+  }
+
   /// 女声音色用音高最高、男声音色用音高最低的系统声音（以 165 Hz 为界）；找不到合适的声音时用系统默认。
   static Future<String?> _voiceFor(String gender) async {
     final pitches = await (_pitches ??= _measure());

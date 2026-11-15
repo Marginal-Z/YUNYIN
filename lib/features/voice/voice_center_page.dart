@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
-import '../../voice/engines/local_engine.dart';
 import '../../voice/speech_output.dart';
 import '../../voice/tts_types.dart';
 import '../../voice/voice_library.dart';
@@ -28,7 +26,7 @@ abstract final class _C {
 
 /// 云端引擎的说明与申请密钥的页面。
 const _engineInfo = {
-  'cosyvoice': ('CosyVoice', '阿里云百炼的大模型语音合成（cosyvoice-v3-flash），声调与停顿最接近真人。填写密钥后五个音色都优先用它，没有网络时自动换回本机声音。密钥与通义千问相同（DashScope API Key），新用户有免费额度。', 'https://bailian.console.aliyun.com/'),
+  'cosyvoice': ('CosyVoice', '阿里云百炼的大模型语音合成（cosyvoice-v3-flash），声调与停顿最接近真人。填写密钥后女声、男声都优先用它，没有网络时自动换回系统朗读。密钥与通义千问相同（DashScope API Key），新用户有免费额度。', 'https://bailian.console.aliyun.com/'),
   'elevenlabs': ('ElevenLabs', '表现力强的多语言语音，用中文朗读。', 'https://elevenlabs.io/app/settings/api-keys'),
   'fish': ('Fish Audio', '支持声音克隆。需要在音色的“高级”中填写你在 Fish Audio 选择或克隆的声音 ID。', 'https://fish.audio/app/api-keys/'),
 };
@@ -46,24 +44,9 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
   static const _lang = VoiceLanguage.zh;
   String? _previewing;
   String? _expanded;
-  final Map<String, double> _downloads = {};
-  final Map<String, bool> _installed = {};
   /// 每个音色卡片底部的一行状态（试听用了哪个引擎、失败原因、下载失败）。写在卡片里固定的一行，
   /// 不在页面顶部插入或移除文字，试听前后页面不会上下跳动。
   final Map<String, ({String text, bool error})> _status = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _refreshInstalled();
-  }
-
-  Future<void> _refreshInstalled() async {
-    for (final m in LocalVoiceModels.all) {
-      _installed[m.id] = await LocalTtsEngine.isInstalled(m);
-    }
-    if (mounted) setState(() {});
-  }
 
   Future<void> _preview(VoiceProfile v) async {
     final out = context.read<SpeechOutput>();
@@ -90,22 +73,6 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
     });
   }
 
-  Future<void> _download(VoiceProfile v) async {
-    final id = v.binding('local')?.voices[_lang];
-    final m = id == null ? null : LocalVoiceModels.byId(id);
-    if (m == null || _downloads.containsKey(m.id)) return;
-    setState(() => _downloads[m.id] = 0);
-    try {
-      await LocalTtsEngine().prepare(v.binding('local')!, _lang, onProgress: (p) {
-        if (mounted) setState(() => _downloads[m.id] = p);
-      }, cancel: CancelToken());
-    } catch (e) {
-      if (mounted) setState(() => _status[v.id] = (text: '下载失败：$e', error: true));
-    }
-    _downloads.remove(m.id);
-    await _refreshInstalled();
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = context.watch<VoiceSettings>();
@@ -125,7 +92,7 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
               ],
             ),
             const SizedBox(height: 4),
-            Text('为云音助手选择声音。每个音色都是独立的声音模型或供应商音色，不是同一个声音改变音调。', style: ts(13.5, height: 1.5, color: _C.text2)),
+            Text('为云音助手选择女声或男声。默认使用系统自带的语音引擎，不用下载；在下面填写云端引擎的密钥后，改用该引擎里同性别的声音，更接近真人。', style: ts(13.5, height: 1.5, color: _C.text2)),
             const SizedBox(height: 14),
             for (final v in VoicePresets.all) ...[_voiceCard(v, s), const SizedBox(height: 12)],
             const SizedBox(height: 18),
@@ -151,7 +118,7 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
                 ),
                 _Row(
                   title: '优先引擎',
-                  subtitle: '不可用时自动换下一个：已配置的云端引擎 → 本地离线 → 系统朗读',
+                  subtitle: '不可用时自动换下一个：已配置的云端引擎 → 系统朗读',
                   trailing: _EngineMenu(value: s.preferredEngine, onChanged: s.setPreferredEngine),
                 ),
               ],
@@ -171,14 +138,9 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
   Widget _voiceCard(VoiceProfile v, VoiceSettings s) {
     final selected = s.voiceId == v.id;
     final engines = context.read<SpeechOutput>().engines;
-    final local = v.binding('local')?.voices[_lang];
-    final model = local == null ? null : LocalVoiceModels.byId(local);
-    final installed = model != null && (_installed[model.id] ?? false);
-    final progress = model == null ? null : _downloads[model.id];
     final available = <String>[
       for (final e in engines.all.where((e) => !e.offline && e.configured))
         if ((engines.bindingFor(v, e).voices[_lang] ?? '').isNotEmpty && e.languages.contains(_lang)) e.name,
-      if (installed) '本地离线',
     ];
     final previewing = _previewing == v.id;
     // 合成第一句要一点时间：还没出声时显示“合成中”，出声后才显示“停止”。
@@ -220,7 +182,7 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
           Text(v.traits.join(' · '), style: ts(12.5, color: _C.text2)),
           const SizedBox(height: 4),
           Text(
-            available.isEmpty ? '可用：系统朗读（下载离线声音或配置云端引擎后使用这个音色）' : '可用：${available.join('、')}',
+            available.isEmpty ? '使用：系统朗读' : '使用：${available.first}（不可用时换系统朗读）',
             style: ts(12.5, color: _C.text2),
           ),
           const SizedBox(height: 12),
@@ -235,14 +197,6 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
               ),
               const SizedBox(width: 10),
               if (!selected) _Button('设为默认', primary: true, onTap: () => s.setVoice(v.id)),
-              const Spacer(),
-              if (model != null && !installed)
-                progress != null
-                    ? Text('下载中 ${(progress * 100).round()}%', style: ts(13, color: _C.accent))
-                    : Pressable(
-                        onTap: () => _download(v),
-                        child: Text('下载离线声音 ${model.sizeMb} MB', style: ts(13, weight: w600, color: _C.accent)),
-                      ),
             ],
           ),
           const SizedBox(height: 8),
@@ -271,7 +225,6 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
                   initial: engines.bindingFor(v, e).voices[_lang] ?? '',
                   onChanged: (t) => s.setOverride(v.id, e.id, _lang, t == (v.binding(e.id)?.voices[_lang] ?? '') ? null : t),
                 ),
-            if (v.binding('local')?.note != null) Text(v.binding('local')!.note!, style: ts(12, color: _C.text2)),
           ],
         ],
       ),
@@ -555,7 +508,7 @@ class _EngineMenu extends StatelessWidget {
   final String value;
   final ValueChanged<String> onChanged;
 
-  static const _options = {'auto': '自动', 'cosyvoice': 'CosyVoice', 'elevenlabs': 'ElevenLabs', 'fish': 'Fish Audio', 'local': '本地离线', 'system': '系统朗读'};
+  static const _options = {'auto': '自动', 'cosyvoice': 'CosyVoice', 'elevenlabs': 'ElevenLabs', 'fish': 'Fish Audio', 'system': '系统朗读'};
 
   @override
   Widget build(BuildContext context) {

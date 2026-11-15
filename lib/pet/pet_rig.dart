@@ -55,11 +55,11 @@ class PetRig {
   final Offset sweat;
 }
 
-/// 三只桌宠：团团（可爱）、星月（美丽）、阿曜（帅气），各自使用一个音色。
+/// 三只桌宠：团团（可爱）、星月（美丽）、阿曜（帅气）。团团、星月用女声，阿曜用男声。
 enum PetKind {
-  tuantuan('团团', '可爱', '软软的音乐云朵，戴着粉色耳机', 'xiaoyou', Color(0xFFFF6F91)),
-  xingyue('星月', '美丽', '温柔的月光少女，说话轻轻的', 'wanxing', Color(0xFF8B7CF6)),
-  ayao('阿曜', '帅气', '元气满满的少年，随时待命', 'qingchuan', Color(0xFF3B82F6));
+  tuantuan('团团', '可爱', '软软的音乐云朵，戴着粉色耳机', 'female', Color(0xFFFF6F91)),
+  xingyue('星月', '美丽', '温柔的月光少女，说话轻轻的', 'female', Color(0xFF8B7CF6)),
+  ayao('阿曜', '帅气', '元气满满的少年，随时待命', 'male', Color(0xFF3B82F6));
 
   const PetKind(this.label, this.style, this.description, this.voiceId, this.color);
 
@@ -67,7 +67,7 @@ enum PetKind {
   final String style;
   final String description;
 
-  /// 对应的音色（见 VoicePresets）。
+  /// 对应的声音（见 VoicePresets：female / male）。
   final String voiceId;
 
   /// 特效与气泡使用的主题色。

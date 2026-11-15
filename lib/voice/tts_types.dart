@@ -104,7 +104,7 @@ abstract class TtsEngine {
   /// 这个音色能否立即用于这种语言（本地引擎还要求声音模型已经下载）。
   Future<bool> ready(EngineVoice voice, VoiceLanguage lang);
 
-  /// 准备音色（本地引擎下载声音模型；云端引擎无需准备）。
+  /// 准备音色（需要下载资源的引擎在这里下载；云端引擎与系统朗读无需准备）。
   Future<void> prepare(EngineVoice voice, VoiceLanguage lang, {void Function(double progress)? onProgress, CancelToken? cancel}) async {}
 
   /// 合成一句话。返回的流可以分多段输出（流式合成），每段可以单独播放。

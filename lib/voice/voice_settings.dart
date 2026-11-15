@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'tts_types.dart';
+import 'voice_library.dart';
 
 /// 云端引擎的接入配置：用户自己的密钥，或者自建代理地址（代理在服务器端附加密钥，客户端不保存密钥）。
 /// 客户端代码中不包含任何密钥。
@@ -34,9 +35,9 @@ class VoiceSettings extends ChangeNotifier {
   SharedPreferences? _p;
 
   /// 默认音色。
-  String voiceId = 'yunxi';
+  String voiceId = 'female';
 
-  /// 优先使用的引擎（auto 表示按“已配置的云端引擎 → 本地离线 → 系统朗读”自动选择）。
+  /// 优先使用的引擎（auto 表示按“已配置的云端引擎 → 系统朗读”自动选择）。
   String preferredEngine = 'auto';
 
   /// 按聊天内容自动调整情绪、语速与停顿。
@@ -53,7 +54,8 @@ class VoiceSettings extends ChangeNotifier {
 
   Future<void> init() async {
     final p = _p = await SharedPreferences.getInstance();
-    voiceId = p.getString('voice.id') ?? voiceId;
+    // 旧版本的五个音色 ID 按性别换成女声或男声。
+    voiceId = VoicePresets.byId(p.getString('voice.id') ?? voiceId).id;
     preferredEngine = p.getString('voice.engine') ?? preferredEngine;
     expressive = p.getBool('voice.expressive') ?? expressive;
     rate = (p.getDouble('voice.rate') ?? rate).clamp(0.6, 1.6).toDouble();

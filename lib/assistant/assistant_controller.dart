@@ -18,9 +18,7 @@ import '../data/sources/source_manager.dart';
 import '../pet/pet_rig.dart';
 import '../player/player_controller.dart';
 import '../voice/prosody.dart';
-import '../voice/engines/local_engine.dart';
 import '../voice/speech_output.dart';
-import '../voice/tts_types.dart';
 import '../voice/voice_library.dart';
 import 'assistant_settings.dart';
 import 'command_fixer.dart';
@@ -61,33 +59,6 @@ class AssistantController extends ChangeNotifier {
     });
     settings.addListener(_syncVoice);
     speech?.addListener(_syncMonitor);
-    speech?.settings.addListener(_onVoiceSettings);
-  }
-
-  void _onVoiceSettings() => unawaited(_ensureVoiceModel());
-
-  /// 正在下载的离线声音。
-  final Set<String> _voiceFetching = {};
-
-  /// 使用语音功能时，在后台下载所选音色的离线声音：没有它（也没配置云端引擎）时只能用系统朗读，
-  /// 五个音色听起来几乎一样。
-  Future<void> _ensureVoiceModel() async {
-    final out = speech;
-    if (out == null || !(settings.voiceWake || settings.speakReplies)) return;
-    if (const ['cosyvoice', 'elevenlabs', 'fish'].any((e) => out.settings.engine(e).usable)) return;
-    final binding = out.voice.binding('local');
-    final model = LocalVoiceModels.byId(binding?.voices[VoiceLanguage.zh] ?? '');
-    if (binding == null || model == null || _voiceFetching.contains(model.id)) return;
-    if (await LocalTtsEngine.isInstalled(model)) return;
-    _voiceFetching.add(model.id);
-    try {
-      await LocalTtsEngine().prepare(binding, VoiceLanguage.zh);
-      debugPrint('assistant: 已下载离线声音 ${model.id}');
-    } catch (e) {
-      debugPrint('assistant: 下载离线声音失败：$e');
-    } finally {
-      _voiceFetching.remove(model.id);
-    }
   }
 
   final AssistantSettings settings;
@@ -141,7 +112,6 @@ class AssistantController extends ChangeNotifier {
 
   Future<void> init() async {
     await _syncVoice();
-    unawaited(_ensureVoiceModel());
   }
 
   // ── 语音 ──────────────────────────────────────────
@@ -152,7 +122,6 @@ class AssistantController extends ChangeNotifier {
   String get _wantedKey => '${settings.asrModel.name}|${settings.wakeWordTokens.join(';')}';
 
   Future<void> _syncVoice() async {
-    unawaited(_ensureVoiceModel());
     if (_worker != null && _workerKey != _wantedKey && status != AssistantStatus.listening) {
       await _stopVoice();
     }
@@ -599,7 +568,7 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
           'description':
               'platform（value：网易云 / QQ 音乐 / 酷狗 / 洛雪）；themeMode（light / dark / system）；accent（朱红 / 蓝 / 青绿 / 橙 / 石墨）；'
               'playerStyle（封面 / 黑胶 / 光盘 / 沉浸 / 卡片流 / 3D 封面流 / 照片墙 / 极简）；desktopLyrics、statusLyrics、translation、glass（on / off）；'
-              'pet（团团 / 星月 / 阿曜 / off）；voice（云汐 / 小柚 / 晚星 / 清川 / 暮言）；download；playCollection（daily / liked / recent）；'
+              'pet（团团 / 星月 / 阿曜 / off）；voice（女声 / 男声）；download；playCollection（daily / liked / recent）；'
               'open（settings / downloads / stats / voice / pet / player / lyrics / library / search，search 时把关键词放在 query）',
         },
         'value': {'type': 'string'},
@@ -737,10 +706,10 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
         speech?.settings.setVoice(kind.voiceId);
         return '${kind.label}来啦，${_android ? '回到桌面就能看到它' : '在桌面上陪你'}';
       case AppAction.voice:
-        final voice = VoicePresets.all.where((p) => p.name == v).firstOrNull;
-        if (voice == null || speech == null) return '没有“$v”这个音色';
+        final voice = VoicePresets.byName(v);
+        if (voice == null || speech == null) return '没有“$v”这个声音，可以说“换成女声”或“换成男声”';
         speech!.settings.setVoice(voice.id);
-        return '好的，换成${voice.name}的声音了';
+        return '好的，换成${voice.name}了';
       case AppAction.download:
         final song = player.current;
         if (song == null) return '现在没有在播放歌曲';
@@ -933,7 +902,6 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
   void dispose() {
     settings.removeListener(_syncVoice);
     speech?.removeListener(_syncMonitor);
-    speech?.settings.removeListener(_onVoiceSettings);
     unawaited(_stopVoice());
     _recorder?.dispose();
     _wakeEvents.close();

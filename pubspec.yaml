@@ -90,7 +90,6 @@ flutter:
     - assets/icon/themes/
     - assets/pinyin/
     - assets/pets/
-    - assets/voices/
     - assets/platforms/
     - shaders/THIRD_PARTY_NOTICES.txt
 

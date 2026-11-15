@@ -87,7 +87,7 @@ enum AppAction {
   /// 桌宠：团团 / 星月 / 阿曜 / off。
   pet,
 
-  /// 助手音色：云汐 / 小柚 / 晚星 / 清川 / 暮言。
+  /// 助手的声音：女声 / 男声（旧音色名按性别对应）。
   voice,
 
   /// 下载正在播放的歌曲。
@@ -145,7 +145,7 @@ AppIntent? _appIntent(String s) {
   final pet = RegExp(r'(?:打开|显示|召唤|叫出|换成|切换到|我要)(桌宠|团团|星月|阿曜)').firstMatch(s);
   if (pet != null) return AppIntent(AppAction.pet, pet.group(1) == '桌宠' ? null : pet.group(1));
   // 音色。
-  final voice = RegExp(r'(?:换成|切换到|改成|用|换)(云汐|小柚|晚星|清川|暮言)(?:的)?(?:声音|音色)?$').firstMatch(s);
+  final voice = RegExp(r'(?:换成|切换到|改成|用|换)(女声|男声|女生|男生|云汐|小柚|晚星|清川|暮言)(?:的)?(?:声音|音色)?$').firstMatch(s);
   if (voice != null) return AppIntent(AppAction.voice, voice.group(1));
   // 下载。
   if (RegExp(r'^下载(这首|这首歌|当前歌曲|正在播放的歌|这首歌曲)?(歌)?$').hasMatch(s)) return const AppIntent(AppAction.download);

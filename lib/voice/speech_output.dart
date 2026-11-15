@@ -13,13 +13,27 @@ import 'package:path_provider/path_provider.dart';
 import '../player/mpv_property.dart' if (dart.library.js_interop) '../player/mpv_property_web.dart';
 
 import 'engines/cloud_engines.dart';
-import 'engines/local_engine.dart';
 import 'engines/system_engine.dart';
 import 'prosody.dart';
 import 'tts_types.dart';
 import 'voice_library.dart';
 import 'voice_settings.dart';
 import 'wav.dart';
+
+/// 删除旧版本下载的本机语音模型（应用数据目录 voices/：ZipVoice、Piper、Matcha 等，已不再使用）。
+/// 语音识别与唤醒的模型在 voice/ 目录，不受影响。
+Future<void> removeOldVoiceModels() async {
+  if (kIsWeb) return;
+  try {
+    final dir = Directory('${(await getApplicationSupportDirectory()).path}/voices');
+    if (dir.existsSync()) {
+      await dir.delete(recursive: true);
+      debugPrint('voice: 已删除旧的本机语音模型');
+    }
+  } catch (e) {
+    debugPrint('voice: 删除旧模型失败：$e');
+  }
+}
 
 /// 播放合成好的音频文件（默认使用单独的 media_kit 播放器，与音乐播放器互不干扰）。
 abstract class SpeechSink {
@@ -81,10 +95,10 @@ class MediaKitSpeechSink extends SpeechSink {
   }
 }
 
-/// 引擎注册表与选择：按“用户指定的引擎 → 已配置的云端引擎 → 本地离线（模型已下载）→ 系统朗读”的顺序降级。
+/// 引擎注册表与选择：按“用户指定的引擎 → 已配置的云端引擎 → 系统朗读”的顺序降级。
 class VoiceEngines {
   VoiceEngines(this.settings, {List<TtsEngine>? engines})
-    : all = engines ?? [CosyVoiceEngine(settings), ElevenLabsEngine(settings), FishAudioEngine(settings), LocalTtsEngine(), SystemTtsEngine()];
+    : all = engines ?? [CosyVoiceEngine(settings), ElevenLabsEngine(settings), FishAudioEngine(settings), SystemTtsEngine()];
 
   final VoiceSettings settings;
   final List<TtsEngine> all;
@@ -299,9 +313,9 @@ class SpeechOutput extends ChangeNotifier {
   }
 
   /// 缓存键：音色、语言、文字与韵律相同的句子（试听、常用回答）直接复用。
-  /// 系统朗读的结果不进缓存（见 [_write]）：下载离线声音或配置云端引擎后，同一句话要换成真正的音色。
+  /// 系统朗读的结果不进缓存（见 [_write]）：配置云端引擎后，同一句话要换成云端的声音。
   String _key(_Utterance u) => sha1
-      .convert(utf8.encode('v4|${u.voice.id}|${settings.preferredEngine}|${u.language.name}|${u.text}|${u.prosody.rate.toStringAsFixed(2)}|${u.prosody.emotion.name}'))
+      .convert(utf8.encode('v5|${u.voice.id}|${settings.preferredEngine}|${u.language.name}|${u.text}|${u.prosody.rate.toStringAsFixed(2)}|${u.prosody.emotion.name}'))
       .toString();
 
   Future<String?> _cached(_Utterance u) async {

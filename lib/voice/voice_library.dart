@@ -38,116 +38,58 @@ class VoiceProfile {
   String preview(VoiceLanguage lang) => previewText[lang] ?? previewText[VoiceLanguage.zh] ?? '你好，我是$name。';
 }
 
-/// 本地离线声音的标识（见 [LocalVoiceModels]）：同一个 ZipVoice 模型，各用一段不同的真人参考录音。
-abstract final class LocalVoiceIds {
-  static const yunxi = 'zipvoice-yunxi';
-  static const xiaoyou = 'zipvoice-xiaoyou';
-  static const wanxing = 'zipvoice-wanxing';
-  static const qingchuan = 'zipvoice-qingchuan';
-  static const muyan = 'zipvoice-muyan';
-}
-
-/// 首批预设的五个音色。
+/// 云音助手的声音：女声与男声。
 ///
-/// 云音助手只说中文。
-/// - 本地离线：ZipVoice 模型，每个音色用一段不同的真人参考录音（AISHELL-3）。
-/// - CosyVoice（阿里云百炼）：cosyvoice-v3-flash 的系统音色，听起来最像真人，填写密钥后优先使用：
-///   云汐 龙安温（优雅知性女）、小柚 龙安欢（欢脱元气女）、晚星 龙婉（细腻柔声女）、
-///   清川 龙安洋（阳光大男孩）、暮言 龙天（磁性理智男）。音色与模型必须对应，v3 的声音 ID 不能用于 cosyvoice-v2。
-/// - ElevenLabs：官方预置音色（多语言模型说中文）。
-/// - Fish Audio：没有可以预置的官方音色 ID，需要在音色中心填写你在 Fish Audio 选择或克隆的声音（reference_id）。
+/// 默认使用系统自带的语音引擎（Android 为系统朗读引擎，例如三星、谷歌的中文语音；桌面端为系统语音），
+/// 不需要下载模型，声音清楚自然；系统里有多个中文声音时，按实测音高选出女声与男声。
+/// 在音色中心填写了云端引擎的密钥后，改用对应引擎里同性别的声音（CosyVoice、ElevenLabs、Fish Audio）。
+///
+/// 此前的五个音色（云汐、小柚、晚星、清川、暮言）使用本机的开源语音模型合成，听感不自然，已经去掉；
+/// 保存过的旧音色按性别换成女声或男声（见 [byId]）。
 abstract final class VoicePresets {
-  static const yunxi = VoiceProfile(
-    id: 'yunxi',
-    name: '云汐',
-    style: '温柔知性',
-    description: '温暖柔和的青年女声，语气从容，适合陪伴聊天、讲歌曲背后的故事。',
-    traits: ['女声', '青年', '温暖柔和'],
-    previewText: {
-      VoiceLanguage.zh: '你好，我是云汐。今天想听点什么？我陪你慢慢挑。',
-    },
+  static const female = VoiceProfile(
+    id: 'female',
+    name: '女声',
+    style: '清楚自然',
+    description: '中文女声，咬字清楚，适合日常聊天、推荐歌曲与讲解。',
+    traits: ['女声'],
+    previewText: {VoiceLanguage.zh: '你好，我是云音助手。今天想听点什么？我给你挑几首合适的歌。'},
     bindings: [
       EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longanwen_v3'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'XB0fDUnXU5powFXDhCwa'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.yunxi}),
-      EngineVoice('system', {VoiceLanguage.zh: 'female'}, note: '系统朗读只区分男声 / 女声'),
+      EngineVoice('system', {VoiceLanguage.zh: 'female'}),
     ],
   );
 
-  static const xiaoyou = VoiceProfile(
-    id: 'xiaoyou',
-    name: '小柚',
-    style: '元气活泼',
-    description: '明亮清甜的少女声，语速轻快、带着笑意，适合推荐新歌和日常聊天。',
-    traits: ['女声', '少女', '明亮清甜'],
-    previewText: {
-      VoiceLanguage.zh: '嗨嗨，我是小柚！今天的推荐我都替你挑好啦，要不要听听？',
-    },
-    bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longanhuan_v3'}, model: 'cosyvoice-v3-flash'),
-      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'jBpfuIE2acCO8z3wKNLl'}, model: 'eleven_multilingual_v2'),
-      EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.xiaoyou}),
-      EngineVoice('system', {VoiceLanguage.zh: 'female'}, note: '系统朗读只区分男声 / 女声'),
-    ],
-  );
-
-  static const wanxing = VoiceProfile(
-    id: 'wanxing',
-    name: '晚星',
-    style: '轻柔夜语',
-    description: '轻柔安静的女声，像深夜电台主播，语速舒缓、停顿从容，适合夜晚与助眠。',
-    traits: ['女声', '青年', '轻柔舒缓'],
-    previewText: {
-      VoiceLanguage.zh: '晚上好，我是晚星。夜深了，为你放一首安静的歌吧。',
-    },
-    bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longwan_v3'}, model: 'cosyvoice-v3-flash'),
-      EngineVoice('elevenlabs', {VoiceLanguage.zh: '21m00Tcm4TlvDq8ikWAM'}, model: 'eleven_multilingual_v2'),
-      EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.wanxing}),
-      EngineVoice('system', {VoiceLanguage.zh: 'female'}, note: '系统朗读只区分男声 / 女声'),
-    ],
-  );
-
-  static const qingchuan = VoiceProfile(
-    id: 'qingchuan',
-    name: '清川',
-    style: '清朗少年',
-    description: '干净明亮的青年男声，咬字清楚、节奏利落，适合播报与快速操作。',
-    traits: ['男声', '青年', '干净明亮'],
-    previewText: {
-      VoiceLanguage.zh: '我是清川。想燃一点？交给我，节奏马上到位。',
-    },
+  static const male = VoiceProfile(
+    id: 'male',
+    name: '男声',
+    style: '沉稳清晰',
+    description: '中文男声，语气沉稳，适合播报与讲解。',
+    traits: ['男声'],
+    previewText: {VoiceLanguage.zh: '你好，我是云音助手。想听什么歌，直接告诉我就好。'},
     bindings: [
       EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longanyang'}, model: 'cosyvoice-v3-flash'),
       EngineVoice('elevenlabs', {VoiceLanguage.zh: 'TxGEqnHWrfWFTfGW9XjX'}, model: 'eleven_multilingual_v2'),
       EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.qingchuan}),
-      EngineVoice('system', {VoiceLanguage.zh: 'male'}, note: '系统朗读只区分男声 / 女声'),
+      EngineVoice('system', {VoiceLanguage.zh: 'male'}),
     ],
   );
 
-  static const muyan = VoiceProfile(
-    id: 'muyan',
-    name: '暮言',
-    style: '沉稳磁性',
-    description: '低沉有磁性的成熟男声，语气沉稳，适合讲解、长篇解读与夜晚聊天。',
-    traits: ['男声', '成熟', '低沉磁性'],
-    previewText: {
-      VoiceLanguage.zh: '我是暮言。好的音乐，值得慢慢听。今晚想聊哪首歌？',
-    },
-    bindings: [
-      EngineVoice('cosyvoice', {VoiceLanguage.zh: 'longtian_v3'}, model: 'cosyvoice-v3-flash'),
-      EngineVoice('elevenlabs', {VoiceLanguage.zh: 'nPczCjzI2devNBz1zQrb'}, model: 'eleven_multilingual_v2'),
-      EngineVoice('fish', {}),
-      EngineVoice('local', {VoiceLanguage.zh: LocalVoiceIds.muyan}),
-      EngineVoice('system', {VoiceLanguage.zh: 'male'}, note: '系统朗读只区分男声 / 女声'),
-    ],
-  );
+  static const all = [female, male];
 
-  static const all = [yunxi, xiaoyou, wanxing, qingchuan, muyan];
+  /// 旧版本保存的音色 ID 按性别换成新的声音。
+  static const _legacy = {'yunxi': 'female', 'xiaoyou': 'female', 'wanxing': 'female', 'qingchuan': 'male', 'muyan': 'male'};
 
-  static VoiceProfile byId(String? id) => all.where((v) => v.id == id).firstOrNull ?? yunxi;
+  static VoiceProfile byId(String? id) {
+    final key = _legacy[id] ?? id;
+    return all.where((v) => v.id == key).firstOrNull ?? female;
+  }
+
+  /// 按名称查找（语音指令“换成男声”）；也接受“女生 / 男生”与旧音色名。
+  static VoiceProfile? byName(String name) {
+    final n = const {'女生': '女声', '男生': '男声', '云汐': '女声', '小柚': '女声', '晚星': '女声', '清川': '男声', '暮言': '男声'}[name] ?? name;
+    return all.where((v) => v.name == n).firstOrNull;
+  }
 }

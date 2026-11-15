@@ -147,13 +147,7 @@ flutter test --no-pub -j 4
 
 ### 6.2 还需要注意
 
-- **音色评测**（2026-11-14，`test/zz_tts_eval_test.dart` 只在本地用，未提交）：同两句话，SenseVoice 回识准确率与合成速度（RTF，Ryzen 9 8945HX 两线程）：
-  - 现有：云汐 huayan 94.6% / 0.04，小柚 xiaoya int8 100% / 0.16，晚星 baker 97.3% / 0.04，清川 chaowen int8 98.6% / 0.15，暮言 ZhiHuiLaoZhe 94.6% / 0.22（16 kHz 角色声）。
-  - 完整精度 xiaoya、chaowen：都是 100% / 0.05（已换上）。
-  - 候选：MeloTTS zh_en 95.9% / 0.29（44.1 kHz，单个女声，fp32 159 MB；发布包里的 int8 文件只有 133 字节，是坏的）；Matcha zh-en 98.6% / 0.03（16 kHz，要配 vocos-16khz-univ）；Kokoro v1.1 int8 多个声音 98–100%，但 RTF 0.8–1.1、加线程几乎不变，骁龙 865 上做实时对话太慢。
-  - 完整精度 Kokoro v1.1（fp32，下载约 350 MB）比 int8 快一倍：4 线程 RTF 0.25，100 个中文声音都已试听；但用户认为音调怪（词典外短语没有三声变调，例如“很好”“我给你”），不采用。
-  - 用户又要求“直接换成最好的开源音色”：本机声音全部换成 ZipVoice（distill int8）+ THCHS-30 真人参考录音（A23、C22、A19、C8、B21，各约 4 秒，`assets/voices/`）。4 线程 4 步 RTF 0.23–0.31，回识 98.6–100%，步数按设备速度在 2–4 之间自动调整。还没在真机上听过、也没测手机上的 RTF（日志 `tts local:` 一行会写）。
-  - THCHS-30 参考录音合成出来发闷（7 kHz 以上少 10–15 dB），已换成 AISHELL-3（SSB0632、SSB1126、SSB0599、SSB0073、SSB1187），并加了 `cleanSpeech` 后期处理与最少 3 步。
+- **助手的声音**：本机开源语音模型（Piper / Matcha / VITS / Kokoro / ZipVoice）在真机上用户都认为不自然（“卡痰”），已全部去掉，改为系统朗读的女声 / 男声，可选 CosyVoice 等云端引擎。用户填写的 CosyVoice 密钥在真机上没有生效（日志里没有 CosyVoice 请求），原因未查。
 - **桌面端 60 帧上限**：Linux 版 Flutter 引擎没有垂直同步回调，用固定 1/60 秒的计时器出帧（engine `vsync_waiter_fallback.cc` 的 `kSingleFrameInterval`），240 Hz 显示器上也只有 60 帧。YUNYIN_BENCH=1 实测：帧间隔中位 16.7 ms，构建与光栅平均都在 4 ms 内。要突破需要自己编译 Linux 嵌入层（给 FlutterProjectArgs 加 vsync_callback）。Windows / macOS 跟随显示器刷新率。
   - 用户填写的 CosyVoice 密钥在真机上没有生效：日志里只有系统朗读与本地模型，没有 CosyVoice 的请求或报错，原因未查（可能没保存，或首选引擎不是“自动”）。
   - 试听页：https://claude.ai/artifact/ToRPyR2apLKr8gGqHdzdZ1

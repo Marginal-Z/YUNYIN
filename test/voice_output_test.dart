@@ -110,26 +110,33 @@ void main() {
     expect(ProsodyPlanner.plan('好的', expressive: false).emotion, Emotion.neutral);
   });
 
-  test('引擎失败时自动降级到下一个，并在冷却期内跳过它；所有音色都使用各自独立的声音 ID', () async {
+  test('引擎失败时自动降级到下一个，并在冷却期内跳过它；女声与男声在各引擎上是不同的声音，旧音色按性别对应', () async {
     final a = _FakeEngine('cosyvoice', fail: true);
-    final b = _FakeEngine('local', offline: true);
+    final b = _FakeEngine('system', offline: true);
     final engines = VoiceEngines(settings, engines: [a, b]);
     final sink = _Sink();
     final out = SpeechOutput(settings, engines: engines, sink: sink);
     await out.say('第一句。第二句。');
-    expect(sink.played, ['local:第一句。', 'local:第二句。']);
+    expect(sink.played, ['system:第一句。', 'system:第二句。']);
     expect(a.requests, hasLength(1), reason: '失败后进入冷却，第二句直接用下一个引擎');
-    expect(out.lastEngine, 'local');
-    // 五个预设音色在本地引擎上使用互不相同的中文声音模型。
-    final ids = {for (final v in VoicePresets.all) v.binding('local')!.voices[VoiceLanguage.zh]};
-    expect(ids, hasLength(5));
-    for (final engine in ['cosyvoice', 'elevenlabs']) {
-      expect({for (final v in VoicePresets.all) v.binding(engine)!.voices[VoiceLanguage.zh]}, hasLength(5), reason: '$engine 的五个音色是不同的音色 ID');
+    expect(out.lastEngine, 'system');
+    // 女声与男声在每个引擎上都是不同的声音。
+    for (final engine in ['system', 'cosyvoice', 'elevenlabs']) {
+      expect({for (final v in VoicePresets.all) v.binding(engine)!.voices[VoiceLanguage.zh]}, hasLength(2), reason: '$engine 的女声与男声是不同的声音');
     }
+    // 旧版本的五个音色按性别换成女声或男声。
+    for (final id in ['yunxi', 'xiaoyou', 'wanxing']) {
+      expect(VoicePresets.byId(id), VoicePresets.female);
+    }
+    for (final id in ['qingchuan', 'muyan']) {
+      expect(VoicePresets.byId(id), VoicePresets.male);
+    }
+    expect(VoicePresets.byName('男生'), VoicePresets.male);
+    expect(VoicePresets.byName('晚星'), VoicePresets.female);
   });
 
   test('按顺序播放；打断后清空队列、停止合成并恢复音乐', () async {
-    final engine = _FakeEngine('local', offline: true, delay: const Duration(milliseconds: 20));
+    final engine = _FakeEngine('system', offline: true, delay: const Duration(milliseconds: 20));
     final sink = _Sink(ms: 60);
     final ducks = <bool>[];
     final out = SpeechOutput(settings, engines: VoiceEngines(settings, engines: [engine]), sink: sink, onDuck: (d) async => ducks.add(d));
@@ -142,12 +149,12 @@ void main() {
     final played = sink.played.length;
     await Future<void>.delayed(const Duration(milliseconds: 300));
     expect(sink.played.length, played, reason: '打断后不再播放剩余的句子');
-    expect(sink.played.first, 'local:一。');
+    expect(sink.played.first, 'system:一。');
     expect(ducks, [true, false]);
   });
 
   test('相同的句子命中缓存，不再请求引擎', () async {
-    final engine = _FakeEngine('local', offline: true);
+    final engine = _FakeEngine('cosyvoice');
     final sink = _Sink();
     final out = SpeechOutput(settings, engines: VoiceEngines(settings, engines: [engine]), sink: sink);
     await out.say('你好，我是云汐。');
@@ -157,18 +164,18 @@ void main() {
   });
 
   test('情绪变化时同一个音色的声音 ID 保持不变', () async {
-    final engine = _FakeEngine('local', offline: true);
+    final engine = _FakeEngine('system', offline: true);
     final out = SpeechOutput(settings, engines: VoiceEngines(settings, engines: [engine]), sink: _Sink());
     await out.say('[开心] 太好了！');
     await out.say('[难过] 有点遗憾。');
-    expect(engine.requests.map((r) => r.$1).toSet(), {LocalVoiceIds.yunxi});
+    expect(engine.requests.map((r) => r.$1).toSet(), {'female'});
     expect(engine.requests.map((r) => r.$2.prosody.emotion).toList(), [Emotion.happy, Emotion.sad]);
   });
 
   test('用户在音色中心填写的声音 ID 覆盖默认值', () async {
     final engine = _FakeEngine('fish');
     final out = SpeechOutput(settings, engines: VoiceEngines(settings, engines: [engine]), sink: _Sink());
-    settings.setOverride('yunxi', 'fish', VoiceLanguage.zh, 'abc123');
+    settings.setOverride('female', 'fish', VoiceLanguage.zh, 'abc123');
     await out.say('测试。');
     expect(engine.requests.single.$1, 'abc123');
   });
@@ -203,7 +210,7 @@ void main() {
         ),
       );
     final engine = ElevenLabsEngine(settings, dio: dio);
-    final b = VoicePresets.muyan.binding('elevenlabs')!;
+    final b = VoicePresets.male.binding('elevenlabs')!;
     final audio = await engine.synthesize(b, const TtsRequest('你好', language: VoiceLanguage.zh)).toList();
     expect(audio.single.format, 'mp3');
     expect(seen.single.path, contains('/v1/text-to-speech/${b.voices[VoiceLanguage.zh]}/stream'));
@@ -249,7 +256,7 @@ void main() {
       final b = preset.binding('cosyvoice')!;
       expect(b.model, 'cosyvoice-v3-flash', reason: preset.name);
     }
-    final b = VoicePresets.yunxi.binding('cosyvoice')!;
+    final b = VoicePresets.female.binding('cosyvoice')!;
     final audio = await engine.synthesize(b, const TtsRequest('你好，我是云汐。', language: VoiceLanguage.zh)).toList();
     expect(audio, isNotEmpty);
     expect(audio.every((a) => a.format == 'pcm16' && a.sampleRate == 24000), isTrue);
@@ -269,7 +276,7 @@ void main() {
   });
 
   test('等待合成时不算发声，开始播放后才算（打断检测只在发声时打开）', () async {
-    final engine = _FakeEngine('local', offline: true, delay: const Duration(milliseconds: 120));
+    final engine = _FakeEngine('system', offline: true, delay: const Duration(milliseconds: 120));
     final sink = _Sink(ms: 120);
     final out = SpeechOutput(settings, engines: VoiceEngines(settings, engines: [engine]), sink: sink);
     final turn = out.begin();
