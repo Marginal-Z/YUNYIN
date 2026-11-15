@@ -75,7 +75,7 @@ class SettingsMorePage extends StatelessWidget {
               icon: YIcons.stats,
               tile: TileColor.graphite,
               title: '问题诊断',
-              subtitle: '查看运行状态，导出日志用于反馈问题',
+              subtitle: '手动检查设备、流畅度、网络、播放与语音，导出诊断报告',
               onTap: () => go(context, DiagnosticsRoute()),
             ),
           ],

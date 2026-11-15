@@ -328,6 +328,31 @@ class MainActivity : AudioServiceActivity() {
                     ),
                 )
                 "exitReasons" -> result.success(exitReasons())
+                "storage" -> {
+                    val stat = android.os.StatFs(filesDir.path)
+                    val mem = android.app.ActivityManager.MemoryInfo()
+                    getSystemService(android.app.ActivityManager::class.java).getMemoryInfo(mem)
+                    result.success(
+                        mapOf(
+                            "free" to stat.availableBytes,
+                            "total" to stat.totalBytes,
+                            "memAvail" to mem.availMem,
+                            "memTotal" to mem.totalMem,
+                            "lowMemory" to mem.lowMemory,
+                        ),
+                    )
+                }
+                "permissions" -> {
+                    fun granted(p: String) = checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    result.success(
+                        mapOf(
+                            "microphone" to granted(Manifest.permission.RECORD_AUDIO),
+                            "notifications" to (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || granted(Manifest.permission.POST_NOTIFICATIONS)),
+                            "overlay" to android.provider.Settings.canDrawOverlays(this),
+                            "batteryUnrestricted" to getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName),
+                        ),
+                    )
+                }
                 "shareFile" -> result.success(shareFile(File(call.argument<String>("path")!!)))
                 else -> result.notImplemented()
             }

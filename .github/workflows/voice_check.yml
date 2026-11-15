@@ -23,10 +23,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
+        if: matrix.arch == 'x64'
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      # flutter-action 没有 Linux ARM64 的预编译包：直接取 Flutter 源码（首次运行时自动下载对应平台的 Dart SDK）。
+      - name: 安装 Flutter（ARM64）
+        if: matrix.arch == 'aarch64'
+        run: |
+          git clone --depth 1 -b "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
       - run: flutter pub get
       - name: 下载 ZipVoice 模型与声码器
         env:

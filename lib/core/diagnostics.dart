@@ -1,58 +1,33 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// 问题诊断：把应用日志（debugPrint）、未捕获的错误和卡顿写进本机的日志文件，反馈问题时由用户导出。
+/// 问题诊断的日志与报告。
 ///
-/// 日志只保存在本机（应用数据目录 logs/，当前与上一个文件各最多 1 MB），不会自动上传。导出时去掉 Cookie、
-/// 密钥等登录凭据。卡顿只统计帧耗时（系统每批回调一次，开销可以忽略），每 10 秒汇总写一行。
+/// 只在内存中保留最近 400 行应用日志与未捕获的错误，不写文件、不在后台监测流畅度或做任何自动诊断；
+/// 用户在“问题诊断”页面点“开始诊断”时才逐项检查（见 diagnostics_page.dart），结果连同这些日志可以导出。
 class Diagnostics {
   Diagnostics._();
 
   static final instance = Diagnostics._();
 
   static const _channel = MethodChannel('yunyin/diagnostics');
-  static const _maxBytes = 1 << 20;
   static const _keepLines = 400;
 
   final DateTime started = DateTime.now();
 
-  /// 最近的日志（页面上显示）。
+  /// 最近的日志。
   final List<String> recent = [];
-
-  /// 本次运行的帧统计：总帧数、超出一帧预算 1.5 倍的慢帧数、最慢一帧（毫秒）。
-  int frames = 0, slowFrames = 0;
-  double worstFrameMs = 0;
   int errors = 0;
-
-  String? _dir;
-  IOSink? _sink;
-  int _size = 0;
   bool _installed = false;
 
-  // 当前 10 秒窗口内的慢帧。
-  int _windowSlow = 0;
-  double _windowWorst = 0;
-  String _windowWorstDetail = '';
-
-  Future<void> install() async {
+  void install() {
     if (_installed) return;
     _installed = true;
-    try {
-      _dir = '${(await getApplicationSupportDirectory()).path}${Platform.pathSeparator}logs';
-      await Directory(_dir!).create(recursive: true);
-      final file = File(_path(0));
-      _size = file.existsSync() ? file.lengthSync() : 0;
-      _sink = file.openWrite(mode: FileMode.append);
-    } catch (e) {
-      _dir = null;
-    }
     final print = debugPrint;
     debugPrint = (String? message, {int? wrapWidth}) {
       print(message, wrapWidth: wrapWidth);
@@ -69,13 +44,7 @@ class Diagnostics {
       error(e, stack);
       return onPlatformError?.call(e, stack) ?? false;
     };
-    SchedulerBinding.instance.addTimingsCallback(_onTimings);
-    Timer.periodic(const Duration(seconds: 10), (_) => _flushWindow());
-    final info = await PackageInfo.fromPlatform().then((i) => 'v${i.version}+${i.buildNumber}', onError: (_) => '');
-    log('—— 云音启动 $info · ${_platform()} ——');
   }
-
-  String _path(int i) => '$_dir${Platform.pathSeparator}${i == 0 ? 'yunyin.log' : 'yunyin.$i.log'}';
 
   static String _platform() => kIsWeb ? 'web' : '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
 
@@ -84,17 +53,10 @@ class Diagnostics {
     return '${t.year}-${two(t.month)}-${two(t.day)} ${two(t.hour)}:${two(t.minute)}:${two(t.second)}.${t.millisecond.toString().padLeft(3, '0')}';
   }
 
-  /// 写一行日志（I 普通，W 卡顿，E 错误）。
+  /// 记一行日志（I 普通，E 错误）。
   void log(String message, {String level = 'I'}) {
-    final line = '${_time(DateTime.now())} $level $message';
-    recent.add(line);
+    recent.add('${_time(DateTime.now())} $level $message');
     if (recent.length > _keepLines) recent.removeRange(0, recent.length - _keepLines);
-    final sink = _sink;
-    if (sink != null) {
-      sink.writeln(line);
-      _size += line.length + 1;
-      if (_size > _maxBytes) _rotate();
-    }
   }
 
   void error(Object e, StackTrace? stack, {String? context}) {
@@ -103,52 +65,14 @@ class Diagnostics {
     log('${context == null ? '' : '$context：'}$e$trace', level: 'E');
   }
 
-  /// 当前文件写满后改名为 yunyin.1.log，重新开一个文件。
-  void _rotate() {
-    final old = _sink;
-    _sink = null;
-    _size = 0;
-    unawaited(() async {
-      try {
-        await old?.flush();
-        await old?.close();
-        final prev = File(_path(1));
-        if (prev.existsSync()) await prev.delete();
-        await File(_path(0)).rename(_path(1));
-        _sink = File(_path(0)).openWrite(mode: FileMode.append);
-      } catch (_) {}
-    }());
-  }
-
-  double get _budget {
-    final rate = ui.PlatformDispatcher.instance.views.firstOrNull?.display.refreshRate ?? 60;
-    return 1000 / (rate <= 0 ? 60 : rate);
-  }
-
-  void _onTimings(List<ui.FrameTiming> timings) {
-    final budget = _budget;
-    for (final t in timings) {
-      frames++;
-      final total = t.totalSpan.inMicroseconds / 1000;
-      if (total <= budget * 1.5) continue;
-      slowFrames++;
-      _windowSlow++;
-      if (total > worstFrameMs) worstFrameMs = total;
-      if (total > _windowWorst) {
-        _windowWorst = total;
-        String ms(Duration d) => (d.inMicroseconds / 1000).toStringAsFixed(1);
-        _windowWorstDetail = '构建 ${ms(t.buildDuration)}ms，渲染 ${ms(t.rasterDuration)}ms，排队 ${ms(t.vsyncOverhead)}ms';
-      }
+  /// Android 原生信息：设备、存储空间、权限（其他平台返回空）。
+  static Future<Map<String, Object?>> native(String method) async {
+    if (kIsWeb || !Platform.isAndroid) return const {};
+    try {
+      return await _channel.invokeMapMethod<String, Object?>(method) ?? const {};
+    } catch (_) {
+      return const {};
     }
-  }
-
-  void _flushWindow() {
-    if (_windowSlow > 0) {
-      log('卡顿：10 秒内 $_windowSlow 个慢帧，最慢 ${_windowWorst.toStringAsFixed(1)}ms（$_windowWorstDetail）', level: 'W');
-    }
-    _windowSlow = 0;
-    _windowWorst = 0;
-    unawaited(_sink?.flush().catchError((_) {}));
   }
 
   /// 设备、系统与运行状态摘要（不含账号信息）。
@@ -158,10 +82,8 @@ class Diagnostics {
     b.writeln('云音 ${info == null ? '' : 'v${info.version}+${info.buildNumber}'}');
     b.writeln('系统：${_platform()}');
     if (!kIsWeb && Platform.isAndroid) {
-      try {
-        final d = await _channel.invokeMapMethod<String, Object?>('device');
-        if (d != null) b.writeln('设备：${d['manufacturer']} ${d['model']}（${d['hardware']}，Android ${d['release']} / API ${d['sdk']}）');
-      } catch (_) {}
+      final d = await native('device');
+      if (d.isNotEmpty) b.writeln('设备：${d['manufacturer']} ${d['model']}（${d['hardware']}，Android ${d['release']} / API ${d['sdk']}）');
     }
     final view = ui.PlatformDispatcher.instance.views.firstOrNull;
     if (view != null) {
@@ -170,28 +92,36 @@ class Diagnostics {
     }
     final up = DateTime.now().difference(started);
     b.writeln('本次运行：${up.inMinutes} 分 ${up.inSeconds % 60} 秒');
-    b.writeln('帧：$frames，慢帧 $slowFrames（${frames == 0 ? 0 : (slowFrames * 100 / frames).toStringAsFixed(1)}%），最慢 ${worstFrameMs.toStringAsFixed(1)}ms');
     b.writeln('错误：$errors');
     return b.toString();
   }
 
   /// Android 11 起系统记录的最近几次退出原因（崩溃、无响应、被系统结束等）。
+  static Future<List<Map<Object?, Object?>>> exitReasons() async {
+    if (kIsWeb || !Platform.isAndroid) return const [];
+    try {
+      return await _channel.invokeListMethod<Map<Object?, Object?>>('exitReasons') ?? const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static String describeExit(Map<Object?, Object?> r) {
+    final time = DateTime.fromMillisecondsSinceEpoch((r['time'] as num?)?.toInt() ?? 0);
+    return '${_time(time)} ${r['reason']}（${r['status']}，${r['importance']}）${r['description'] ?? ''}';
+  }
+
   Future<String> _exitReasons() async {
     if (kIsWeb || !Platform.isAndroid) return '';
-    try {
-      final list = await _channel.invokeListMethod<Map<Object?, Object?>>('exitReasons') ?? const [];
-      if (list.isEmpty) return '';
-      final b = StringBuffer('==== 最近的退出记录 ====\n');
-      for (final r in list) {
-        final time = DateTime.fromMillisecondsSinceEpoch((r['time'] as num?)?.toInt() ?? 0);
-        b.writeln('${_time(time)} ${r['reason']}（${r['status']}，${r['importance']}）${r['description'] ?? ''}');
-        final trace = r['trace'] as String?;
-        if (trace != null && trace.isNotEmpty) b.writeln(trace);
-      }
-      return b.toString();
-    } catch (e) {
-      return '';
+    final list = await exitReasons();
+    if (list.isEmpty) return '';
+    final b = StringBuffer('==== 最近的退出记录 ====\n');
+    for (final r in list) {
+      b.writeln(describeExit(r));
+      final trace = r['trace'] as String?;
+      if (trace != null && trace.isNotEmpty) b.writeln(trace);
     }
+    return b.toString();
   }
 
   /// 本进程的系统日志（Android 应用只能读取自己的日志）。
@@ -219,30 +149,23 @@ class Diagnostics {
     caseSensitive: false,
   );
 
-  /// 完整的诊断报告：摘要、退出记录、云音日志（上一个与当前文件）、本进程系统日志，已去掉凭据。
-  Future<String> report() async {
-    await _sink?.flush().catchError((_) {});
-    final b = StringBuffer('==== 云音问题诊断 ${_time(DateTime.now())} ====\n')..writeln(await summary());
+  /// 完整的诊断报告：各项检查的结果（[results]）、设备摘要、退出记录、最近的应用日志与本进程系统日志，已去掉凭据。
+  Future<String> report(String results) async {
+    final b = StringBuffer('==== 云音问题诊断 ${_time(DateTime.now())} ====\n')
+      ..writeln(await summary())
+      ..writeln('==== 检查结果 ====')
+      ..writeln(results.trim())
+      ..writeln();
     b.write(await _exitReasons());
-    b.writeln('==== 云音日志 ====');
-    var wrote = false;
-    if (_dir != null) {
-      for (final i in [1, 0]) {
-        final f = File(_path(i));
-        if (f.existsSync()) {
-          b.write(await f.readAsString().catchError((_) => ''));
-          wrote = true;
-        }
-      }
-    }
-    if (!wrote) b.writeln(recent.join('\n'));
+    b.writeln('==== 云音日志（最近 ${recent.length} 行）====');
+    b.writeln(recent.join('\n'));
     b.write(await _logcat());
     return redact(b.toString());
   }
 
   /// 导出报告：Android 打开系统分享面板，桌面端保存到下载目录。返回给用户的提示（分享成功时为空）。
-  Future<String> export() async {
-    final text = await report();
+  Future<String> export(String results) async {
+    final text = await report(results);
     final stamp = _time(DateTime.now()).replaceAll(RegExp(r'[^0-9]'), '').substring(0, 14);
     final name = 'yunyin-diagnostics-$stamp.txt';
     if (!kIsWeb && Platform.isAndroid) {
@@ -263,23 +186,5 @@ class Diagnostics {
     final file = File('${dir.path}${Platform.pathSeparator}$name');
     await file.writeAsString(text, flush: true);
     return '已保存到 ${file.path}';
-  }
-
-  /// 清空日志文件与本次的统计。
-  Future<void> clear() async {
-    recent.clear();
-    frames = slowFrames = errors = 0;
-    worstFrameMs = 0;
-    if (_dir != null) {
-      final old = _sink;
-      _sink = null;
-      await old?.close().catchError((_) {});
-      for (final i in [0, 1]) {
-        final f = File(_path(i));
-        if (f.existsSync()) await f.delete().catchError((_) => f);
-      }
-      _size = 0;
-      _sink = File(_path(0)).openWrite(mode: FileMode.append);
-    }
   }
 }

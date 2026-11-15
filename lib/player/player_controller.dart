@@ -307,6 +307,27 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 问题诊断用：播放引擎当前的音频输出状态（输出方式、采样格式、滤镜链、音量）。
+  Future<Map<String, String>> audioReport() async {
+    final p = _player;
+    if (p == null) return {'引擎': engineError ?? '没有初始化'};
+    final out = <String, String>{};
+    for (final (key, label) in const [
+      ('current-ao', '输出方式'),
+      ('audio-params', '解码格式'),
+      ('audio-out-params', '输出格式'),
+      ('af', '滤镜'),
+      ('volume', '播放器音量'),
+      ('audio-buffer', '缓冲（秒）'),
+    ]) {
+      final v = await getMpvProperty(p, key);
+      if (v != null && v.isNotEmpty) out[label] = v;
+    }
+    out['均衡器'] = eqUnsupported ? '不可用' : (settings.eqEnabled ? '已打开' : '关闭');
+    out['限幅器'] = limiterUnsupported ? '不可用（改为预留余量）' : (_isAndroid ? '没有（改为预留余量）' : '可用');
+    return out;
+  }
+
   /// 底层播放器，供集成测试检查音频输出状态。
   @visibleForTesting
   Player? get engine => _player;

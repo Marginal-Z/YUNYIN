@@ -50,8 +50,8 @@ Future<void> main(List<String> args) async {
     }
     return;
   }
-  // 问题诊断：日志、错误与卡顿记录写进本机日志文件（桌面歌词、桌宠等子窗口不记录）。
-  unawaited(Diagnostics.instance.install());
+  // 问题诊断：在内存中保留最近的应用日志与错误，导出诊断报告时附上（桌面歌词、桌宠等子窗口不记录）。
+  Diagnostics.instance.install();
   SmoothWheel.install();
 
   if (isDesktopPlatform) {

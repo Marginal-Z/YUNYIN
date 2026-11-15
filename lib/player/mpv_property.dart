@@ -8,3 +8,14 @@ Future<bool> setMpvProperty(Player player, String key, String value) async {
   await native.setProperty(key, value);
   return true;
 }
+
+/// 读取 libmpv 属性；读不到时返回 null。
+Future<String?> getMpvProperty(Player player, String key) async {
+  final native = player.platform;
+  if (native is! NativePlayer) return null;
+  try {
+    return await native.getProperty(key);
+  } catch (_) {
+    return null;
+  }
+}
