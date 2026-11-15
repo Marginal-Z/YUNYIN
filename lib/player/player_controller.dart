@@ -541,7 +541,7 @@ class PlayerController extends ChangeNotifier {
     // 有没有提升决定以浮点还是 16 位输出（见 _wantFloat）；变化时在原位置重新加载当前歌曲。
     await _applyOutput();
     await _applyVolume();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   /// 均衡器有提升时整体降低一部分电平（通过播放器音量，而不是 volume 滤镜），减少削波。
