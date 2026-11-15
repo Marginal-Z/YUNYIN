@@ -1,0 +1,8 @@
+平台图标
+
+netease.png、qq.png、kugou.png 是网易云音乐、QQ 音乐、酷狗音乐在 App Store 上的官方应用图标，
+商标与图标归各自的所有者（杭州网易云音乐科技有限公司、腾讯、广州酷狗计算机科技有限公司）所有，
+云音只用它们标明“平台模式”对应的平台，与这些平台没有合作或从属关系。
+
+lx.png 来自洛雪音乐桌面版（https://github.com/lyswhut/lx-music-desktop，resources/icons/256x256.png），
+Copyright lyswhut，Licensed under the Apache License, Version 2.0.

@@ -16,7 +16,10 @@ import '../tts_types.dart';
 import '../voice_library.dart';
 import '../wav.dart';
 
-/// 一个本地离线声音：ZipVoice 模型加一段真人参考录音（THCHS-30，见 assets/voices/NOTICE.txt）。
+/// 一个本地离线声音：ZipVoice 模型加一段真人参考录音（AISHELL-3，见 assets/voices/NOTICE.txt）。
+///
+/// ZipVoice 连参考录音的录音条件一起模仿：此前用的 THCHS-30 是 16 kHz 的办公室录音，合成出来 7 kHz 以上
+/// 比录音棚录音少 10–15 dB，听起来发闷、不清晰；AISHELL-3 是 44.1 kHz 的录音棚录音。
 ///
 /// ZipVoice 在约十万小时真实语音上训练，按参考录音的音色说话，声调、变调与停顿接近真人；
 /// 此前每个音色各用一个小型 VITS / Piper / Matcha 模型，词典外的短语没有变调，听起来像逐字念。
@@ -26,7 +29,7 @@ class LocalVoiceModel {
 
   final String id;
 
-  /// 参考录音（应用资源，16 kHz 单声道 WAV）与录音的文字。
+  /// 参考录音（应用资源，24 kHz 单声道 WAV）与录音的文字。
   final String prompt;
   final String promptText;
   final Set<VoiceLanguage> languages;
@@ -42,11 +45,11 @@ class LocalVoiceModel {
 /// 本地离线声音目录。
 abstract final class LocalVoiceModels {
   static const all = [
-    LocalVoiceModel(LocalVoiceIds.yunxi, prompt: 'assets/voices/yunxi.wav', promptText: '单位不是我老爹开的，凭什么要一次'),
-    LocalVoiceModel(LocalVoiceIds.xiaoyou, prompt: 'assets/voices/xiaoyou.wav', promptText: '一位专家谈到大家感兴趣的减肥时说，减肥'),
-    LocalVoiceModel(LocalVoiceIds.wanxing, prompt: 'assets/voices/wanxing.wav', promptText: '此外还有麻辣味盐、海鲜味盐、五香盐'),
-    LocalVoiceModel(LocalVoiceIds.qingchuan, prompt: 'assets/voices/qingchuan.wav', promptText: '英雄曾昭刚无愧于这光荣的称号'),
-    LocalVoiceModel(LocalVoiceIds.muyan, prompt: 'assets/voices/muyan.wav', promptText: '嫌疑犯眼看逃脱无望，窜上屋顶，纵身跳下，畏罪自杀'),
+    LocalVoiceModel(LocalVoiceIds.yunxi, prompt: 'assets/voices/yunxi.wav', promptText: '并不肯定智能手机战略是否将被用于笔记本'),
+    LocalVoiceModel(LocalVoiceIds.xiaoyou, prompt: 'assets/voices/xiaoyou.wav', promptText: '对口支援中西部欠发达省份'),
+    LocalVoiceModel(LocalVoiceIds.wanxing, prompt: 'assets/voices/wanxing.wav', promptText: '看似没有方向的竞争，仿佛拨云见日'),
+    LocalVoiceModel(LocalVoiceIds.qingchuan, prompt: 'assets/voices/qingchuan.wav', promptText: '在罗湖上班的向先生跑去东莞凤岗'),
+    LocalVoiceModel(LocalVoiceIds.muyan, prompt: 'assets/voices/muyan.wav', promptText: '我觉得约翰应该回去再多做几项检查'),
   ];
 
   /// ZipVoice 蒸馏版（int8）：CPU 上比完整精度版更快，回识准确率相同。
@@ -232,9 +235,50 @@ Future<void> _extract((String, String) args) async {
   }
 }
 
-/// 下一句用几步：合成太慢（RTF > 0.7）时减一步，很快（RTF < 0.35）时加一步，在 2–4 步之间。
+/// 下一句用几步：合成太慢（RTF > 0.7）时减一步，很快（RTF < 0.35）时加一步，在 3–4 步之间（2 步明显更沙）。
 @visibleForTesting
-int zipVoiceSteps(int steps, double rtf) => rtf > 0.7 ? math.max(2, steps - 1) : (rtf < 0.35 ? math.min(4, steps + 1) : steps);
+int zipVoiceSteps(int steps, double rtf) => rtf > 0.7 ? math.max(3, steps - 1) : (rtf < 0.35 ? math.min(4, steps + 1) : steps);
+
+/// 合成语音的后期处理：
+/// - 句首、句尾各淡入淡出 8 毫秒：波形从非零处突然开始或结束会“咔”一声，逐句播放时每句都有；
+/// - 句中停顿的底噪压低：20 毫秒一帧，比全句峰值低 45 dB 以上的帧按比例衰减（最多 -24 dB），
+///   增益逐帧平滑过渡，不会切掉轻声的字尾，只去掉停顿里的沙沙声。
+@visibleForTesting
+Float32List cleanSpeech(Float32List x, int sampleRate) {
+  final y = Float32List.fromList(x);
+  if (y.isEmpty) return y;
+  var peak = 0.0;
+  for (final v in y) {
+    peak = math.max(peak, v.abs());
+  }
+  if (peak <= 0) return y;
+  final frame = sampleRate ~/ 50;
+  final threshold = peak * 0.0056; // -45 dB
+  var gain = 1.0;
+  for (var i = 0; i < y.length; i += frame) {
+    final end = math.min(y.length, i + frame);
+    var acc = 0.0;
+    for (var j = i; j < end; j++) {
+      acc += y[j] * y[j];
+    }
+    final rms = math.sqrt(acc / (end - i));
+    // 低于门限时按距离线性压低，最低 -24 dB（0.063）。
+    final target = rms >= threshold ? 1.0 : math.max(0.063, rms / threshold);
+    // 打开快（一帧到位，不吃字头），关闭慢（每帧最多降一半）。
+    final next = target > gain ? target : math.max(target, gain * 0.5);
+    for (var j = i; j < end; j++) {
+      y[j] *= gain + (next - gain) * (j - i) / (end - i);
+    }
+    gain = next;
+  }
+  final fade = math.min(y.length ~/ 2, sampleRate * 8 ~/ 1000);
+  for (var i = 0; i < fade; i++) {
+    final g = i / fade;
+    y[i] *= g;
+    y[y.length - 1 - i] *= g;
+  }
+  return y;
+}
 
 /// 一次合成的结果：WAV、用了几步、耗时与实时率。
 typedef _Generated = ({Uint8List wav, int steps, int ms, double rtf});
@@ -242,7 +286,7 @@ typedef _Generated = ({Uint8List wav, int steps, int ms, double rtf});
 /// 在后台 isolate 中加载 ZipVoice 并合成（模型加载一次后保留）。
 ///
 /// 采样步数按这台设备的速度自动调整：合成 1 秒语音要超过 0.7 秒（RTF > 0.7）时减少一步，
-/// 低于 0.35 时加一步（最多 4 步、最少 2 步），保证边读上一句边合成下一句来得及。
+/// 低于 0.35 时加一步（最多 4 步、最少 3 步），保证边读上一句边合成下一句来得及。
 class _TtsWorker {
   _TtsWorker(this._isolate, this._send, this._replies);
 
@@ -304,7 +348,8 @@ class _TtsWorker {
         final seconds = audio.samples.length / audio.sampleRate;
         final rtf = seconds > 0 ? ms / 1000 / seconds : 0.0;
         steps = zipVoiceSteps(steps, rtf);
-        out.send((id, (TransferableTypedData.fromList([encodeWav(audio.samples, audio.sampleRate, trailingSilenceMs: pauseMs)]), used, ms, rtf)));
+        final clean = cleanSpeech(audio.samples, audio.sampleRate);
+        out.send((id, (TransferableTypedData.fromList([encodeWav(clean, audio.sampleRate, trailingSilenceMs: pauseMs)]), used, ms, rtf)));
       } catch (e) {
         out.send((id, '$e'));
       }

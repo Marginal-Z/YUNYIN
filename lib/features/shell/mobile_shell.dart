@@ -21,6 +21,7 @@ import 'tab_bar.dart';
 import 'transitions.dart';
 import '../common/song_cover.dart';
 import '../../core/ui/motion.dart';
+import '../assistant/assistant_ball.dart';
 import '../desktop/player_bar.dart';
 
 /// 移动端外壳：三个标签各自的导航栈 + 悬浮玻璃导航栏与迷你播放条。
@@ -148,6 +149,15 @@ class _MobileShellState extends State<MobileShell> {
               child: const _OverPage(child: _BottomBar()),
             ),
           ],
+          // 云音助手悬浮球（可拖动，吸附左右边缘）：避开状态栏、底部导航栏与迷你播放条。
+          if (chrome != Chrome.none)
+            Positioned.fill(
+              left: rail ? railSpace : 0,
+              child: AssistantBall(
+                top: mq.padding.top + 56,
+                bottom: land ? (showMini ? kLandscapeBarHeight + bottom + 16 : bottom + 16) : (showNav ? bottom + 74 : bottom) + (showMini ? 74 : 12),
+              ),
+            ),
         ],
       ),
     );

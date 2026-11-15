@@ -129,8 +129,10 @@ class ProfilePage extends StatelessWidget {
   _ => (const Color(0xFF3A3A40), const Color(0xFF111114)),
 };
 
-/// 平台标志：平台主色的圆形徽标，中间是平台的简写（网易云为音符，QQ 音乐为 Q，酷狗为 K，洛雪为“洛”）。
-/// [inverted] 为 true 时白底彩字（用于选中的彩色按钮上）。
+/// 平台标志：各平台的官方应用图标（assets/platforms/），裁成圆角方形。
+///
+/// 网易云音乐、QQ 音乐、酷狗音乐的图标取自各自在 App Store 的官方图标，商标归各平台所有，只用于标明平台；
+/// 洛雪音乐的图标来自 lx-music-desktop（Apache 2.0）。[inverted] 为 true 时（放在彩色按钮或卡片上）加一圈白边。
 class PlatformMark extends StatelessWidget {
   const PlatformMark(this.id, {super.key, this.size = 30, this.inverted = false});
 
@@ -138,36 +140,31 @@ class PlatformMark extends StatelessWidget {
   final double size;
   final bool inverted;
 
+  static String asset(String id) => switch (id) {
+    'qq' => 'assets/platforms/qq.png',
+    'kugou' => 'assets/platforms/kugou.png',
+    'lx' => 'assets/platforms/lx.png',
+    _ => 'assets/platforms/netease.png',
+  };
+
   @override
   Widget build(BuildContext context) {
-    final (a, b) = _platformColors(id);
-    final fg = inverted ? b : Colors.white;
-    final glyph = switch (id) {
-      'qq' => 'Q',
-      'kugou' => 'K',
-      'lx' => '洛',
-      _ => null,
-    };
-    final netease = id == 'netease';
+    // 应用图标的圆角约为边长的 22.5%。
+    final radius = BorderRadius.circular(size * 0.225);
+    final image = ClipRRect(
+      borderRadius: radius,
+      child: ColoredBox(
+        // 洛雪的图标是透明底。
+        color: Colors.white,
+        child: Image.asset(asset(id), width: size, height: size, fit: BoxFit.cover, filterQuality: FilterQuality.medium),
+      ),
+    );
+    if (!inverted) return SizedBox.square(dimension: size, child: image);
     return Container(
       width: size,
       height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: inverted ? Colors.white : null,
-        gradient: inverted
-            ? null
-            // 网易云标志使用品牌红（平台配色中的深色用于会员卡片）。
-            : LinearGradient(
-                colors: netease ? const [Color(0xFFFF4E5F), Color(0xFFD7102A)] : [a, b],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-      ),
-      child: glyph == null
-          ? YIcon(YIcons.note, size: size * 0.56, strokeWidth: 2.4, color: inverted && netease ? const Color(0xFFD7102A) : fg)
-          : Text(glyph, style: ts(size * (glyph == '洛' ? 0.46 : 0.52), weight: FontWeight.w800, height: 1, color: fg)),
+      foregroundDecoration: BoxDecoration(borderRadius: radius, border: Border.all(color: const Color(0xCCFFFFFF), width: 1.2)),
+      child: image,
     );
   }
 }

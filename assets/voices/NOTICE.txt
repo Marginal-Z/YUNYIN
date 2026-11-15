@@ -1,11 +1,12 @@
 云音助手离线声音的参考录音
 
 assets/voices/ 下的五段录音（yunxi.wav、xiaoyou.wav、wanxing.wav、qingchuan.wav、muyan.wav）
-截取自 THCHS-30 中文语音数据集（清华大学 CSLT，Dong Wang、Xuewei Zhang），
-分别来自说话人 A23、C22、A19、C8、B21 的录音，各截取前约 4 秒，未做其他修改。
+选自 AISHELL-3 中文多说话人语音合成数据集（北京希尔贝壳科技有限公司），
+分别来自说话人 SSB0632、SSB1126、SSB0599、SSB0073、SSB1187 的各一句录音，
+重采样为 24 kHz 并去掉首尾静音，未做其他修改。
 
-THCHS-30: https://www.openslr.org/18/
-Dong Wang, Xuewei Zhang. THCHS-30: A Free Chinese Speech Corpus. 2015. arXiv:1512.01882
+AISHELL-3: https://www.openslr.org/93/
+Yao Shi, Hui Bu, Xin Xu, Shaoji Zhang, Ming Li. AISHELL-3: A Multi-speaker Mandarin TTS Corpus and the Baselines. 2020. arXiv:2010.11567
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use these files except in compliance with the License.

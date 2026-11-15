@@ -88,7 +88,8 @@ Future<void> main(List<String> args) async {
   // 液态玻璃着色器的第三方许可证，显示在“开源许可”中。
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks(['liquid-glass-studio', 'GLSL-Color-Functions'], await rootBundle.loadString('shaders/THIRD_PARTY_NOTICES.txt'));
-    yield LicenseEntryWithLineBreaks(['THCHS-30（云音助手离线声音的参考录音）', 'ZipVoice'], await rootBundle.loadString('assets/voices/NOTICE.txt'));
+    yield LicenseEntryWithLineBreaks(['AISHELL-3（云音助手离线声音的参考录音）', 'ZipVoice'], await rootBundle.loadString('assets/voices/NOTICE.txt'));
+    yield LicenseEntryWithLineBreaks(['平台图标', 'lx-music-desktop'], await rootBundle.loadString('assets/platforms/NOTICE.txt'));
   });
   final settings = AppSettings();
   await settings.init();

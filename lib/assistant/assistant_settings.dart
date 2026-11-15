@@ -62,6 +62,10 @@ class AssistantSettings extends ChangeNotifier {
   /// 桌宠大小：0 小、1 中、2 大。
   int petSize = 1;
 
+  /// 云音助手悬浮球的位置：停靠在左边还是右边，以及纵向位置（0 顶部、1 底部，按可停靠的范围计算）。
+  bool ballLeft = false;
+  double ballY = 0.62;
+
   /// 桌宠本身的高度（逻辑像素）。
   double get petHeight => const [104.0, 132.0, 164.0][petSize.clamp(0, 2)];
 
@@ -81,6 +85,17 @@ class AssistantSettings extends ChangeNotifier {
     bargeIn = _p.getBool('assistant.bargeIn') ?? true;
     pet = _p.getString('assistant.pet') ?? '';
     petSize = _p.getInt('assistant.petSize') ?? 1;
+    ballLeft = _p.getBool('assistant.ballLeft') ?? false;
+    ballY = (_p.getDouble('assistant.ballY') ?? 0.62).clamp(0.0, 1.0);
+  }
+
+  /// 拖动悬浮球松手后保存位置。
+  void setBall({required bool left, required double y}) {
+    ballLeft = left;
+    ballY = y.clamp(0.0, 1.0);
+    _p.setBool('assistant.ballLeft', left);
+    _p.setDouble('assistant.ballY', ballY);
+    notifyListeners();
   }
 
   void setPet(String v) {

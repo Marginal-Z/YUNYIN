@@ -10,6 +10,8 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../player/mpv_property.dart' if (dart.library.js_interop) '../player/mpv_property_web.dart';
+
 import 'engines/cloud_engines.dart';
 import 'engines/local_engine.dart';
 import 'engines/system_engine.dart';
@@ -33,7 +35,14 @@ class MediaKitSpeechSink extends SpeechSink {
   StreamSubscription<bool>? _sub;
 
   Player get _p {
+    final created = _player == null;
     final p = _player ??= Player(configuration: const PlayerConfiguration(title: '云音助手', logLevel: MPVLogLevel.error));
+    // 与音乐播放器相同的 Android 输出设置：立体声、16 位整数。部分设备的音频 HAL 接受浮点格式却输出
+    // 失真或静音，朗读听起来就是“杂音”。
+    if (created && !kIsWeb && Platform.isAndroid) {
+      unawaited(setMpvProperty(p, 'audio-channels', 'stereo'));
+      unawaited(setMpvProperty(p, 'audiotrack-pcm-float', 'no'));
+    }
     _sub ??= p.stream.completed.listen((c) {
       if (c && !(_done?.isCompleted ?? true)) _done!.complete();
     });

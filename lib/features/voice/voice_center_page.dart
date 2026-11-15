@@ -48,7 +48,9 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
   String? _expanded;
   final Map<String, double> _downloads = {};
   final Map<String, bool> _installed = {};
-  String? _message;
+  /// 每个音色卡片底部的一行状态（试听用了哪个引擎、失败原因、下载失败）。写在卡片里固定的一行，
+  /// 不在页面顶部插入或移除文字，试听前后页面不会上下跳动。
+  final Map<String, ({String text, bool error})> _status = {};
 
   @override
   void initState() {
@@ -73,13 +75,18 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
     await out.stop();
     setState(() {
       _previewing = v.id;
-      _message = null;
+      _status.remove(v.id);
     });
+    final sw = Stopwatch()..start();
     await out.say(v.preview(_lang), voice: v);
     if (!mounted) return;
     setState(() {
       _previewing = null;
-      _message = out.lastError != null && out.lastEngine == null ? '试听失败：${out.lastError}' : (out.lastEngine == null ? null : '${v.name} · ${out.lastEngine}');
+      if (out.lastError != null && out.lastEngine == null) {
+        _status[v.id] = (text: '试听失败：${out.lastError}', error: true);
+      } else if (out.lastEngine != null) {
+        _status[v.id] = (text: '刚才用的是：${out.lastEngine} · 用时 ${(sw.elapsedMilliseconds / 1000).toStringAsFixed(1)} 秒', error: false);
+      }
     });
   }
 
@@ -93,7 +100,7 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
         if (mounted) setState(() => _downloads[m.id] = p);
       }, cancel: CancelToken());
     } catch (e) {
-      if (mounted) setState(() => _message = '下载失败：$e');
+      if (mounted) setState(() => _status[v.id] = (text: '下载失败：$e', error: true));
     }
     _downloads.remove(m.id);
     await _refreshInstalled();
@@ -119,7 +126,6 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
             ),
             const SizedBox(height: 4),
             Text('为云音助手选择声音。每个音色都是独立的声音模型或供应商音色，不是同一个声音改变音调。', style: ts(13.5, height: 1.5, color: _C.text2)),
-            if (_message != null) ...[const SizedBox(height: 10), Text(_message!, style: ts(13, color: _message!.startsWith('试听失败') || _message!.startsWith('下载失败') ? _C.danger : _C.text2))],
             const SizedBox(height: 14),
             for (final v in VoicePresets.all) ...[_voiceCard(v, s), const SizedBox(height: 12)],
             const SizedBox(height: 18),
@@ -175,6 +181,9 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
       if (installed) '本地离线',
     ];
     final previewing = _previewing == v.id;
+    // 合成第一句要一点时间：还没出声时显示“合成中”，出声后才显示“停止”。
+    final audible = previewing && context.select<SpeechOutput, bool>((o) => o.audible);
+    final status = _status[v.id];
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -217,7 +226,13 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _Button(previewing ? '停止' : '试听', icon: previewing ? YIcons.pause : YIcons.play, primary: false, onTap: () => _preview(v)),
+              _Button(
+                previewing ? (audible ? '停止' : '合成中') : '试听',
+                icon: previewing ? (audible ? YIcons.pause : null) : YIcons.play,
+                busy: previewing && !audible,
+                primary: false,
+                onTap: () => _preview(v),
+              ),
               const SizedBox(width: 10),
               if (!selected) _Button('设为默认', primary: true, onTap: () => s.setVoice(v.id)),
               const Spacer(),
@@ -231,6 +246,17 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> {
             ],
           ),
           const SizedBox(height: 8),
+          // 固定占一行：有没有状态文字，卡片高度都不变。
+          SizedBox(
+            height: 18,
+            child: Text(
+              status?.text ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: ts(12.5, color: status?.error == true ? _C.danger : _C.text2),
+            ),
+          ),
+          const SizedBox(height: 4),
           Pressable(
             onTap: () => setState(() => _expanded = _expanded == v.id ? null : v.id),
             child: Text(_expanded == v.id ? '收起高级设置' : '高级：各引擎的声音 ID', style: ts(12.5, color: _C.text2)),
@@ -481,12 +507,15 @@ class _Toggle extends StatelessWidget {
   }
 }
 class _Button extends StatelessWidget {
-  const _Button(this.label, {required this.primary, required this.onTap, this.icon});
+  const _Button(this.label, {required this.primary, required this.onTap, this.icon, this.busy = false});
 
   final String label;
   final bool primary;
   final VoidCallback? onTap;
   final YIconData? icon;
+
+  /// 显示转圈（正在合成）。
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -497,6 +526,9 @@ class _Button extends StatelessWidget {
         opacity: onTap == null ? 0.5 : 1,
         child: Container(
           height: 34,
+          // 最小宽度固定：“试听 / 合成中 / 停止”切换时按钮不变宽变窄，旁边的按钮不会跟着挪动。
+          constraints: const BoxConstraints(minWidth: 88),
+          alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: primary ? _C.accent : _C.bg,
@@ -506,7 +538,8 @@ class _Button extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (icon != null) ...[YIcon(icon!, size: 14, color: fg), const SizedBox(width: 6)],
+              if (busy) ...[SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.6, color: fg)), const SizedBox(width: 6)],
+              if (icon != null && !busy) ...[YIcon(icon!, size: 14, color: fg), const SizedBox(width: 6)],
               Text(label, style: ts(13.5, weight: w600, color: fg)),
             ],
           ),

@@ -153,6 +153,8 @@ flutter test --no-pub -j 4
   - 候选：MeloTTS zh_en 95.9% / 0.29（44.1 kHz，单个女声，fp32 159 MB；发布包里的 int8 文件只有 133 字节，是坏的）；Matcha zh-en 98.6% / 0.03（16 kHz，要配 vocos-16khz-univ）；Kokoro v1.1 int8 多个声音 98–100%，但 RTF 0.8–1.1、加线程几乎不变，骁龙 865 上做实时对话太慢。
   - 完整精度 Kokoro v1.1（fp32，下载约 350 MB）比 int8 快一倍：4 线程 RTF 0.25，100 个中文声音都已试听；但用户认为音调怪（词典外短语没有三声变调，例如“很好”“我给你”），不采用。
   - 用户又要求“直接换成最好的开源音色”：本机声音全部换成 ZipVoice（distill int8）+ THCHS-30 真人参考录音（A23、C22、A19、C8、B21，各约 4 秒，`assets/voices/`）。4 线程 4 步 RTF 0.23–0.31，回识 98.6–100%，步数按设备速度在 2–4 之间自动调整。还没在真机上听过、也没测手机上的 RTF（日志 `tts local:` 一行会写）。
+  - THCHS-30 参考录音合成出来发闷（7 kHz 以上少 10–15 dB），已换成 AISHELL-3（SSB0632、SSB1126、SSB0599、SSB0073、SSB1187），并加了 `cleanSpeech` 后期处理与最少 3 步。
+- **桌面端 60 帧上限**：Linux 版 Flutter 引擎没有垂直同步回调，用固定 1/60 秒的计时器出帧（engine `vsync_waiter_fallback.cc` 的 `kSingleFrameInterval`），240 Hz 显示器上也只有 60 帧。YUNYIN_BENCH=1 实测：帧间隔中位 16.7 ms，构建与光栅平均都在 4 ms 内。要突破需要自己编译 Linux 嵌入层（给 FlutterProjectArgs 加 vsync_callback）。Windows / macOS 跟随显示器刷新率。
   - 用户填写的 CosyVoice 密钥在真机上没有生效：日志里只有系统朗读与本地模型，没有 CosyVoice 的请求或报错，原因未查（可能没保存，或首选引擎不是“自动”）。
   - 试听页：https://claude.ai/artifact/ToRPyR2apLKr8gGqHdzdZ1
 - **退出原因**：`adb shell dumpsys activity exit-info com.marginalz.yunyin` 里近期全是三星 MARs 在后台 FORCE STOP（内存 0.8–1.9 GB），没有崩溃记录。
