@@ -182,12 +182,18 @@ class _OuterShadowPainter extends CustomPainter {
       final (image, margin, k, dpr) = cached;
       canvas.save();
       canvas.scale(1 / dpr);
-      canvas.drawImageNine(
-        image,
-        Rect.fromLTWH((margin + k) * dpr, (margin + k) * dpr, _ShadowCache.core * dpr, _ShadowCache.core * dpr),
-        Rect.fromLTWH(-margin * dpr, -margin * dpr, (size.width + margin * 2) * dpr, (size.height + margin * 2) * dpr),
-        Paint()..filterQuality = FilterQuality.low,
-      );
+      final dst = Rect.fromLTWH(-margin * dpr, -margin * dpr, (size.width + margin * 2) * dpr, (size.height + margin * 2) * dpr);
+      if (k < 0) {
+        // 按实际尺寸缓存的整张阴影。
+        canvas.drawImageRect(image, Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()), dst, Paint()..filterQuality = FilterQuality.low);
+      } else {
+        canvas.drawImageNine(
+          image,
+          Rect.fromLTWH((margin + k) * dpr, (margin + k) * dpr, _ShadowCache.core * dpr, _ShadowCache.core * dpr),
+          dst,
+          Paint()..filterQuality = FilterQuality.low,
+        );
+      }
       canvas.restore();
     } else {
       for (final s in shadows) {
@@ -277,6 +283,7 @@ class _ShadowCache extends ChangeNotifier {
 
   final Map<String, (ui.Image, double, double, double)> _images = {};
   final Set<String> _pending = {};
+  final Set<String> _failed = {};
 
   (ui.Image, double, double, double)? lookup(BorderRadius radius, List<Shadow2> shadows, Size size) {
     // 只处理四角相同的圆形圆角。
@@ -291,22 +298,31 @@ class _ShadowCache extends ChangeNotifier {
     // 九宫格每个角从卡片边缘向内的长度：越过圆角与模糊的影响范围（偏移、扩展、3σ）之后，阴影沿边是均匀的，
     // 中间拉伸的部分取自那里才与直接模糊相同（只取圆角的长度时，模糊比圆角大的阴影四边会变淡）。
     final k = (r + margin).ceilToDouble();
-    // 卡片比九宫格的四角还小时，拉伸会出错，直接模糊。
-    if (size.width < k * 2 + core || size.height < k * 2 + core) return null;
     final dpr = ui.PlatformDispatcher.instance.views.firstOrNull?.devicePixelRatio ?? 1;
-    final key = '${r.toStringAsFixed(2)}|${dpr.toStringAsFixed(2)}|${[for (final s in shadows) '${s.dx},${s.dy},${s.blur},${s.spread},${s.color.toARGB32()}'].join(';')}';
+    final shadowKey = '${r.toStringAsFixed(2)}|${dpr.toStringAsFixed(2)}|${[for (final s in shadows) '${s.dx},${s.dy},${s.blur},${s.spread},${s.color.toARGB32()}'].join(';')}';
+    // 卡片比九宫格的四角还小（模糊范围大的小卡片，例如封面）：按卡片的实际尺寸整张缓存，画时不拉伸（k 记为 -1）。
+    // 同一页面上这类卡片通常尺寸相同，缓存几张就够；超过 64 张时清掉按尺寸缓存的部分。
+    final exact = size.width < k * 2 + core || size.height < k * 2 + core;
+    final key = exact ? '$shadowKey|${size.width.toStringAsFixed(1)}x${size.height.toStringAsFixed(1)}' : shadowKey;
     final hit = _images[key];
     if (hit != null) return hit;
-    if (_pending.add(key)) unawaited(_render(key, r, k, margin, dpr, shadows));
+    if (exact && _images.length > 64) {
+      _images.removeWhere((k, v) {
+        if (v.$3 >= 0) return false;
+        v.$1.dispose();
+        return true;
+      });
+    }
+    if (!_failed.contains(key) && _pending.add(key)) unawaited(_render(key, r, exact ? -1 : k, margin, dpr, shadows, exact ? size : null));
     return null;
   }
 
-  Future<void> _render(String key, double r, double k, double margin, double dpr, List<Shadow2> shadows) async {
-    final side = (k * 2 + core) + margin * 2;
+  Future<void> _render(String key, double r, double k, double margin, double dpr, List<Shadow2> shadows, [Size? exact]) async {
+    final inner = exact ?? Size.square(k * 2 + core);
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     canvas.scale(dpr);
-    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(margin, margin, k * 2 + core, k * 2 + core), Radius.circular(r));
+    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(margin, margin, inner.width, inner.height), Radius.circular(r));
     for (final s in shadows) {
       final p = Paint()..color = s.color;
       if (s.blur > 0) p.maskFilter = MaskFilter.blur(BlurStyle.normal, cssSigma(s.blur));
@@ -314,14 +330,16 @@ class _ShadowCache extends ChangeNotifier {
     }
     final picture = recorder.endRecording();
     try {
-      final px = (side * dpr).ceil();
-      final image = await picture.toImage(px, px);
+      final image = await picture.toImage(((inner.width + margin * 2) * dpr).ceil(), ((inner.height + margin * 2) * dpr).ceil());
       _images[key] = (image, margin, k, dpr);
       notifyListeners();
     } catch (_) {
-      // 生成失败时一直直接模糊。
+      // 生成失败时一直直接模糊，不再重试。
+      _failed.add(key);
     } finally {
       picture.dispose();
+      // 清理后可以重新生成。
+      _pending.remove(key);
     }
   }
 }
