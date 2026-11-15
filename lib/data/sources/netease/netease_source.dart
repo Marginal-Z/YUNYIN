@@ -444,8 +444,16 @@ class NeteaseSource extends MusicSource {
       case 802:
         return QrState.scanned;
       case 803:
+        // 登录凭据（MUSIC_U）在响应头的 Set-Cookie 里（已由 _parse 收下），网页版接口的 JSON 里通常没有 cookie 字段；
+        // 此前只有 JSON 带 cookie 时才去掉游客身份（MUSIC_A），两者同时带上时网易云按游客处理，扫码确认后仍是未登录。
         _absorbCookieString(j['cookie']);
+        if (!_cookies.containsKey('MUSIC_U')) {
+          throw NeteaseApiException(803, '已在手机上确认，但网易云没有返回登录凭据，请刷新二维码重新扫码');
+        }
+        _cookies.remove('MUSIC_A');
+        await _saveCookies();
         await _refreshAccount();
+        if (_user == null) throw NeteaseApiException(803, '登录没有生效（网易云没有返回账号信息），请刷新二维码重新扫码');
         return QrState.confirmed;
       default:
         return QrState.waiting;
