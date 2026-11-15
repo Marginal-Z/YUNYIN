@@ -129,6 +129,14 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
+    /** 流畅度测试：adb shell am start -n com.marginalz.yunyin/.MainActivity --ez yunyin_bench true（见 mobile_benchmark.dart）。 */
+    private var benchRequested = false
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        benchRequested = intent?.getBooleanExtra("yunyin_bench", false) == true
+        super.onCreate(savedInstanceState)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/app_icon").setMethodCallHandler { call, result ->
@@ -335,6 +343,10 @@ class MainActivity : AudioServiceActivity() {
                         "sdk" to Build.VERSION.SDK_INT,
                     ),
                 )
+                "benchRequested" -> {
+                    result.success(benchRequested)
+                    benchRequested = false
+                }
                 "exitReasons" -> result.success(exitReasons())
                 "storage" -> {
                     val stat = android.os.StatFs(filesDir.path)

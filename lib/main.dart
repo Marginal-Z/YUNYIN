@@ -24,6 +24,7 @@ import 'core/lyric_fonts.dart';
 import 'core/settings.dart';
 import 'core/smooth_wheel.dart';
 import 'debug/benchmark.dart';
+import 'debug/mobile_benchmark.dart';
 import 'debug/screenshots.dart';
 import 'data/downloads.dart';
 import 'data/cloud/cloud_drives.dart';
@@ -148,6 +149,8 @@ Future<void> main(List<String> args) async {
   // 启动后先声明由云音处理返回键（见 YunyinApp._frameworkHandlesBack）。
   WidgetsBinding.instance.addPostFrameCallback((_) => SystemNavigator.setFrameworkHandlesBack(true));
   if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
+  // 手机上的流畅度测试（adb 启动时带 yunyin_bench，见 mobile_benchmark.dart）。
+  unawaited(maybeRunMobileBenchmark(rootNavigatorKey));
   if (screenshotsRequested) unawaited(runScreenshots(rootNavigatorKey));
   if (splashShotsRequested) unawaited(runSplashShots());
 }
