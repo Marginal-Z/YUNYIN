@@ -27,5 +27,20 @@ while read -r name sha; do
     fi
   done
 done <<< "$pins"
+# 本机语音 MOSS-TTS-Nano：代码里写 (仓库, '文件名', 大小, 'sha')，与魔搭社区仓库当前的文件摘要比对。
+moss=lib/voice/moss/moss_models.dart
+for repo in MOSS-TTS-Nano-100M-ONNX MOSS-Audio-Tokenizer-Nano-ONNX; do
+  remote_list=$(curl -fsSL "https://modelscope.cn/api/v1/models/openmoss/$repo/repo/files?Recursive=true" | python3 -c 'import json,sys; [print(f["Path"], f["Sha256"]) for f in json.load(sys.stdin)["Data"]["Files"]]') || { echo "::warning::无法读取魔搭社区 $repo 的文件列表，跳过"; continue; }
+  var=$([[ $repo == MOSS-TTS* ]] && echo tts || echo codec)
+  while read -r name sha; do
+    remote=$(awk -v n="$name" '$1 == n { print $2; exit }' <<< "$remote_list")
+    checked=$((checked + 1))
+    if [[ $remote != "$sha" ]]; then
+      echo "::error::MOSS $repo/$name 的校验值已过期：代码中 $sha，魔搭社区 ${remote:-（没有这个文件）}"
+      bad=1
+    fi
+  done < <(grep -oE "\($var, '[A-Za-z0-9_.-]+', [0-9]+, '[0-9a-f]{64}'\)" "$moss" | sed -E "s/\($var, '([^']+)', [0-9]+, '([0-9a-f]{64})'\)/\1 \2/")
+done
+
 echo "核对了 $checked 个模型文件"
 exit $bad
