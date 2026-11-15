@@ -33,15 +33,25 @@ class MediaKitSpeechSink extends SpeechSink {
   Player? _player;
   Completer<void>? _done;
   StreamSubscription<bool>? _sub;
+  StreamSubscription<PlayerLog>? _log;
 
   Player get _p {
     final created = _player == null;
-    final p = _player ??= Player(configuration: const PlayerConfiguration(title: '云音助手', logLevel: MPVLogLevel.error));
+    final p = _player ??= Player(configuration: const PlayerConfiguration(title: '云音助手', logLevel: MPVLogLevel.warn));
     // 与音乐播放器相同的 Android 输出设置：立体声、16 位整数。部分设备的音频 HAL 接受浮点格式却输出
     // 失真或静音，朗读听起来就是“杂音”。
     if (created && !kIsWeb && Platform.isAndroid) {
       unawaited(setMpvProperty(p, 'audio-channels', 'stereo'));
       unawaited(setMpvProperty(p, 'audiotrack-pcm-float', 'no'));
+    }
+    if (created) {
+      // 缓冲 1 秒：朗读时后台在合成下一句，CPU 很忙；默认 0.2 秒的缓冲偶尔接不上，AudioTrack 补零就是“呲啦”声。
+      // 朗读的文件是整句的 WAV，解码远快于实时，缓冲大一些不会推迟开口。
+      unawaited(setMpvProperty(p, 'audio-buffer', '1.0'));
+      // 断流时 mpv 会记一条警告，写进日志（问题诊断里能看到）。
+      _log = p.stream.log.listen((l) {
+        if (l.text.contains('underrun') || l.text.contains('Underrun')) debugPrint('tts playback: ${l.prefix} ${l.text.trim()}');
+      });
     }
     _sub ??= p.stream.completed.listen((c) {
       if (c && !(_done?.isCompleted ?? true)) _done!.complete();
@@ -66,6 +76,7 @@ class MediaKitSpeechSink extends SpeechSink {
   @override
   void dispose() {
     _sub?.cancel();
+    _log?.cancel();
     _player?.dispose();
   }
 }

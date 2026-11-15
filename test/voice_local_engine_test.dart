@@ -75,8 +75,19 @@ void main() {
       final wav = audio.single.bytes;
       expect(String.fromCharCodes(wav.sublist(0, 4)), 'RIFF');
       final f0 = medianPitch(wav)!;
+      final (samples, _) = decodeWav16(wav);
+      final peak = samples.fold<double>(0, (m, v) => math.max(m, v.abs()));
+      // 毛刺：相邻采样跳变超过 0.35（正常语音在 24 kHz 下远小于这个值），“呲啦”声的典型特征。
+      var glitches = 0;
+      for (var i = 1; i < samples.length; i++) {
+        if ((samples[i] - samples[i - 1]).abs() > 0.35) glitches++;
+      }
       // ignore: avoid_print
-      print('${voice.name} ${wav.length} bytes ${f0.toStringAsFixed(0)} Hz');
+      print('${voice.name} ${wav.length} bytes ${f0.toStringAsFixed(0)} Hz peak ${peak.toStringAsFixed(3)} glitches $glitches');
+      final out = Platform.environment['YUNYIN_VOICE_OUT'];
+      if (out != null) File('$out/${voice.id}.wav').writeAsBytesSync(wav);
+      expect(peak, lessThan(0.99), reason: '${voice.name} 削波');
+      expect(glitches, lessThan(10), reason: '${voice.name} 有毛刺');
       if (voice.traits.contains('女声')) {
         expect(f0, greaterThan(190), reason: voice.name);
       } else {
