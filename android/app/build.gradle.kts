@@ -96,7 +96,8 @@ android {
 
     sourceSets {
         getByName("main") {
-            jniLibs.srcDir(mossOrtDir.map { it.dir("jniLibs") })
+            // 目录由 prepareMossOrt 生成（preBuild 依赖它）；AGP 不接受 Provider，这里直接给路径。
+            jniLibs.srcDir(mossOrtDir.get().dir("jniLibs").asFile)
         }
     }
 
