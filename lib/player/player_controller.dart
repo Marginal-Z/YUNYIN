@@ -250,7 +250,8 @@ class PlayerController extends ChangeNotifier {
   /// 需要重新打开音频设备的选项在原位置重新加载当前歌曲。
   Future<void> _applyOutput() async {
     final p = _player;
-    if (kIsWeb || p == null) return;
+    // 音效设置是异步生效的：播放器已经关闭时不再切换输出、重新加载。
+    if (kIsWeb || p == null || _disposed) return;
     var reload = false;
     if (settings.normalize != _normalize) {
       _normalize = settings.normalize;
@@ -269,7 +270,7 @@ class PlayerController extends ChangeNotifier {
       _exclusive = settings.exclusiveAudio;
       reload = await setMpvProperty(p, 'audio-exclusive', _exclusive ? 'yes' : 'no') || reload;
     }
-    if (reload && current != null) await _load(autoplay: playing, keepPosition: true);
+    if (reload && current != null && !_disposed) await _load(autoplay: playing, keepPosition: true);
   }
 
   /// 重新获取当前歌曲的播放地址并播放（例如完成平台的官方验证后）。
