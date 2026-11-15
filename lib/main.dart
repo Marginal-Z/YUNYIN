@@ -98,7 +98,7 @@ Future<void> main(List<String> args) async {
   await local.init();
   final drives = CloudDrives();
   await drives.init();
-  // 洛雪音源：只用于洛雪曲库模式（三个平台只播放各自官方接口的歌曲）。
+  // 洛雪音源：只用于洛雪曲库模式（网易云、QQ 音乐、酷狗、汽水音乐只播放各自官方接口的歌曲）。
   final lx = LxSources();
   await lx.init();
   final sources = SourceManager(SourceRegistry.create(local, drives, lx));

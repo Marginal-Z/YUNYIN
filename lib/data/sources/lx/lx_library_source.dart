@@ -10,7 +10,7 @@ import '../music_source.dart';
 import '../netease/netease_source.dart';
 import '../qq/qq_source.dart';
 
-/// 洛雪曲库：独立于网易云、QQ 音乐、酷狗的第四个平台模式。
+/// 洛雪曲库：独立于网易云、QQ 音乐、酷狗、汽水音乐的平台模式。
 ///
 /// 与洛雪音乐相同，曲库（搜索、排行榜、歌词）来自所选平台的公开接口，播放地址只通过用户导入的
 /// 洛雪音源脚本获取。可以浏览的曲库（酷我 kw、酷狗 kg、QQ 音乐 tx、网易云 wy）由启用的音源声明

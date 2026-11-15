@@ -106,7 +106,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                 final v = context.watch<VoiceSettings>();
                 return SettingsRow(
                   title: '音色中心',
-                  subtitle: '当前音色：${VoicePresets.byId(v.voiceId).name} · 试听、切换与语音引擎',
+                  subtitle: '当前声音：${VoicePresets.byId(v.voiceId).name} · 试听与切换',
                   height: 64,
                   chevron: true,
                   onTap: () => context.read<AppNav>().push(VoiceCenterRoute()),
