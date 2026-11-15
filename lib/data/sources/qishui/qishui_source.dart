@@ -23,10 +23,13 @@ class QishuiThrottled implements Exception {
 /// - 歌单：`api.qishui.com/luna/pc/playlist/detail`（网页端参数）；专辑：官方分享页 `music.douyin.com/qishui/share/album`。
 /// - 播放与歌词：分享页使用的 `beta-luna.douyin.com/luna/h5/seo_track`。免费歌曲给出未加密的整曲 m4a（约 64k / 128k / 256k AAC），
 ///   会员歌曲只给 30～60 秒的官方试听片段。
+/// - 排行榜：`api.qishui.com/luna/charts/{榜单 id}`（网页端参数）。没有公开的榜单目录，使用官方的四个榜单。
 ///
-/// 不提供（只能通过绕过平台保护实现）：登录与“我的”（扫码登录要伪装成官方客户端的登录组件、处理风控验证），
-/// 会员整曲与无损（要官方原生组件生成的 X-Helios / X-Medusa 签名，音频还要按 PlayAuth 解密），
-/// 排行榜与首页推荐接口（要伪造客户端设备参数）。首页与发现改用热门歌单。
+/// 不提供（只能通过绕过平台保护实现）：
+/// - 登录与“我的”（我的歌单、喜欢、会员信息、个性化推荐）：汽水音乐的官网与分享页都没有网页登录，
+///   账号只能在官方 App 与电脑客户端中登录；第三方实现的扫码登录要伪装成电脑客户端的登录组件、伪造设备标识并处理风控验证；
+/// - 会员整曲与无损：要官方原生组件生成的 X-Helios / X-Medusa 签名，音频还要按 PlayAuth 解密；
+/// - 热搜与首页推荐接口：只接受官方客户端的设备参数。首页推荐歌单改用搜索热门歌单。
 class QishuiSource extends MusicSource {
   QishuiSource({Dio? dio, this.retryDelay = const Duration(milliseconds: 1500)})
     : _dio =
@@ -58,10 +61,10 @@ class QishuiSource extends MusicSource {
   String get name => '汽水音乐';
 
   @override
-  String get description => '汽水音乐的搜索、歌单、专辑与歌词，免费歌曲完整播放；不支持登录，会员歌曲只能试听';
+  String get description => '汽水音乐的搜索、排行榜、歌单、专辑与歌词，免费歌曲完整播放；不支持登录，会员歌曲只能试听';
 
   @override
-  Set<SourceFeature> get features => const {SourceFeature.search, SourceFeature.album, SourceFeature.lyrics, SourceFeature.dailyRecommend};
+  Set<SourceFeature> get features => const {SourceFeature.search, SourceFeature.album, SourceFeature.lyrics, SourceFeature.charts, SourceFeature.dailyRecommend};
 
   @override
   List<SearchType> get searchTypes => const [SearchType.all, SearchType.song, SearchType.album, SearchType.playlist];
@@ -102,7 +105,8 @@ class QishuiSource extends MusicSource {
     throw const FormatException('汽水音乐分享页的数据不完整');
   }
 
-  /// 图片地址：`urls[0] + uri`，加上与分享页相同的缩放后缀。
+  /// 图片地址：`urls[0] + uri`，加上缩放模板（`template_prefix`）。歌单、榜单封面（tos-cn-i）不认分享页的 c5 后缀（403），
+  /// 模板对所有图片都可用；没有模板时才用 c5 后缀。
   static String? _image(Object? img, {int size = 500}) {
     if (img is! Map) return null;
     final urls = img['urls'];
@@ -111,7 +115,8 @@ class QishuiSource extends MusicSource {
     final base = '${urls.first}';
     // 头像等给出的是完整地址。
     if (base.contains(uri) || !base.endsWith('/')) return base;
-    return '$base$uri~c5_${size}x$size.jpg';
+    final template = '${img['template_prefix'] ?? ''}';
+    return template.isEmpty ? '$base$uri~c5_${size}x$size.jpg' : '$base$uri~$template-resize:$size:$size.jpg';
   }
 
   static List<ArtistRef> _artists(Object? list) => [
@@ -218,9 +223,57 @@ class QishuiSource extends MusicSource {
 
   // ── 首页与发现 ────────────────────────────────────
   //
-  // 汽水音乐的排行榜与推荐接口只对官方客户端开放，这里用搜索“汽水热歌”排在前面的歌单代替。
+  // 汽水音乐没有公开的榜单目录与推荐接口：榜单使用官方的四个榜单（每个榜单可以公开查询），
+  // 推荐歌单用搜索“汽水热歌”排在前面的歌单代替，每日推荐取自热歌榜。
+
+  /// 官方榜单：id 与名称（名称以接口返回为准）。
+  static const _charts = [('7036274230471712007', '热歌榜'), ('7060812597884869927', '新歌榜'), ('7061475546400005410', '欧美榜'), ('7415959718721494311', '音乐人歌曲榜')];
 
   static const _hotKeyword = '汽水热歌';
+
+  Future<PlaylistInfo> _chart(String id) async {
+    final c = (await _json('$_api/charts/$id', _web))['chart'];
+    if (c is! Map) throw StateError('汽水音乐榜单暂时无法查看');
+    final style = c['style'] is Map ? c['style'] as Map : const {};
+    final ranks = c['track_ranks'] is List ? c['track_ranks'] as List : const [];
+    final songs = [
+      for (final r in ranks.whereType<Map>())
+        if (r['track'] is Map) _song(r['track'] as Map),
+    ];
+    final desc = '${style['desc'] ?? ''}'.trim();
+    return PlaylistInfo(
+      id: 'chart:$id',
+      sourceId: sourceId,
+      name: '${c['title'] ?? ''}',
+      cover: _image(style['bg_url']),
+      creator: '汽水音乐',
+      description: desc.isEmpty ? null : desc,
+      trackCount: songs.length,
+      kind: PlaylistKind.chart,
+      tracks: songs,
+    );
+  }
+
+  @override
+  Future<List<ChartInfo>> charts() async {
+    final lists = await Future.wait([for (final (id, _) in _charts) _chart(id).then<PlaylistInfo?>((p) => p).catchError((Object _) => null)]);
+    if (lists.every((p) => p == null)) throw StateError('汽水音乐榜单暂时无法查看');
+    return [
+      for (var i = 0; i < _charts.length; i++)
+        ChartInfo(
+          id: 'chart:${_charts[i].$1}',
+          name: lists[i]?.name.isNotEmpty == true ? lists[i]!.name : _charts[i].$2,
+          cover: lists[i]?.cover,
+          update: '每周四更新',
+          group: '官方榜',
+          preview: [for (final s in (lists[i]?.tracks ?? const <Song>[]).take(3)) '${s.name} - ${s.artistText}'],
+        ),
+    ];
+  }
+
+  /// 发现页的榜单位置显示热歌榜（汽水音乐没有飙升榜）。
+  @override
+  Future<PlaylistInfo> soaringChart() => _chart(_charts.first.$1);
 
   @override
   Future<List<PlaylistInfo>> recommendPlaylists({int limit = 12}) async {
@@ -229,19 +282,19 @@ class QishuiSource extends MusicSource {
 
   @override
   Future<HomeFeed> homeFeed() async {
-    final playlists = await recommendPlaylists();
-    if (playlists.isEmpty) return const HomeFeed(daily: [], playlists: []);
-    final top = await playlist(playlists.first.id);
+    // 歌单取不到时仍显示热歌榜。
+    final playlists = recommendPlaylists().catchError((Object _) => const <PlaylistInfo>[]);
+    final tracks = (await soaringChart()).tracks ?? const <Song>[];
     // 会员歌曲只能试听，免费歌曲排在前面。
-    final tracks = top.tracks ?? const <Song>[];
     final daily = [...tracks.where((s) => !s.vip), ...tracks.where((s) => s.vip)].take(30).toList();
-    return HomeFeed(daily: daily, playlists: playlists);
+    return HomeFeed(daily: daily, playlists: await playlists);
   }
 
   // ── 详情 ──────────────────────────────────────────
 
   @override
   Future<PlaylistInfo> playlist(String id) async {
+    if (id.startsWith('chart:')) return _chart(id.substring(6));
     const page = 100;
     Map? info;
     final songs = <Song>[];

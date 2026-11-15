@@ -106,7 +106,7 @@ class _Recommend extends StatelessWidget {
               );
             },
           ),
-        // 没有排行榜的平台（汽水音乐）不显示飙升榜，推荐歌单在手机上也显示。
+        // 没有排行榜的平台不显示飙升榜，推荐歌单在手机上也显示。
         if (source.supports(SourceFeature.charts))
           AsyncView<PlaylistInfo>(
             cacheKey: 'discover:${source.id}:soaring',
@@ -116,7 +116,8 @@ class _Recommend extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SectionHeader('飙升榜', top: 26, action: '完整榜单', onAction: () => openPlaylist(context, chart)),
+                  // 没有飙升榜的平台（汽水音乐）显示它给出的榜单名称。
+                  SectionHeader(chart.name.contains('飙升') || chart.name.isEmpty ? '飙升榜' : chart.name, top: 26, action: '完整榜单', onAction: () => openPlaylist(context, chart)),
                   CardList(
                     indent: 68,
                     children: [

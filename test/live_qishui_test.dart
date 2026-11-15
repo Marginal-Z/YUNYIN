@@ -10,7 +10,7 @@ import 'package:yunyin/data/sources/qishui/qishui_source.dart';
 
 void main() {
   test(
-    '汽水音乐：公开接口冒烟（搜索、歌单、专辑、播放地址、歌词）',
+    '汽水音乐：公开接口冒烟（搜索、歌单、专辑、榜单、播放地址、歌词）',
     () async {
       final qs = QishuiSource();
 
@@ -59,6 +59,15 @@ void main() {
       final krc = await qs.lyrics(vip);
       print('逐字歌词 ${krc.lines.length} 行: ${krc.lines.first.text} ${krc.lines.first.words?.length} 字');
       expect(krc.wordSynced, isTrue);
+
+      final charts = await qs.charts();
+      print('榜单: ${charts.map((c) => '${c.name}(${c.preview.length})').join(' | ')}');
+      expect(charts.where((c) => c.preview.isNotEmpty).length, greaterThanOrEqualTo(3));
+      final hot = await qs.playlist(charts.first.id);
+      print('${hot.name}: ${hot.tracks!.length} 首，封面 ${hot.cover}');
+      expect(hot.tracks!.length, greaterThanOrEqualTo(20));
+      final cover = await Dio().get<List<int>>(list.cover!, options: Options(responseType: ResponseType.bytes));
+      expect(cover.statusCode, 200);
 
       final feed = await qs.homeFeed();
       print('首页: 每日 ${feed.daily.length} 首，歌单 ${feed.playlists.map((p) => p.name).take(3).join(' | ')}');

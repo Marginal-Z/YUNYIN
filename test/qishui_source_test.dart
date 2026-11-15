@@ -24,6 +24,7 @@ Dio _dio(Map<String, Object? Function(RequestOptions o)> routes, {List<RequestOp
 Map<String, Object?> _cover(String uri) => {
   'uri': uri,
   'urls': ['https://p3-luna.douyinpic.com/img/', 'https://p6-luna.douyinpic.com/img/'],
+  'template_prefix': 'tplv-b829550vbb',
 };
 
 Map<String, Object?> _track(String id, {bool vip = false, int duration = 200000}) => {
@@ -84,7 +85,7 @@ void main() {
     expect(s.artistText, '歌手甲 / 歌手乙');
     expect(s.album?.name, '专辑101');
     expect(s.duration, const Duration(milliseconds: 200000));
-    expect(s.coverUrl, 'https://p3-luna.douyinpic.com/img/tos-cn/c101~c5_500x500.jpg');
+    expect(s.coverUrl, 'https://p3-luna.douyinpic.com/img/tos-cn/c101~tplv-b829550vbb-resize:500:500.jpg');
     expect(s.fee, SongFee.free);
     expect(r.songs.last.fee, SongFee.vip);
     final q = log.single.queryParameters;
@@ -223,7 +224,7 @@ void main() {
     expect(best.trial, isFalse);
     expect(best.note, isNull);
     expect(best.peak, 0.98);
-    expect(best.cover, 'https://p3-luna.douyinpic.com/img/tos-cn/c101~c5_500x500.jpg');
+    expect(best.cover, 'https://p3-luna.douyinpic.com/img/tos-cn/c101~tplv-b829550vbb-resize:500:500.jpg');
     expect((await qs.stream(free, AudioQuality.higher)).url, 'https://v3-luna.douyinvod.com/higher.m4a');
     expect((await qs.stream(free, AudioQuality.standard)).quality, AudioQuality.standard);
     final ly = await qs.lyrics(free);
@@ -381,37 +382,73 @@ void main() {
     dio2.close();
   });
 
-  test('首页：热门歌单与第一个歌单的歌曲，免费歌曲排在前面', () async {
+  Map<String, Object?> chart(String id, String title, List<Map<String, Object?>> tracks) => {
+    'chart': {
+      'id': id,
+      'title': title,
+      'count_tracks': '${tracks.length}',
+      'period': 'weekly',
+      'style': {'desc': '$title简介', 'bg_url': _cover('tos-cn-i/$id')},
+      'track_ranks': [
+        for (final t in tracks) {'rank': {'track_id': t['id']}, 'track': t},
+      ],
+    },
+  };
+
+  test('排行榜：官方四个榜单，按榜单 id 打开，榜单取不到时不影响其他榜单', () async {
+    final log = <RequestOptions>[];
     final dio = _dio({
-      '/luna/search/playlist': (o) => {
-        'result_groups': [
-          {
-            'data': [
-              for (final id in ['p1', 'p2'])
+      for (final (id, title) in const [('7036274230471712007', '热歌榜'), ('7060812597884869927', '新歌榜'), ('7415959718721494311', '音乐人歌曲榜')])
+        '/luna/charts/$id': (_) => chart(id, title, [_track('1'), _track('2', vip: true), _track('3'), _track('4')]),
+    }, log: log);
+    final qs = QishuiSource(dio: dio);
+    final list = await qs.charts();
+    expect(list.map((c) => c.name), ['热歌榜', '新歌榜', '欧美榜', '音乐人歌曲榜']);
+    expect(list.first.id, 'chart:7036274230471712007');
+    expect(list.first.preview, ['歌1 - 歌手甲 / 歌手乙', '歌2 - 歌手甲 / 歌手乙', '歌3 - 歌手甲 / 歌手乙']);
+    expect(list.first.cover, 'https://p3-luna.douyinpic.com/img/tos-cn-i/7036274230471712007~tplv-b829550vbb-resize:500:500.jpg');
+    // 欧美榜请求失败：仍列出，没有预览。
+    expect(list[2].preview, isEmpty);
+    expect(log.first.queryParameters, {'aid': '386088', 'device_platform': 'web'});
+
+    final hot = await qs.playlist('chart:7036274230471712007');
+    expect(hot.name, '热歌榜');
+    expect(hot.kind, PlaylistKind.chart);
+    expect(hot.tracks!.map((s) => s.id), ['1', '2', '3', '4']);
+    expect(hot.description, '热歌榜简介');
+    expect((await qs.soaringChart()).name, '热歌榜');
+    dio.close();
+  });
+
+  test('首页：每日推荐取自热歌榜（免费歌曲排在前面），推荐歌单取自热门歌单；歌单取不到时仍显示每日推荐', () async {
+    var playlistsFail = false;
+    final dio = _dio({
+      '/luna/charts/7036274230471712007': (_) => chart('7036274230471712007', '热歌榜', [_track('1', vip: true), _track('2'), _track('3')]),
+      '/luna/search/playlist': (o) => playlistsFail
+          ? 'not json'
+          : {
+              'result_groups': [
                 {
-                  'entity': {
-                    'playlist': {'id': id, 'title': '歌单$id', 'count_tracks': 3},
-                  },
+                  'data': [
+                    for (final id in ['p1', 'p2'])
+                      {
+                        'entity': {
+                          'playlist': {'id': id, 'title': '歌单$id', 'count_tracks': 3},
+                        },
+                      },
+                  ],
                 },
-            ],
-          },
-        ],
-      },
-      '/luna/pc/playlist/detail': (o) => {
-        'playlist': {'id': o.queryParameters['playlist_id'], 'title': '歌单', 'count_tracks': 3},
-        'media_resources': [
-          for (final t in [_track('1', vip: true), _track('2'), _track('3')])
-            {
-              'entity': {
-                'track_wrapper': {'track': t},
-              },
+              ],
             },
-        ],
-      },
     });
-    final feed = await QishuiSource(dio: dio).homeFeed();
+    final qs = QishuiSource(dio: dio);
+    final feed = await qs.homeFeed();
     expect(feed.playlists.map((p) => p.id), ['p1', 'p2']);
     expect(feed.daily.map((s) => s.id), ['2', '3', '1']);
+    playlistsFail = true;
+    final partial = await qs.homeFeed();
+    expect(partial.playlists, isEmpty);
+    expect(partial.daily, hasLength(3));
     dio.close();
   });
 }
