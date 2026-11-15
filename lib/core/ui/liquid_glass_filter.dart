@@ -157,7 +157,7 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(_dark ? 0.55 : 0.9);
     // 色调强度。深色模式此前为 55%–75%，在自定义图片与封面取色背景上导航栏和播放条几乎成了不透明的深色块，
     // 看不出透明与模糊；降到 28%–42%，仍保留一层深灰避免只剩边缘高光。
-    f(_dark ? (regular ? 0.42 : (_legible ? 0.34 : 0.28)) : (regular ? 0.11 : (_legible ? 0.12 : 0)));
+    f(_dark ? (regular ? 0.42 : (_legible ? 0.4 : 0.28)) : (regular ? 0.11 : (_legible ? 0.14 : 0)));
     // 圆角一律用正圆弧，与关闭液态玻璃时的圆角矩形完全一致（原版面板的超椭圆圆角看起来偏方）。
     f(2);
     f(global.dx * _dpr / _uiScale);
@@ -179,12 +179,15 @@ class RenderLiquidGlass extends RenderProxyBox {
     // 着色器在玻璃形状以外输出透明，滤镜结果以 srcOver 叠回背景，形状以外保持原样，无需按形状裁剪。
     final layer = _glass.layer ??= BackdropFilterLayer();
     final glass = ui.ImageFilter.shader(shader);
+    // 原版「柔和」：半径 16 的高斯模糊（sigma = 16 / 3），再由着色器读取模糊结果。原版以 1 倍屏像素设计，这里按逻辑像素换算。
+    // 「清透」上承载文字的玻璃（底栏、迷你播放条、标签栏）加一层很轻的磨砂（sigma 4）：完全不模糊时，下面列表的文字
+    // 清清楚楚地透过来，和播放条自己的歌名、歌手叠在一起读不出来；其余装饰性的玻璃保持完全清透。
+    final double? frost = regular ? 16 / 3 : (_legible ? 4 : null);
     layer
-      ..filter = regular
-          // 原版「柔和」：半径 16 的高斯模糊（sigma = 16 / 3），再由着色器读取模糊结果。原版以 1 倍屏像素设计，这里按逻辑像素换算。
+      ..filter = frost != null
           ? ui.ImageFilter.compose(
               outer: glass,
-              inner: ui.ImageFilter.blur(sigmaX: 16 / 3, sigmaY: 16 / 3, tileMode: TileMode.clamp),
+              inner: ui.ImageFilter.blur(sigmaX: frost, sigmaY: frost, tileMode: TileMode.clamp),
             )
           : glass
       ..backdropKey = _backdropKey;
