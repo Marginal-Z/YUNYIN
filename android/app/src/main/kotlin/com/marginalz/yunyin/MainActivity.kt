@@ -164,6 +164,7 @@ class MainActivity : AudioServiceActivity() {
         }
         // AI 助手：语音唤醒的前台服务、系统朗读与媒体音量。只使用 applicationContext（引擎可能比界面活得久）。
         val app = applicationContext
+        MossTts.register(this, flutterEngine.dartExecutor.binaryMessenger)
         val voice = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yunyin/voice")
         VoiceService.onStopRequested = { android.os.Handler(android.os.Looper.getMainLooper()).post { voice.invokeMethod("stopRequested", null) } }
         voice.setMethodCallHandler { call, result ->

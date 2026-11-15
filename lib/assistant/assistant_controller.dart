@@ -568,7 +568,7 @@ ${song == null ? '现在没有在播放歌曲。' : '正在播放《${song.name}
           'description':
               'platform（value：网易云 / QQ 音乐 / 酷狗 / 汽水 / 洛雪）；themeMode（light / dark / system）；accent（朱红 / 蓝 / 青绿 / 橙 / 石墨）；'
               'playerStyle（封面 / 黑胶 / 光盘 / 沉浸 / 卡片流 / 3D 封面流 / 照片墙 / 极简）；desktopLyrics、statusLyrics、translation、glass（on / off）；'
-              'pet（团团 / 星月 / 阿曜 / off）；voice（女声 / 男声）；download；playCollection（daily / liked / recent）；'
+              'pet（团团 / 星月 / 阿曜 / off）；voice（女声 / 男声 / 灵语 / 悦雯 / 俊豪 / 志明）；download；playCollection（daily / liked / recent）；'
               'open（settings / downloads / stats / voice / pet / player / lyrics / library / search，search 时把关键词放在 query）',
         },
         'value': {'type': 'string'},

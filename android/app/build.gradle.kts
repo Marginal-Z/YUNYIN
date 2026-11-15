@@ -57,6 +57,9 @@ android {
             excludes += "lib/x86/**"
             // 动态库压缩后存放：语音识别的动态库约 27 MB，压缩后安装包小一半左右（安装时解压）。
             useLegacyPackaging = true
+            // 离线语音识别（sherpa-onnx 自带 ONNX Runtime 1.28.2）与本机语音合成（ONNX Runtime 1.28.0）都带有
+            // libonnxruntime.so。两者 C API 版本相同（1.28），保留一份即可。
+            pickFirsts += "lib/**/libonnxruntime.so"
         }
     }
 
@@ -64,6 +67,7 @@ android {
         release {
             // 没有配置发布密钥时（例如他人 fork 后本地构建）退回调试签名。
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            proguardFiles("proguard-rules.pro")
         }
     }
 }
@@ -81,4 +85,6 @@ flutter {
 dependencies {
     // 应用内更新使用 FileProvider 把安装包交给系统安装器。
     implementation("androidx.core:core:1.13.1")
+    // 云音助手的本机语音（MOSS-TTS-Nano）用 ONNX Runtime 在 CPU 上推理，见 MossTts.kt。
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.28.0")
 }

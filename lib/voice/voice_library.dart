@@ -38,11 +38,12 @@ class VoiceProfile {
   String preview(VoiceLanguage lang) => previewText[lang] ?? previewText[VoiceLanguage.zh] ?? '你好，我是$name。';
 }
 
-/// 云音助手的声音：女声、男声，以及系统里每一个中文声音。
+/// 云音助手的声音。
 ///
-/// 只用系统自带的语音引擎（Android 为系统的“文字转语音”引擎，例如三星、谷歌的中文语音；桌面端为系统语音），
-/// 不需要下载模型。女声 / 男声按实测音高自动选系统里最合适的声音；也可以在音色中心指定某一个系统声音
-/// （ID 为 `sys:声音名称`）。
+/// 首选本机语音 MOSS-TTS-Nano（OpenMOSS 开源，Apache-2.0）：四个年轻的中文声音（灵语、悦雯、俊豪、志明），
+/// 在手机上离线合成，48 kHz，需要在音色中心下载一次模型（约 720 MB，只支持 Android）。模型没有下载、设备不支持
+/// （桌面端、内存不足 6 GB）或合成失败时，自动换成系统自带的语音引擎里同性别的声音。
+/// 女声 / 男声：本机语音的灵语 / 俊豪，退回系统里音调最高 / 最低的中文声音；也可以指定系统里的某一个声音（`sys:声音名称`）。
 ///
 /// 此前的五个本机开源语音音色（云汐、小柚、晚星、清川、暮言）与云端引擎都已去掉；保存过的旧音色按性别换成女声或男声。
 abstract final class VoicePresets {
@@ -50,23 +51,52 @@ abstract final class VoicePresets {
     id: 'female',
     name: '女声',
     style: '自动',
-    description: '系统里音调最高的中文声音。',
+    description: '本机语音“灵语”；没有下载模型时用系统里音调最高的中文声音。',
     traits: ['女声'],
     previewText: {VoiceLanguage.zh: '你好，我是云音助手。今天想听点什么？我给你挑几首合适的歌。'},
-    bindings: [EngineVoice('system', {VoiceLanguage.zh: 'female'})],
+    bindings: [
+      EngineVoice('moss', {VoiceLanguage.zh: 'Lingyu'}),
+      EngineVoice('system', {VoiceLanguage.zh: 'female'}),
+    ],
   );
 
   static const male = VoiceProfile(
     id: 'male',
     name: '男声',
     style: '自动',
-    description: '系统里音调最低的中文声音。',
+    description: '本机语音“俊豪”；没有下载模型时用系统里音调最低的中文声音。',
     traits: ['男声'],
     previewText: {VoiceLanguage.zh: '你好，我是云音助手。想听什么歌，直接告诉我就好。'},
-    bindings: [EngineVoice('system', {VoiceLanguage.zh: 'male'})],
+    bindings: [
+      EngineVoice('moss', {VoiceLanguage.zh: 'Junhao'}),
+      EngineVoice('system', {VoiceLanguage.zh: 'male'}),
+    ],
   );
 
   static const all = [female, male];
+
+  /// 本机语音（MOSS-TTS-Nano）的四个中文声音。官方内置的其余中文声音没有收录：“说书”偏年长，“明星”是模仿某位公众人物的声音。
+  static const mossPrefix = 'moss:';
+
+  static VoiceProfile _moss(String speaker, String name, String style, String description, {required bool female}) => VoiceProfile(
+    id: '$mossPrefix$speaker',
+    name: name,
+    style: style,
+    description: description,
+    traits: [female ? '女声' : '男声', '年轻'],
+    previewText: const {VoiceLanguage.zh: '你好，我是云音助手。这是我的声音，想听什么歌，直接告诉我就好。'},
+    bindings: [
+      EngineVoice('moss', {VoiceLanguage.zh: speaker}),
+      EngineVoice('system', {VoiceLanguage.zh: female ? 'female' : 'male'}),
+    ],
+  );
+
+  static final moss = [
+    _moss('Lingyu', '灵语', '温柔', '年轻女声，轻柔、放松，像深夜电台。', female: true),
+    _moss('Yuewen', '悦雯', '活泼', '年轻女声，明快俏皮，略带台湾口音。', female: true),
+    _moss('Junhao', '俊豪', '清朗', '年轻男声，标准普通话，干净明亮。', female: false),
+    _moss('Zhiming', '志明', '随和', '年轻男声，京味口音，聊天感强。', female: false),
+  ];
 
   /// 指定系统声音的 ID 前缀。
   static const systemPrefix = 'sys:';
@@ -86,6 +116,7 @@ abstract final class VoicePresets {
   static const _legacy = {'yunxi': 'female', 'xiaoyou': 'female', 'wanxing': 'female', 'qingchuan': 'male', 'muyan': 'male'};
 
   static VoiceProfile byId(String? id) {
+    if (id != null && id.startsWith(mossPrefix)) return moss.where((v) => v.id == id).firstOrNull ?? female;
     if (id != null && id.startsWith(systemPrefix)) return system(id.substring(systemPrefix.length), label: systemLabels[id.substring(systemPrefix.length)]);
     final key = _legacy[id] ?? id;
     return all.where((v) => v.id == key).firstOrNull ?? female;
@@ -97,6 +128,6 @@ abstract final class VoicePresets {
   /// 按名称查找（语音指令“换成男声”）；也接受“女生 / 男生”与旧音色名。
   static VoiceProfile? byName(String name) {
     final n = const {'女生': '女声', '男生': '男声', '云汐': '女声', '小柚': '女声', '晚星': '女声', '清川': '男声', '暮言': '男声'}[name] ?? name;
-    return all.where((v) => v.name == n).firstOrNull;
+    return [...all, ...moss].where((v) => v.name == n).firstOrNull;
   }
 }

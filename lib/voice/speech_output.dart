@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../player/mpv_property.dart' if (dart.library.js_interop) '../player/mpv_property_web.dart';
 
+import 'engines/moss_engine.dart';
 import 'engines/system_engine.dart';
 import 'prosody.dart';
 import 'tts_types.dart';
@@ -94,10 +95,10 @@ class MediaKitSpeechSink extends SpeechSink {
   }
 }
 
-/// 引擎注册表与选择。现在只有系统朗读；保留注册表与失败冷却，测试可以注入假引擎。
+/// 引擎注册表与选择：本机语音（MOSS-TTS-Nano，模型下载后可用）优先，系统朗读兜底。测试可以注入假引擎。
 class VoiceEngines {
   VoiceEngines(this.settings, {List<TtsEngine>? engines})
-    : all = engines ?? [SystemTtsEngine()];
+    : all = engines ?? [MossTtsEngine(), SystemTtsEngine()];
 
   final VoiceSettings settings;
   final List<TtsEngine> all;

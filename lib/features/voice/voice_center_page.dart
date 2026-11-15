@@ -8,6 +8,7 @@ import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../voice/engines/system_engine.dart';
+import '../../voice/moss/moss_models.dart';
 import '../../voice/speech_output.dart';
 import '../../voice/tts_types.dart';
 import '../../voice/voice_library.dart';
@@ -26,8 +27,8 @@ abstract final class _C {
 
 /// 音色中心：试听并选择云音助手的声音。
 ///
-/// 声音全部来自系统自带的语音引擎：女声 / 男声按音高自动选择，也可以指定系统里的某一个中文声音
-/// （Android 上逐个列出，例如三星、谷歌的中文语音）。想要更多声音，可以在系统的“文字转语音”设置里安装。
+/// 首选本机语音（MOSS-TTS-Nano 的四个年轻中文声音，下载一次模型后离线合成）；没有下载或设备不支持时，
+/// 用系统自带的语音引擎：女声 / 男声按音高自动选择，也可以指定系统里的某一个中文声音。
 class VoiceCenterPage extends StatefulWidget {
   const VoiceCenterPage({super.key});
 
@@ -51,12 +52,15 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    MossDownload.instance.addListener(_onDownload);
     _loadSystem();
+    _loadMoss();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    MossDownload.instance.removeListener(_onDownload);
     super.dispose();
   }
 
@@ -64,6 +68,33 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> with WidgetsBindingOb
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _loadSystem();
+  }
+
+  /// 本机语音：设备是否支持、模型是否已下载（为 null 表示还在检查）。
+  bool? _mossSupported;
+  bool _mossReady = false;
+
+  Future<void> _loadMoss() async {
+    final supported = await MossModels.supported();
+    final ready = supported && await MossModels.ready();
+    if (!mounted) return;
+    setState(() {
+      _mossSupported = supported;
+      _mossReady = ready;
+    });
+  }
+
+  /// 下载进度变化时刷新；下载结束后重新检查模型。
+  void _onDownload() {
+    if (!mounted) return;
+    setState(() {});
+    if (!MossDownload.instance.running) _loadMoss();
+  }
+
+  Future<void> _deleteMoss() async {
+    await context.read<SpeechOutput>().stop();
+    await MossModels.delete();
+    await _loadMoss();
   }
 
   Future<void> _loadSystem() async {
@@ -111,8 +142,11 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> with WidgetsBindingOb
               ],
             ),
             const SizedBox(height: 4),
-            Text('云音助手使用系统自带的语音引擎，不用下载，也不联网。女声、男声按音调自动选择系统里最合适的声音，也可以在下面指定某一个声音。', style: ts(13.5, height: 1.5, color: _C.text2)),
+            Text('首选本机语音：四个年轻的中文声音，在手机上离线合成，不联网。没有下载模型时，用系统自带的语音引擎。', style: ts(13.5, height: 1.5, color: _C.text2)),
             const SizedBox(height: 14),
+            ..._mossSection(s),
+            Text('自动', style: ts(17, weight: w700, color: _C.text)),
+            const SizedBox(height: 10),
             for (final v in VoicePresets.all) ...[_voiceCard(v, s), const SizedBox(height: 12)],
             if (_android) ...[
               const SizedBox(height: 8),
@@ -158,6 +192,63 @@ class _VoiceCenterPageState extends State<VoiceCenterPage> with WidgetsBindingOb
         ),
       ),
     );
+  }
+
+  List<Widget> _mossSection(VoiceSettings s) {
+    final supported = _mossSupported;
+    if (supported == null) return const [];
+    final dl = MossDownload.instance;
+    final mb = (MossModels.totalBytes / (1 << 20)).round();
+    return [
+      Text('本机语音', style: ts(17, weight: w700, color: _C.text)),
+      const SizedBox(height: 6),
+      if (!supported)
+        Text('本机语音需要内存 6 GB 以上的 Android 手机；这台设备使用系统朗读。', style: ts(13, height: 1.5, color: _C.text2))
+      else if (!_mossReady)
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: _C.border)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('MOSS-TTS-Nano', style: ts(16, weight: w700, color: _C.text)),
+              const SizedBox(height: 6),
+              Text(
+                '复旦大学 OpenMOSS 团队开源的语音合成模型（Apache-2.0）。灵语、悦雯两个女声，俊豪、志明两个男声，48 kHz 高清音质。'
+                '需要下载一次模型（约 $mb MB，建议连接 Wi‑Fi），之后完全离线。',
+                style: ts(13, height: 1.5, color: _C.text2),
+              ),
+              const SizedBox(height: 12),
+              if (dl.running) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(value: dl.progress, minHeight: 6, color: _C.accent, backgroundColor: _C.border),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: Text('正在下载 ${((dl.progress ?? 0) * 100).toStringAsFixed(0)}%（约 $mb MB）', style: ts(13, color: _C.text2))),
+                    _Button('暂停', primary: false, onTap: dl.cancel),
+                  ],
+                ),
+              ] else ...[
+                _Button('下载本机语音（约 $mb MB）', icon: YIcons.download, primary: true, onTap: dl.start),
+                if (dl.error != null) ...[const SizedBox(height: 8), Text(dl.error!, maxLines: 3, style: ts(12.5, height: 1.4, color: _C.danger))],
+              ],
+            ],
+          ),
+        )
+      else ...[
+        for (final v in VoicePresets.moss) ...[_voiceCard(v, s), const SizedBox(height: 12)],
+        Row(
+          children: [
+            Expanded(child: Text('模型约 $mb MB，第一次说话需要几秒加载。', style: ts(12.5, color: _C.text2))),
+            _Button('删除模型', primary: false, onTap: _deleteMoss),
+          ],
+        ),
+      ],
+      const SizedBox(height: 18),
+    ];
   }
 
   Widget _voiceCard(VoiceProfile v, VoiceSettings s, {String? detail}) {
