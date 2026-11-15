@@ -243,12 +243,17 @@ void main() {
       return level;
     }
 
+    // 和 1 kHz 参考音的变化比较：没有限幅器的平台（Android 的精简版播放引擎）会先整体压低电平留出余量，
+    // 防止削波；低频增强要做到的是低频相对于其他频段明显变响。
+    final refOff = await render(1000);
+    final refBass = await render(1000, bass: 1);
+    final refAir = await render(1000, spatial: 1);
     final bassOff = await render(62);
     final bassOn = await render(62, bass: 1);
-    expect(bassOn - bassOff, greaterThan(2.0), reason: '低频增强没有提升低频电平');
+    expect((bassOn - bassOff) - (refBass - refOff), greaterThan(2.0), reason: '低频增强没有让低频相对变响');
     final airOff = await render(8000);
     final airOn = await render(8000, spatial: 1);
-    expect(airOn - airOff, greaterThan(1.0), reason: '空间音效的声场曲线没有生效');
+    expect((airOn - airOff) - (refAir - refOff), greaterThan(1.0), reason: '空间音效的声场曲线没有生效');
   });
 }
 

@@ -69,6 +69,11 @@ void main() {
     expect(boosted.indexOf('volume=6dB'), lessThan(boosted.indexOf('alimiter')));
     expect(boosted, contains('level=0'), reason: '限幅器不做自动电平，不改变整体响度');
     expect(PlayerController.audioFilter(boostDb: 4), 'format=format=floatp,lavfi=[volume=4dB,alimiter=limit=0.944:attack=1:release=80:level=0]');
+    // 有限幅器的平台：均衡器有提升时由限幅器防止削波；只有衰减时不需要。
+    final limited = PlayerController.audioFilter(gains: [4, 0, 0, 0, 0, 0, 0, 0, 0, 0], limit: true);
+    expect(limited.indexOf('equalizer'), lessThan(limited.indexOf('alimiter')));
+    expect(limited, isNot(contains('volume=')));
+    expect(PlayerController.audioFilter(gains: [-4, 0, 0, 0, 0, 0, 0, 0, 0, 0], limit: true), isNot(contains('alimiter')));
   });
 
   test('没有限幅器时按峰值智能增强：提升后不超过满刻度，不知道峰值时不提升', () {

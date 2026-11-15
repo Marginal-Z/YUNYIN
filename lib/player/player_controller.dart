@@ -431,11 +431,14 @@ class PlayerController extends ChangeNotifier {
 
   /// 完整的音频滤镜：均衡器各频段，以及（[boostDb] 大于 0 时）增益与限幅器。
   /// 限幅器（alimiter，-0.5 dBFS，1 ms 起始、80 ms 释放，不做自动电平）放在最后，增益与均衡器提升都不会削波。
-  static String audioFilter({List<double> gains = const [], int boostDb = 0}) {
+  /// [limit] 为 true 时即使没有增益也加限幅器（均衡器有提升时用它代替预先压低电平，提升的频段真正变响）。
+  static String audioFilter({List<double> gains = const [], int boostDb = 0, bool limit = false}) {
+    final limiter = boostDb > 0 || (limit && gains.any((g) => g >= 0.05));
     final parts = <String>[
       for (var i = 0; i < gains.length && i < kEqBands.length; i++)
         if (gains[i].abs() >= 0.05) 'equalizer=f=${kEqBands[i]}:width_type=o:width=1:g=${gains[i].toStringAsFixed(1)}',
-      if (boostDb > 0) ...['volume=${boostDb}dB', 'alimiter=limit=0.944:attack=1:release=80:level=0'],
+      if (boostDb > 0) 'volume=${boostDb}dB',
+      if (limiter) 'alimiter=limit=0.944:attack=1:release=80:level=0',
     ];
     if (parts.isEmpty) return '';
     return 'format=format=floatp,lavfi=[${parts.join(',')}]';
@@ -534,6 +537,8 @@ class PlayerController extends ChangeNotifier {
   String get _wantedFilter => audioFilter(
     gains: _filterGains,
     boostDb: _limiterBoost ? settings.volumeBoost : 0,
+    // 桌面端的播放引擎有限幅器：均衡器有提升时由它防止削波；Android 的精简版没有，改为预先压低电平（见 _eqHeadroom）。
+    limit: !_isAndroid && !limiterUnsupported,
   );
 
   void _scheduleEq() {
