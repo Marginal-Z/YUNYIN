@@ -194,6 +194,7 @@ class SongBadges extends StatelessWidget {
   static Color colorOf(String platform) => switch (platform) {
     'qq' => const Color(0xFF1DB954),
     'kugou' => const Color(0xFF2CA2F9),
+    'qishui' => const Color(0xFF13B866),
     'kuwo' => const Color(0xFFF2A100),
     _ => const Color(0xFFFF3A3A),
   };

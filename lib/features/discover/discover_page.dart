@@ -106,33 +106,35 @@ class _Recommend extends StatelessWidget {
               );
             },
           ),
-        AsyncView<PlaylistInfo>(
-          cacheKey: 'discover:${source.id}:soaring',
-          load: source.soaringChart,
-          builder: (context, chart, _) {
-            final songs = (chart.tracks ?? const <Song>[]).take(desktop ? 10 : 5).toList();
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SectionHeader('飙升榜', top: 26, action: '完整榜单', onAction: () => openPlaylist(context, chart)),
-                CardList(
-                  indent: 68,
-                  children: [
-                    for (var i = 0; i < songs.length; i++)
-                      SongRow(
-                        song: songs[i],
-                        lead: SongLead.rank,
-                        number: i + 1,
-                        trailing: SongTrailing.play,
-                        onTap: () => playAll(context, chart.tracks!, start: i, title: chart.name),
-                      ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
-        if (desktop && source.supports(SourceFeature.playlistCategories))
+        // 没有排行榜的平台（汽水音乐）不显示飙升榜，推荐歌单在手机上也显示。
+        if (source.supports(SourceFeature.charts))
+          AsyncView<PlaylistInfo>(
+            cacheKey: 'discover:${source.id}:soaring',
+            load: source.soaringChart,
+            builder: (context, chart, _) {
+              final songs = (chart.tracks ?? const <Song>[]).take(desktop ? 10 : 5).toList();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SectionHeader('飙升榜', top: 26, action: '完整榜单', onAction: () => openPlaylist(context, chart)),
+                  CardList(
+                    indent: 68,
+                    children: [
+                      for (var i = 0; i < songs.length; i++)
+                        SongRow(
+                          song: songs[i],
+                          lead: SongLead.rank,
+                          number: i + 1,
+                          trailing: SongTrailing.play,
+                          onTap: () => playAll(context, chart.tracks!, start: i, title: chart.name),
+                        ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        if ((desktop && source.supports(SourceFeature.playlistCategories)) || !source.supports(SourceFeature.charts))
           AsyncView<List<PlaylistInfo>>(
             cacheKey: 'discover:${source.id}:recommend:12',
             load: () => source.recommendPlaylists(limit: 12),

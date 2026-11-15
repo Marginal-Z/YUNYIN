@@ -405,6 +405,7 @@ class _CommentsPageState extends State<CommentsPage> {
                           'netease' => 'https://music.163.com/song?id=${song.id}',
                           'qq' => 'https://y.qq.com/n/ryqq/songDetail/${song.id.split(':').first}',
                           'kugou' => 'https://www.kugou.com/song/#hash=${song.id.split(':').first}',
+                          'qishui' => 'https://music.douyin.com/qishui/share/track?track_id=${song.id}',
                           _ => '${song.name} - ${song.artistText}',
                         };
                         Clipboard.setData(ClipboardData(text: url));

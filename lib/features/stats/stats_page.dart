@@ -35,6 +35,7 @@ String platformName(String id) => switch (id) {
   'netease' => '网易云音乐',
   'qq' => 'QQ 音乐',
   'kugou' => '酷狗音乐',
+  'qishui' => '汽水音乐',
   'lx' => '洛雪曲库',
   'local' => '本地音乐',
   _ => id,

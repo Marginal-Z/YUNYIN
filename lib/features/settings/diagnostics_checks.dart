@@ -101,6 +101,7 @@ final List<DiagnosticCheck> diagnosticChecks = [
       ('网易云音乐', 'https://music.163.com/'),
       ('QQ 音乐', 'https://y.qq.com/'),
       ('酷狗音乐', 'https://www.kugou.com/'),
+      ('汽水音乐', 'https://music.douyin.com/qishui/'),
       ('模型下载（GitHub）', 'https://github.com/k2-fsa/sherpa-onnx/releases'),
     ];
     final results = await Future.wait([

@@ -9,6 +9,7 @@ import '../../core/ui/icons.dart';
 import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
+import '../../data/sources/music_source.dart';
 import '../../data/sources/source_manager.dart';
 import '../comments/comments_page.dart';
 import '../common/layout.dart';
@@ -170,71 +171,74 @@ class SearchSuggestions extends StatelessWidget {
           ),
           Wrap(spacing: 10, runSpacing: 10, children: [for (final h in history) YChip(h, height: 36, onTap: () => submitSearch(context, h))]),
         ],
-        SectionHeader('热搜榜', action: '完整榜单', onAction: () => context.read<AppNav>().push(DiscoverRoute(tab: 1))),
-        AsyncView<List<HotSearch>>(
-          keyValue: sources.generation,
-          cacheKey: 'hotSearches',
-          load: sources.current.hotSearches,
-          builder: (context, list, _) => CardList(
-            indent: 50,
-            children: [
-              for (var i = 0; i < list.length && i < 20; i++)
-                Pressable(
-                  onTap: () => submitSearch(context, list[i].keyword),
-                  scale: 1,
-                  hoverColor: p.separator.withValues(alpha: 0.06),
-                  child: SizedBox(
-                    height: 46,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 22,
-                            child: Text(
-                              '${i + 1}',
-                              style: ts(16, weight: w700, color: i < 3 ? p.accentText : p.muted, tabular: true),
+        // 没有热搜接口的平台（汽水音乐）不显示热搜榜。
+        if (sources.current.supports(SourceFeature.hotSearch)) ...[
+          SectionHeader('热搜榜', action: '完整榜单', onAction: () => context.read<AppNav>().push(DiscoverRoute(tab: 1))),
+          AsyncView<List<HotSearch>>(
+            keyValue: sources.generation,
+            cacheKey: 'hotSearches',
+            load: sources.current.hotSearches,
+            builder: (context, list, _) => CardList(
+              indent: 50,
+              children: [
+                for (var i = 0; i < list.length && i < 20; i++)
+                  Pressable(
+                    onTap: () => submitSearch(context, list[i].keyword),
+                    scale: 1,
+                    hoverColor: p.separator.withValues(alpha: 0.06),
+                    child: SizedBox(
+                      height: 46,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 22,
+                              child: Text(
+                                '${i + 1}',
+                                style: ts(16, weight: w700, color: i < 3 ? p.accentText : p.muted, tabular: true),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    list[i].keyword,
-                                    style: ts(15, weight: w600, color: p.text),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      list[i].keyword,
+                                      style: ts(15, weight: w600, color: p.text),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                                if (list[i].tag != null) ...[
-                                  const SizedBox(width: 8),
-                                  Tag(
-                                    switch (list[i].tag) {
-                                      'hot' => '热',
-                                      'new' => '新',
-                                      _ => '升',
-                                    },
-                                    kind: switch (list[i].tag) {
-                                      'hot' => TagKind.hot,
-                                      'new' => TagKind.fresh,
-                                      _ => TagKind.up,
-                                    },
-                                  ),
+                                  if (list[i].tag != null) ...[
+                                    const SizedBox(width: 8),
+                                    Tag(
+                                      switch (list[i].tag) {
+                                        'hot' => '热',
+                                        'new' => '新',
+                                        _ => '升',
+                                      },
+                                      kind: switch (list[i].tag) {
+                                        'hot' => TagKind.hot,
+                                        'new' => TagKind.fresh,
+                                        _ => TagKind.up,
+                                      },
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                          if (list[i].score > 0) Text(formatCount(list[i].score), style: ts(12, color: p.text2, tabular: true)),
-                        ],
+                            if (list[i].score > 0) Text(formatCount(list[i].score), style: ts(12, color: p.text2, tabular: true)),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

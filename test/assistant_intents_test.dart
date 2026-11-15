@@ -56,6 +56,8 @@ void main() {
     expect(app('切换到网易云').action, AppAction.platform);
     expect(app('切换到QQ音乐').value, 'QQ音乐');
     expect(app('酷狗模式').value, '酷狗');
+    expect(app('切换到汽水音乐').value, '汽水');
+    expect(app('汽水音乐模式').value, '汽水');
     expect(app('打开深色模式').value, 'dark');
     expect(app('关闭深色模式').value, 'light');
     expect(app('切换到浅色模式').value, 'light');

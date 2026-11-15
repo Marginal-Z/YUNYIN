@@ -239,11 +239,12 @@ class AppSettings extends ChangeNotifier {
   String _platform = 'netease';
   final Map<String, (int, int)> _platformStyles = {};
 
-  /// 各平台第一次使用时的默认样式：网易云朱红 + 封面，QQ 音乐绿色 + 卡片流，酷狗蓝色 + 3D 封面流。
+  /// 各平台第一次使用时的默认样式：网易云朱红 + 封面，QQ 音乐绿色 + 卡片流，酷狗蓝色 + 3D 封面流，汽水音乐石墨 + 沉浸。
   static const _platformDefaults = {
     'netease': (AccentColor.red, PlayerStyle.cover),
     'qq': (AccentColor.teal, PlayerStyle.cardFlow),
     'kugou': (AccentColor.blue, PlayerStyle.coverFlow),
+    'qishui': (AccentColor.graphite, PlayerStyle.immersive),
     'lx': (AccentColor.orange, PlayerStyle.wall),
   };
 

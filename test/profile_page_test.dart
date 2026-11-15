@@ -7,6 +7,7 @@ import 'package:yunyin/core/theme/palette.dart';
 import 'package:yunyin/data/listen_stats.dart';
 import 'package:yunyin/data/sources/kugou/kugou_source.dart';
 import 'package:yunyin/data/sources/netease/netease_source.dart';
+import 'package:yunyin/data/sources/qishui/qishui_source.dart';
 import 'package:yunyin/data/sources/qq/qq_source.dart';
 import 'package:yunyin/data/sources/source_manager.dart';
 import 'package:yunyin/features/profile/profile_page.dart';
@@ -16,7 +17,7 @@ void main() {
   testWidgets('个人中心：会员卡片随平台切换，可切换平台模式', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final netease = NeteaseSource();
-    final sm = SourceManager([netease, QQMusicSource(), KugouSource()]);
+    final sm = SourceManager([netease, QQMusicSource(), KugouSource(), QishuiSource()]);
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -52,6 +53,15 @@ void main() {
     expect(find.text('QQ 音乐会员可播放会员歌曲与更高音质'), findsOneWidget);
     // 平台切换按钮带平台标志。
     expect(find.byType(PlatformMark), findsWidgets);
+
+    // 汽水音乐不支持登录：游客模式，说明会员歌曲只能试听。
+    await tester.tap(find.text('汽水音乐'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(sm.current.id, 'qishui');
+    expect(find.text('游客模式'), findsWidgets);
+    expect(find.textContaining('会员歌曲只能试听'), findsOneWidget);
+    expect(find.text('登录'), findsNothing);
+    expect(tester.takeException(), isNull);
     await tester.pumpAndSettle(const Duration(seconds: 3));
   });
 }

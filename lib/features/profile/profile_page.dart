@@ -71,12 +71,12 @@ class ProfilePage extends StatelessWidget {
         const SizedBox(height: 16),
         _MembershipCard(key: ValueKey('${source.id}:${user?.id}:${sm.generation}'), source: source),
         SectionHeader('平台模式', top: 26),
-        Text('四个平台彼此独立：切换后首页、发现、搜索、排行榜、账号、播放队列与界面样式都换成该平台，只播放该平台的歌曲。', style: ts(13, height: 1.5, color: p.text2)),
+        Text('五个平台彼此独立：切换后首页、发现、搜索、排行榜、账号、播放队列与界面样式都换成该平台，只播放该平台的歌曲。', style: ts(13, height: 1.5, color: p.text2)),
         const SizedBox(height: 12),
-        // 两列网格：每个平台的名称都能完整显示（手机上四个并排会被截断）。
+        // 网格：每个平台的名称都能完整显示（手机上并排会被截断，用两列）。
         LayoutBuilder(
           builder: (context, c) {
-            final cols = c.maxWidth >= 640 ? 4 : 2;
+            final cols = c.maxWidth >= 760 ? 5 : (c.maxWidth >= 640 ? 3 : 2);
             final w = (c.maxWidth - 10 * (cols - 1)) / cols;
             return Wrap(
               spacing: 10,
@@ -125,13 +125,15 @@ class ProfilePage extends StatelessWidget {
 (Color, Color) _platformColors(String id) => switch (id) {
   'qq' => (const Color(0xFF1FC27C), const Color(0xFF0A7F55)),
   'kugou' => (const Color(0xFF3A9BFF), const Color(0xFF1560C9)),
+  // 汽水音乐：图标的荧光绿渐变到黑底。
+  'qishui' => (const Color(0xFF13B866), const Color(0xFF0B1F16)),
   'lx' => (const Color(0xFFFF9F43), const Color(0xFFD9680A)),
   _ => (const Color(0xFF3A3A40), const Color(0xFF111114)),
 };
 
 /// 平台标志：各平台的官方应用图标（assets/platforms/），裁成圆角方形。
 ///
-/// 网易云音乐、QQ 音乐、酷狗音乐的图标取自各自在 App Store 的官方图标，商标归各平台所有，只用于标明平台；
+/// 网易云音乐、QQ 音乐、酷狗音乐、汽水音乐的图标取自各自在 App Store 的官方图标，商标归各平台所有，只用于标明平台；
 /// 洛雪音乐的图标来自 lx-music-desktop（Apache 2.0）。[inverted] 为 true 时（放在彩色按钮或卡片上）加一圈白边。
 class PlatformMark extends StatelessWidget {
   const PlatformMark(this.id, {super.key, this.size = 30, this.inverted = false});
@@ -143,6 +145,7 @@ class PlatformMark extends StatelessWidget {
   static String asset(String id) => switch (id) {
     'qq' => 'assets/platforms/qq.png',
     'kugou' => 'assets/platforms/kugou.png',
+    'qishui' => 'assets/platforms/qishui.png',
     'lx' => 'assets/platforms/lx.png',
     _ => 'assets/platforms/netease.png',
   };
@@ -264,7 +267,11 @@ class _MembershipCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    source.supports(SourceFeature.login) ? '${source.name}会员可播放会员歌曲与更高音质' : '无需账号，曲库与音源在“设置 → 洛雪音源”中管理',
+                    source.supports(SourceFeature.login)
+                        ? '${source.name}会员可播放会员歌曲与更高音质'
+                        : source.id == 'qishui'
+                        ? '无需账号：免费歌曲完整播放，会员歌曲只能试听（云音不接入汽水音乐的登录与会员）'
+                        : '无需账号，曲库与音源在“设置 → 洛雪音源”中管理',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: ts(12.5, height: 1.4, color: const Color(0xD9FFFFFF)),

@@ -66,7 +66,7 @@ class EffectIntent extends AssistantIntent {
 
 /// 控制云音本身的功能（大模型的 control_app 函数也使用同一套动作）。
 enum AppAction {
-  /// 切换平台模式：value 为平台名称（网易云 / QQ 音乐 / 酷狗 / 洛雪）。
+  /// 切换平台模式：value 为平台名称（网易云 / QQ 音乐 / 酷狗 / 汽水 / 洛雪）。
   platform,
 
   /// 深浅色：light / dark / system。
@@ -119,7 +119,7 @@ AppIntent? _appIntent(String s) {
   const on = '打开|开启|显示|开|启用';
   const off = '关闭|关掉|关|隐藏|收起|不要';
   // 平台模式：“切换到网易云”“用 QQ 音乐”“酷狗模式”。
-  final platform = RegExp(r'(?:切换到|切到|换到|换成|改用|使用|用)(网易云|网易|QQ音乐|qq音乐|QQ|qq|酷狗|洛雪)(?:音乐)?(?:模式|平台)?$|^(网易云|QQ音乐|qq音乐|酷狗|洛雪)(?:音乐)?模式$').firstMatch(s);
+  final platform = RegExp(r'(?:切换到|切到|换到|换成|改用|使用|用)(网易云|网易|QQ音乐|qq音乐|QQ|qq|酷狗|汽水|洛雪)(?:音乐)?(?:模式|平台)?$|^(网易云|QQ音乐|qq音乐|酷狗|汽水|洛雪)(?:音乐)?模式$').firstMatch(s);
   if (platform != null) return AppIntent(AppAction.platform, platform.group(1) ?? platform.group(2));
   // 深浅色。
   if (RegExp(r'(深色|暗色|夜间|黑暗|暗黑)模式').hasMatch(s)) return AppIntent(AppAction.themeMode, RegExp('^($off)').hasMatch(s) ? 'light' : 'dark');
