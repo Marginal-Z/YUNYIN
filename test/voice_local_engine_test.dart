@@ -50,20 +50,15 @@ void main() {
     expect(zipVoiceSteps(4, 0.1), 4);
   });
 
-  test('合成语音的后期处理：句首句尾淡入淡出，停顿里的底噪压低，说话部分不变', () {
+  test('合成语音的后期处理：句首句尾淡入淡出，中间不变', () {
     const sr = 24000;
-    // 0.3 秒 0.5 振幅的声音（从非零处开始），接 0.3 秒 -60 dB 的底噪，再接 0.3 秒声音。
-    final x = Float32List(sr * 9 ~/ 10);
-    for (var i = 0; i < x.length; i++) {
-      final loud = i < sr * 3 ~/ 10 || i >= sr * 6 ~/ 10;
-      x[i] = loud ? 0.5 * math.sin(i * 0.07 + 1) : 0.0005 * (i.isEven ? 1 : -1);
-    }
+    final x = Float32List.fromList([for (var i = 0; i < sr ~/ 2; i++) 0.5 * math.sin(i * 0.07 + 1)]);
     final y = cleanSpeech(x, sr);
     expect(y.first.abs(), lessThan(0.01), reason: '句首淡入');
     expect(y.last.abs(), lessThan(0.01), reason: '句尾淡出');
-    double rms(Float32List v, int from, int to) => math.sqrt(v.sublist(from, to).fold<double>(0, (a, b) => a + b * b) / (to - from));
-    expect(rms(y, sr * 4 ~/ 10, sr * 5 ~/ 10), lessThan(rms(x, sr * 4 ~/ 10, sr * 5 ~/ 10) * 0.2), reason: '停顿底噪压低');
-    expect(rms(y, sr ~/ 10, sr * 2 ~/ 10), closeTo(rms(x, sr ~/ 10, sr * 2 ~/ 10), 1e-6), reason: '说话部分不变');
+    for (var i = sr ~/ 100; i < x.length - sr ~/ 100; i++) {
+      expect(y[i], x[i]);
+    }
   });
 
   test('本地引擎：在后台 isolate 中按参考录音合成，女声与男声音高分得开', () async {

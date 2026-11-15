@@ -255,7 +255,7 @@ class _LoginPageState extends State<LoginPage> {
                     // 酷狗：官方登录页（应用内网页）或粘贴 Cookie。
                     KugouLoginCard(onDone: _done, onQr: _qrLogin),
                   ] else ...[
-                    // 只支持扫码登录的平台（QQ 音乐）：直接给出扫码入口。
+                    // 只支持扫码登录的平台（网易云音乐、QQ 音乐）：直接给出扫码入口。
                     Text(
                       '使用手机上的 ${source.id == 'qq' ? 'QQ 或 TIM' : '${source.name} App'} 扫码，确认后即可登录${source.name}',
                       style: ts(14, height: 1.5, color: p.text2),
@@ -312,9 +312,9 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
-          // 酷狗的登录方式都在卡片里（两个版本的扫码、网页登录与 Cookie），不支持邮箱与密码，不显示这一行；
-          // 卡片也比其他平台高，显示时会和它重叠。
-          if (!source.supports(SourceFeature.cookieLogin))
+          // 只有还支持邮箱与密码登录的平台才显示“其他登录方式”：网易云与 QQ 音乐只能扫码（主按钮就是扫码），
+          // 酷狗的登录方式都在卡片里（卡片也比其他平台高，显示时会和这一行重叠）。
+          if (canPwd && !source.supports(SourceFeature.cookieLogin))
             Positioned(
               left: 20,
               right: 20,
@@ -329,7 +329,7 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
             ),
-          if (!source.supports(SourceFeature.cookieLogin))
+          if (canPwd && !source.supports(SourceFeature.cookieLogin))
             Positioned(
               left: 20,
               right: 20,

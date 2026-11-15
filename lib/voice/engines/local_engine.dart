@@ -239,38 +239,11 @@ Future<void> _extract((String, String) args) async {
 @visibleForTesting
 int zipVoiceSteps(int steps, double rtf) => rtf > 0.7 ? math.max(3, steps - 1) : (rtf < 0.35 ? math.min(4, steps + 1) : steps);
 
-/// 合成语音的后期处理：
-/// - 句首、句尾各淡入淡出 8 毫秒：波形从非零处突然开始或结束会“咔”一声，逐句播放时每句都有；
-/// - 句中停顿的底噪压低：20 毫秒一帧，比全句峰值低 45 dB 以上的帧按比例衰减（最多 -24 dB），
-///   增益逐帧平滑过渡，不会切掉轻声的字尾，只去掉停顿里的沙沙声。
+/// 合成语音的后期处理：句首、句尾各淡入淡出 8 毫秒（波形从非零处突然开始或结束会“咔”一声，逐句播放时每句都有）。
+/// 不做降噪或门限处理：实测对粗糙度没有改善，反而可能在轻声的字尾上忽大忽小。
 @visibleForTesting
 Float32List cleanSpeech(Float32List x, int sampleRate) {
   final y = Float32List.fromList(x);
-  if (y.isEmpty) return y;
-  var peak = 0.0;
-  for (final v in y) {
-    peak = math.max(peak, v.abs());
-  }
-  if (peak <= 0) return y;
-  final frame = sampleRate ~/ 50;
-  final threshold = peak * 0.0056; // -45 dB
-  var gain = 1.0;
-  for (var i = 0; i < y.length; i += frame) {
-    final end = math.min(y.length, i + frame);
-    var acc = 0.0;
-    for (var j = i; j < end; j++) {
-      acc += y[j] * y[j];
-    }
-    final rms = math.sqrt(acc / (end - i));
-    // 低于门限时按距离线性压低，最低 -24 dB（0.063）。
-    final target = rms >= threshold ? 1.0 : math.max(0.063, rms / threshold);
-    // 打开快（一帧到位，不吃字头），关闭慢（每帧最多降一半）。
-    final next = target > gain ? target : math.max(target, gain * 0.5);
-    for (var j = i; j < end; j++) {
-      y[j] *= gain + (next - gain) * (j - i) / (end - i);
-    }
-    gain = next;
-  }
   final fade = math.min(y.length ~/ 2, sampleRate * 8 ~/ 1000);
   for (var i = 0; i < fade; i++) {
     final g = i / fade;

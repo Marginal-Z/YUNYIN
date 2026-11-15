@@ -198,10 +198,10 @@ class PlayerController extends ChangeNotifier {
     }
     await _applyFx();
     // “高解析输出”打开时以 32 位浮点交给系统，保留解码后的完整动态范围。
-    await setMpvProperty(p, 'audiotrack-pcm-float', settings.hiResOutput ? 'yes' : 'no');
+    await setMpvProperty(p, 'audiotrack-pcm-float', _wantFloat ? 'yes' : 'no');
     if (settings.openSles) await setMpvProperty(p, 'ao', 'opensles');
     _openSles = settings.openSles;
-    _hiRes = settings.hiResOutput;
+    _hiRes = _wantFloat;
   }
 
   /// 各平台通用的输出设置：
@@ -222,7 +222,15 @@ class PlayerController extends ChangeNotifier {
   static bool get _exclusiveSupported => !kIsWeb && (Platform.isWindows || Platform.isMacOS);
 
   bool _openSles = false;
+  /// 当前是否以 32 位浮点交给系统（Android）。
   bool _hiRes = false;
+
+  /// 系统音效链的限幅器已经启用（均衡器、低频增强、空间音效有提升或开了音量增强时）。
+  bool _fxLimiter = false;
+
+  /// 以浮点输出：用户打开了“高解析输出”，或者有提升并且系统限幅器可用——浮点格式下超过满刻度的采样能完整
+  /// 到达限幅器，提升的频段真正变响而不削波；16 位输出只能整体压低电平留出余量，均衡器与低频增强听起来就像没效果。
+  bool get _wantFloat => settings.hiResOutput || (_fxLimiter && _fxSession != 0);
   bool _exclusive = false;
   bool _normalize = true;
   bool? _hifi;
@@ -253,8 +261,8 @@ class PlayerController extends ChangeNotifier {
       _openSles = settings.openSles;
       reload = await setMpvProperty(p, 'ao', _openSles ? 'opensles' : 'audiotrack,opensles');
     }
-    if (Platform.isAndroid && settings.hiResOutput != _hiRes) {
-      _hiRes = settings.hiResOutput;
+    if (Platform.isAndroid && _wantFloat != _hiRes) {
+      _hiRes = _wantFloat;
       reload = await setMpvProperty(p, 'audiotrack-pcm-float', _hiRes ? 'yes' : 'no') || reload;
     }
     if (_exclusiveSupported && settings.exclusiveAudio != _exclusive) {
@@ -519,12 +527,16 @@ class PlayerController extends ChangeNotifier {
         'bass': eqUnsupported ? settings.bassEnhance : 0.0,
       });
       _nativeBoost = settings.volumeBoost > 0 && r?['limiter'] == true;
+      _fxLimiter = r?['limiter'] == true;
       spatialUnsupported = settings.spatial > 0 && r?['spatial'] == false;
       bassUnsupported = eqUnsupported && settings.bassEnhance > 0 && r?['bass'] == false;
     } catch (e) {
       debugPrint('audio fx: $e');
       _nativeBoost = false;
+      _fxLimiter = false;
     }
+    // 有没有提升决定以浮点还是 16 位输出（见 _wantFloat）；变化时在原位置重新加载当前歌曲。
+    await _applyOutput();
     await _applyVolume();
     notifyListeners();
   }
@@ -534,7 +546,7 @@ class PlayerController extends ChangeNotifier {
     if (_eqApplied.isEmpty || eqUnsupported) return 1;
     // 后面有限幅器时不需要预先压低电平。Android 的系统限幅器在 mpv 之后：只有以浮点格式交给系统时
     // （高解析输出），超过满刻度的采样才能完整到达限幅器，否则在转换为 16 位时已经削波。
-    if (_eqApplied.contains('alimiter') || (_isAndroid && _fxSession != 0 && settings.hiResOutput)) return 1;
+    if (_eqApplied.contains('alimiter') || (_isAndroid && _fxSession != 0 && _hiRes)) return 1;
     final db = eqHeadroomDb(_filterGains);
     return db > 0 ? math.pow(10, -db / 20).toDouble() : 1;
   }

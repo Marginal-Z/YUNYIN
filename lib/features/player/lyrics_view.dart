@@ -675,7 +675,8 @@ class _LineView extends StatelessWidget {
       duration: _dur,
       curve: Curves.easeOutCubic,
       builder: (context, s, child) => ImageFiltered(
-        enabled: s > 0.2,
+        // 很轻的模糊（不到 0.8）看起来像重影而不是虚化，直接不加。
+        enabled: s >= 0.8,
         imageFilter: ui.ImageFilter.blur(sigmaX: s, sigmaY: s, tileMode: TileMode.decal),
         child: child,
       ),
@@ -1020,7 +1021,19 @@ class _RenderKaraoke extends RenderBox {
       final up = Curves.easeOutCubic.transform((ms / math.max(dur, 500)).clamp(0.0, 1.0)) * lift;
       lifts.add((up * pixelRatio).roundToDouble() / pixelRatio);
     }
-    Rect clipOf(Rect r) => Rect.fromLTRB(r.left - 1, r.top - fontSize * 0.3, r.right + 1, r.bottom + fontSize * 0.3).shift(offset);
+    // 每个字的裁剪框：与相邻的字正好接在一起，只在一行的开头和结尾向外放宽（留给字形伸出的部分）。
+    // 此前每个框左右各放宽 1 像素，相邻两个字的框重叠：一个字已经上浮、旁边的字还没有时，重叠的那一条被画了两次、
+    // 高度不同，看起来是字边上的重影。
+    final all = [for (final boxes in _wordBoxes) ...boxes];
+    bool touches(double x, double top, {required bool left}) =>
+        all.any((o) => (o.top - top).abs() < 0.5 && ((left ? o.right : o.left) - x).abs() < 0.5);
+    final pad = fontSize * 0.2;
+    Rect clipOf(Rect r) => Rect.fromLTRB(
+      touches(r.left, r.top, left: true) ? r.left : r.left - pad,
+      r.top - fontSize * 0.3,
+      touches(r.right, r.top, left: false) ? r.right : r.right + pad,
+      r.bottom + fontSize * 0.3,
+    ).shift(offset);
 
     // 未唱部分：每个字按各自的上浮位置绘制。
     for (var i = 0; i < words.length; i++) {

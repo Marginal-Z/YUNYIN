@@ -55,11 +55,12 @@ class AudioEffectsPage extends StatelessWidget {
               value: unsupported ? '当前设备不支持' : null,
               trailing: YSwitch(value: s.eqEnabled && !unsupported, label: '均衡器', onChanged: unsupported ? (_) {} : (v) => s.setFlag('eqEnabled', v)),
             ),
+            // 关闭时也能直接拖动频段或选预设，一调就自动打开均衡器（此前关闭时滑块不响应，看起来像“无法调节”）。
             AnimatedOpacity(
-              opacity: s.eqEnabled && !unsupported ? 1 : 0.4,
+              opacity: s.eqEnabled && !unsupported ? 1 : 0.55,
               duration: const Duration(milliseconds: 200),
               child: IgnorePointer(
-                ignoring: !s.eqEnabled || unsupported,
+                ignoring: unsupported,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
                   child: Column(
@@ -70,7 +71,10 @@ class AudioEffectsPage extends StatelessWidget {
                         child: Row(
                           children: [
                             for (final preset in EqPreset.ordered) ...[
-                              YChip(preset.label, selected: s.eqPreset == preset, onTap: () => s.setEqPreset(preset)),
+                              YChip(preset.label, selected: s.eqEnabled && s.eqPreset == preset, onTap: () {
+                                if (!s.eqEnabled) s.setFlag('eqEnabled', true);
+                                s.setEqPreset(preset);
+                              }),
                               const SizedBox(width: 8),
                             ],
                           ],
@@ -87,14 +91,17 @@ class AudioEffectsPage extends StatelessWidget {
                                 child: _BandSlider(
                                   label: kEqBands[i] >= 1000 ? '${kEqBands[i] ~/ 1000}k' : '${kEqBands[i]}',
                                   value: s.eqGains[i],
-                                  onChanged: (v) => s.setEqGain(i, v),
+                                  onChanged: (v) {
+                                    if (!s.eqEnabled) s.setFlag('eqEnabled', true);
+                                    s.setEqGain(i, v);
+                                  },
                                 ),
                               ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text('上下拖动调节各频段（±12 dB），双击恢复为 0。', style: ts(12, color: p.text2)),
+                      Text('上下拖动调节各频段（±12 dB），双击恢复为 0。均衡器关闭时，拖动频段或选预设会自动打开。', style: ts(12, color: p.text2)),
                     ],
                   ),
                 ),

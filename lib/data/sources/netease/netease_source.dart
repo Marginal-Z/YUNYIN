@@ -53,8 +53,9 @@ class NeteaseSource extends MusicSource {
   @override
   String get description => '官方接口 · 支持登录、每日推荐、评论与歌词';
 
+  /// 只用扫码登录：手机号验证码与密码登录会被网易云的风控拦下（提示需要安全验证），实际登不上。
   @override
-  Set<SourceFeature> get features => SourceFeature.values.toSet();
+  Set<SourceFeature> get features => SourceFeature.values.toSet()..removeAll(const {SourceFeature.smsLogin, SourceFeature.passwordLogin});
 
   @override
   UserProfile? get user => _user;
