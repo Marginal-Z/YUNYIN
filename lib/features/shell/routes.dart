@@ -20,6 +20,7 @@ import '../voice/voice_center_page.dart';
 import '../settings/appearance_page.dart';
 import '../settings/audio_effects_page.dart';
 import '../settings/diagnostics_page.dart';
+import '../settings/equalizer_page.dart';
 import '../settings/lx_page.dart';
 import '../settings/lyrics_overlay_page.dart';
 import '../settings/settings_more_page.dart';
@@ -50,6 +51,7 @@ Widget buildMobileRoute(AppRoute r) => switch (r) {
   StorageSettingsRoute() => const StorageSettingsPage(),
   LyricsOverlayRoute() => const LyricsOverlayPage(),
   AudioEffectsRoute() => const AudioEffectsPage(),
+  EqualizerRoute() => const EqualizerPage(),
   LxSourcesRoute() => const LxSourcesPage(),
   LocalMatchRoute(:final song) => LocalMatchPage(song: song),
   CloudDrivesRoute() => const CloudDrivesPage(),

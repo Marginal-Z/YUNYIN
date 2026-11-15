@@ -606,7 +606,7 @@ class PlayerController extends ChangeNotifier {
     // 不连带关闭均衡器。
     if (_eqApplied.contains('alimiter') && !limiterUnsupported) {
       limiterUnsupported = true;
-      unawaited(_countFailure('limiterFailures.v2'));
+      unawaited(_countFailure('limiterFailures.v3'));
       final p = _player;
       final want = _wantedFilter;
       if (p != null && await setMpvProperty(p, 'af', want)) _eqApplied = want;
@@ -616,7 +616,7 @@ class PlayerController extends ChangeNotifier {
     }
     if (eqUnsupported) return;
     eqUnsupported = true;
-    unawaited(_countFailure('eqFailures.v2'));
+    unawaited(_countFailure('eqFailures.v3'));
     // 低频增强改由系统的 BassBoost 完成。
     _scheduleFx();
     final p = _player;
@@ -624,6 +624,19 @@ class PlayerController extends ChangeNotifier {
     _eqApplied = '';
     notifyListeners();
     _notices.add(const PlayerNotice('均衡器不可用', message: '当前设备的播放引擎不支持均衡器，已自动关闭。'));
+  }
+
+  /// 均衡器页的“重新检测”：清掉“不支持”的记录，重新加上滤镜（真的不支持时会再次报错并关闭）。
+  Future<void> retryEq() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('eqFailures.v3');
+    await prefs.remove('limiterFailures.v3');
+    _failedThisRun.clear();
+    eqUnsupported = false;
+    limiterUnsupported = false;
+    notifyListeners();
+    await _applyEq();
+    _scheduleFx();
   }
 
   Future<void> _applyVolume() async {
@@ -1117,12 +1130,17 @@ class PlayerController extends ChangeNotifier {
   }
 
   /// 均衡器滤镜在个别播放引擎中无法创建时，mpv 不报错而是一直停在开头：
-  /// 打开均衡器的歌曲 4 秒后仍没有开始播放，就关闭均衡器、记住当前设备不支持，并在原位置重新播放。
+  /// 打开均衡器的歌曲 4 秒后仍没有开始播放，就先去掉滤镜、在原位置重新播放这一首。
+  ///
+  /// 只对这一首生效，不记成“设备不支持”：网络慢、切换输出格式重新加载时同样会 4 秒没有进度，此前这样误判两次
+  /// 就永久关闭了均衡器（开关变灰、滑块拖不动，低频增强改用手机上几乎没效果的系统 BassBoost）。
   void _watchEq(int token, Duration start) {
     Timer(const Duration(seconds: 4), () async {
       if (token != _loadToken || _eqApplied.isEmpty || !playing || buffering) return;
       if (position.value > start + const Duration(milliseconds: 300)) return;
-      await _onEqFailed();
+      debugPrint('eq: 打开均衡器后 4 秒没有进度，这一首先不用均衡器');
+      final p = _player;
+      if (p != null && await setMpvProperty(p, 'af', '')) _eqApplied = '';
       if (token == _loadToken) await _load(autoplay: true, keepPosition: true);
     });
   }
@@ -1280,8 +1298,9 @@ class PlayerController extends ChangeNotifier {
     } catch (_) {}
     // 两次启动中都失败才认为不支持（偶尔一次失败，例如切换音频设备时，不应永久关闭均衡器）。
     // 旧版本一次失败就永久记下的标记不再沿用。
-    eqUnsupported = (p.getInt('eqFailures.v2') ?? 0) >= 2;
-    limiterUnsupported = (p.getInt('limiterFailures.v2') ?? 0) >= 2;
+    // v3：v2 的计数里混有上面那种误判，已记下的设备重新检测。
+    eqUnsupported = (p.getInt('eqFailures.v3') ?? 0) >= 2;
+    limiterUnsupported = (p.getInt('limiterFailures.v3') ?? 0) >= 2;
     try {
       final h = p.getString('player.history');
       if (h != null) {

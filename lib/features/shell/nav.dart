@@ -226,6 +226,15 @@ class LxSourcesRoute extends AppRoute {
 }
 
 /// 音效（均衡器与音量）。
+/// 均衡器（音效的二级页面）。
+class EqualizerRoute extends AppRoute {
+  @override
+  Chrome get chrome => Chrome.navOnly;
+
+  @override
+  String get sideKey => 'settings';
+}
+
 class AudioEffectsRoute extends AppRoute {
   @override
   Chrome get chrome => Chrome.navOnly;
