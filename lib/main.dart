@@ -25,6 +25,7 @@ import 'core/settings.dart';
 import 'core/smooth_wheel.dart';
 import 'debug/benchmark.dart';
 import 'debug/mobile_benchmark.dart';
+import 'debug/moss_selftest.dart';
 import 'debug/screenshots.dart';
 import 'data/downloads.dart';
 import 'data/cloud/cloud_drives.dart';
@@ -154,6 +155,7 @@ Future<void> main(List<String> args) async {
   if (benchmarkRequested) unawaited(runBenchmark(rootNavigatorKey));
   // 手机上的流畅度测试（adb 启动时带 yunyin_bench，见 mobile_benchmark.dart）。
   unawaited(maybeRunMobileBenchmark(rootNavigatorKey));
+  unawaited(maybeRunMossSelfTest());
   if (screenshotsRequested) unawaited(runScreenshots(rootNavigatorKey));
   if (splashShotsRequested) unawaited(runSplashShots());
 }

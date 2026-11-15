@@ -131,9 +131,11 @@ class MainActivity : AudioServiceActivity() {
 
     /** 流畅度测试：adb shell am start -n com.marginalz.yunyin/.MainActivity --ez yunyin_bench true（见 mobile_benchmark.dart）。 */
     private var benchRequested = false
+    private var mossTestRequested = false
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         benchRequested = intent?.getBooleanExtra("yunyin_bench", false) == true
+        mossTestRequested = intent?.getBooleanExtra("yunyin_moss_test", false) == true
         super.onCreate(savedInstanceState)
     }
 
@@ -344,6 +346,10 @@ class MainActivity : AudioServiceActivity() {
                         "sdk" to Build.VERSION.SDK_INT,
                     ),
                 )
+                "mossTestRequested" -> {
+                    result.success(mossTestRequested)
+                    mossTestRequested = false
+                }
                 "benchRequested" -> {
                     result.success(benchRequested)
                     benchRequested = false
