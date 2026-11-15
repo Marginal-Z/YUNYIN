@@ -45,19 +45,36 @@ class SourceManager extends ChangeNotifier {
   /// 切换播放源时递增，页面据此重新加载。
   int generation = 0;
 
+  /// 四个官方平台各自的账号标识（用户、会员）：只有它变了才需要重新加载页面。
+  static const _platforms = {'netease', 'qq', 'kugou', 'qishui'};
+  final Map<String, String> _identity = {};
+
+  static String _identityOf(MusicSource s) {
+    final u = s.user;
+    return u == null ? '' : '${u.id}|${u.vip}';
+  }
+
   Future<void> init() async {
     for (final s in sources) {
       await s.init();
-      s.addListener(_onSourceChanged);
+      _identity[s.id] = _identityOf(s);
+      s.addListener(() => _onSourceChanged(s));
     }
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_prefsKey);
     _current = selectable.firstWhere((s) => s.id == saved, orElse: () => selectable.first);
   }
 
-  void _onSourceChanged() {
-    generation++;
-    DataCache.clear();
+  void _onSourceChanged(MusicSource s) {
+    // 官方平台在后台刷新账号（例如启动时网易云重新取一次资料）而账号没有变化时，不清缓存、不重新加载页面：
+    // 此前每次都会让首页、搜索、歌单页重新加载，看起来像页面切过来才加载出来。
+    final id = _identityOf(s);
+    final changed = _identity[s.id] != id;
+    _identity[s.id] = id;
+    if (changed || !_platforms.contains(s.id)) {
+      generation++;
+      DataCache.clear();
+    }
     notifyListeners();
   }
 
@@ -77,9 +94,14 @@ class SourceManager extends ChangeNotifier {
 
   @override
   void dispose() {
-    for (final s in sources) {
-      s.removeListener(_onSourceChanged);
-    }
+    _disposed = true;
     super.dispose();
+  }
+
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
   }
 }
