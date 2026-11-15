@@ -158,6 +158,14 @@ flutter test --no-pub -j 4
 - **日志**：logcat 里有 Impeller 的校验警告 `SetInheritedOpacity`，不影响显示，还没查是哪个控件导致的。
 - **云端语音引擎**（CosyVoice、Fish Audio、ElevenLabs）：还没用真实密钥测试过。
 
+### 6.2.1 还没解决（2026-11-15）
+
+- **Windows 窗口边缘抖动**：本机没有 Windows，无法复现；怀疑与 `window_manager` 的 `TitleBarStyle.hidden` 改窗口大小时的重绘，或 `AdaptiveScale` 在窗口小于 1180×760 时按 0.05 一档缩放有关，需要在 Windows 上确认。
+- **流畅度**：S23 Ultra 实际使用 3 分钟被动采样（SurfaceFlinger）：97.4% 的帧按时，约 30 次超过 50 ms 的停顿，还没定位到具体页面；建议做一个手机上自动走遍页面的测试（类似 `lib/debug/benchmark.dart` 的桌面版）。
+- **Linux 60 帧上限**：Flutter Linux 嵌入层没有垂直同步回调，见上文。
+- **汽水音乐**：只用公开分享页与网页接口；登录、会员整曲、榜单、热搜需要伪造签名或解密，不做。
+- **网易云扫码**：修了确认后仍是游客身份的问题（游客 Cookie 没去掉），但还没有用真实账号扫码验证。
+
 ### 6.3 测试手机
 
 - adb 在 `~/platform-tools/adb`。Android 安装包由 CI 构建，用 `gh run download <run> --name YunYin-android` 下载后，用 `adb install -r` 覆盖安装。
