@@ -315,11 +315,31 @@ object MossTts {
             }
         }
 
-        /** 峰值超过 -0.3 dBFS 时整体压低（不削波），首尾各 8 毫秒淡入淡出（避免“咔哒”声）。返回处理前的峰值。 */
+        /**
+         * 响度统一：四个声音的原始响度相差约 8 dB（灵语最轻），按“说话部分”的平均电平（20 毫秒一段，去掉静音段）
+         * 调到 -19 dBFS，峰值不超过 -0.3 dBFS（不削波）；首尾各 8 毫秒淡入淡出（避免“咔哒”声）。返回处理前的峰值。
+         */
         private fun finish(pcm: FloatArray): Float {
             var peak = 0f
             for (s in pcm) peak = maxOf(peak, abs(s))
-            val gain = if (peak > 0.966f) 0.966f / peak else 1f
+            val frame = sampleRate / 50
+            var energy = 0.0
+            var voiced = 0
+            var pos = 0
+            while (pos + frame <= pcm.size) {
+                var e = 0.0
+                for (k in pos until pos + frame) e += pcm[k].toDouble() * pcm[k]
+                if (e / frame > 0.005 * 0.005) {
+                    energy += e
+                    voiced += frame
+                }
+                pos += frame
+            }
+            val rms = if (voiced > 0) Math.sqrt(energy / voiced).toFloat() else 0f
+            val target = 0.1122f // -19 dBFS
+            var gain = if (rms > 1e-4f) target / rms else 1f
+            if (peak > 0f) gain = minOf(gain, 0.966f / peak)
+            gain = gain.coerceIn(0.25f, 4f)
             val fade = min(sampleRate * 8 / 1000, pcm.size / 2)
             for (i in pcm.indices) {
                 var g = gain
