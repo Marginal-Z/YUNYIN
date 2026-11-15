@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.util.zip.ZipFile
 
 plugins {
     id("com.android.application")
@@ -43,7 +44,7 @@ val prepareMossOrt by tasks.registering {
             check(hits == 1) { "onnxruntime-android：预期替换 1 处库名，实际 $hits 处" }
             return b
         }
-        java.util.zip.ZipFile(mossOrt.singleFile).use { zip ->
+        ZipFile(mossOrt.singleFile).use { zip ->
             fun read(name: String) = zip.getInputStream(zip.getEntry(name) ?: error("AAR 中没有 $name")).readBytes()
             out.mkdirs()
             File(out, "classes.jar").writeBytes(read("classes.jar"))
