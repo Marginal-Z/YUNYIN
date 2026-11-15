@@ -157,7 +157,7 @@ class CssGradient extends LinearGradient {
 /// 半透明的玻璃需要把阴影裁到盒子外侧（CSS 外阴影不会透过半透明背景显示）；
 /// 其余（不透明卡片、封面等）直接绘制模糊圆角矩形，Impeller 对此有解析式快速通道，几乎没有开销。
 class _OuterShadowPainter extends CustomPainter {
-  _OuterShadowPainter(this.radius, this.shadows, {required this.clipInside});
+  _OuterShadowPainter(this.radius, this.shadows, {required this.clipInside}) : super(repaint: _ShadowCache.instance);
 
   final BorderRadius radius;
   final List<Shadow2> shadows;
@@ -176,16 +176,151 @@ class _OuterShadowPainter extends CustomPainter {
           ..addRRect(rrect),
       );
     }
-    for (final s in shadows) {
-      final p = Paint()..color = s.color;
-      if (s.blur > 0) p.maskFilter = MaskFilter.blur(BlurStyle.normal, cssSigma(s.blur));
-      canvas.drawRRect(rrect.shift(s.offset).inflate(s.spread), p);
+    final cached = _ShadowCache.instance.lookup(radius, shadows, size);
+    if (cached != null) {
+      // 预先画好的阴影九宫格：四角原样、四边拉伸，与直接模糊的结果相同。
+      final (image, margin, r, dpr) = cached;
+      canvas.save();
+      canvas.scale(1 / dpr);
+      canvas.drawImageNine(
+        image,
+        Rect.fromLTWH((margin + r) * dpr, (margin + r) * dpr, _ShadowCache.core * dpr, _ShadowCache.core * dpr),
+        Rect.fromLTWH(-margin * dpr, -margin * dpr, (size.width + margin * 2) * dpr, (size.height + margin * 2) * dpr),
+        Paint()..filterQuality = FilterQuality.low,
+      );
+      canvas.restore();
+    } else {
+      for (final s in shadows) {
+        final p = Paint()..color = s.color;
+        if (s.blur > 0) p.maskFilter = MaskFilter.blur(BlurStyle.normal, cssSigma(s.blur));
+        canvas.drawRRect(rrect.shift(s.offset).inflate(s.spread), p);
+      }
     }
     if (clipInside) canvas.restore();
   }
 
   @override
   bool shouldRepaint(_OuterShadowPainter old) => old.radius != radius || !identical(old.shadows, shadows) || old.clipInside != clipInside;
+}
+
+/// 卡片背景：圆角底色、可选描边与投影（投影走 [_ShadowCache]，滚动时不再每帧模糊）。
+/// 用在 DecoratedSliver 这类只接受 Decoration 的地方，效果与 BoxDecoration(boxShadow: …) 相同。
+class CardDecoration extends Decoration {
+  const CardDecoration({required this.color, required this.radius, this.border, this.shadows = const []});
+
+  final Color color;
+  final double radius;
+  final Color? border;
+  final List<Shadow2> shadows;
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) => _CardDecorationPainter(this, onChanged);
+
+  @override
+  bool operator ==(Object other) =>
+      other is CardDecoration && other.color == color && other.radius == radius && other.border == border && listEquals(other.shadows, shadows);
+
+  @override
+  int get hashCode => Object.hash(color, radius, border, Object.hashAll(shadows));
+}
+
+class _CardDecorationPainter extends BoxPainter {
+  _CardDecorationPainter(this._d, VoidCallback? onChanged) : super(onChanged) {
+    if (onChanged != null) _ShadowCache.instance.addListener(onChanged);
+  }
+
+  final CardDecoration _d;
+
+  @override
+  void dispose() {
+    if (onChanged != null) _ShadowCache.instance.removeListener(onChanged!);
+    super.dispose();
+  }
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size;
+    if (size == null) return;
+    final radius = BorderRadius.circular(_d.radius);
+    if (_d.shadows.isNotEmpty) {
+      canvas.save();
+      canvas.translate(offset.dx, offset.dy);
+      _OuterShadowPainter(radius, _d.shadows, clipInside: false).paint(canvas, size);
+      canvas.restore();
+    }
+    final rrect = radius.toRRect(offset & size);
+    canvas.drawRRect(rrect, Paint()..color = _d.color);
+    final b = _d.border;
+    if (b != null) {
+      canvas.drawRRect(
+        rrect.deflate(0.5),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = b,
+      );
+    }
+  }
+}
+
+/// 卡片投影的缓存：同样圆角、同样一组投影只用模糊画一次，存成一张小图，之后按九宫格拉伸绘制。
+///
+/// 模糊在 Impeller 上每次都要离屏渲染：此前每张卡片每一帧都重新模糊一遍，真机测试中滚动时光栅耗时约多 2.5 毫秒
+/// （120 Hz 下一帧只有 8.3 毫秒）。图片生成之前的一两帧仍然直接模糊，生成后通知重绘。
+class _ShadowCache extends ChangeNotifier {
+  _ShadowCache._();
+
+  static final instance = _ShadowCache._();
+
+  /// 九宫格中间可拉伸的部分（逻辑像素）。
+  static const core = 4.0;
+
+  final Map<String, (ui.Image, double, double, double)> _images = {};
+  final Set<String> _pending = {};
+
+  (ui.Image, double, double, double)? lookup(BorderRadius radius, List<Shadow2> shadows, Size size) {
+    // 只处理四角相同的圆形圆角。
+    final c = radius.topLeft;
+    if (c.x != c.y || radius.topRight != c || radius.bottomLeft != c || radius.bottomRight != c) return null;
+    final r = c.x;
+    var margin = 0.0;
+    for (final s in shadows) {
+      margin = math.max(margin, math.max(s.dx.abs(), s.dy.abs()) + s.spread.abs() + cssSigma(s.blur) * 3);
+    }
+    margin = margin.ceilToDouble();
+    // 卡片比九宫格的四角还小时，拉伸会出错，直接模糊。
+    if (size.width < r * 2 + core || size.height < r * 2 + core) return null;
+    final dpr = ui.PlatformDispatcher.instance.views.firstOrNull?.devicePixelRatio ?? 1;
+    final key = '${r.toStringAsFixed(2)}|${dpr.toStringAsFixed(2)}|${[for (final s in shadows) '${s.dx},${s.dy},${s.blur},${s.spread},${s.color.toARGB32()}'].join(';')}';
+    final hit = _images[key];
+    if (hit != null) return hit;
+    if (_pending.add(key)) unawaited(_render(key, r, margin, dpr, shadows));
+    return null;
+  }
+
+  Future<void> _render(String key, double r, double margin, double dpr, List<Shadow2> shadows) async {
+    final side = (r * 2 + core) + margin * 2;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.scale(dpr);
+    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(margin, margin, r * 2 + core, r * 2 + core), Radius.circular(r));
+    for (final s in shadows) {
+      final p = Paint()..color = s.color;
+      if (s.blur > 0) p.maskFilter = MaskFilter.blur(BlurStyle.normal, cssSigma(s.blur));
+      canvas.drawRRect(rrect.shift(s.offset).inflate(s.spread), p);
+    }
+    final picture = recorder.endRecording();
+    try {
+      final px = (side * dpr).ceil();
+      final image = await picture.toImage(px, px);
+      _images[key] = (image, margin, r, dpr);
+      notifyListeners();
+    } catch (_) {
+      // 生成失败时一直直接模糊。
+    } finally {
+      picture.dispose();
+    }
+  }
 }
 
 /// CSS `inset` 阴影的低开销近似：只用渐变描边，不做任何模糊（模糊的路径在 Impeller 上每帧都要离屏渲染）。

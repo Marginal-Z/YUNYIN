@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../debug/bench_flags.dart';
+import '../../core/ui/box.dart';
 
 import '../../core/theme/palette.dart';
 import '../../core/ui/glow_background.dart';
@@ -282,11 +282,12 @@ class SliverCard extends StatelessWidget {
     final p = Palette.of(context);
     final hasHeader = header != null;
     return DecoratedSliver(
-      decoration: BoxDecoration(
+      // 投影预先画好、按九宫格拉伸（见 CardDecoration）：长列表滚动时不再每一帧重新模糊整张卡片的投影。
+      decoration: CardDecoration(
         color: p.card,
-        borderRadius: BorderRadius.circular(radius),
-        border: p.isDark ? Border.all(color: const Color.fromRGBO(255, 255, 255, 0.07)) : null,
-        boxShadow: BenchFlags.noShadow ? null : [for (final s in p.cardShadow) BoxShadow(color: s.color, offset: s.offset, blurRadius: cssBlurRadius(s.blur))],
+        radius: radius,
+        border: p.isDark ? const Color.fromRGBO(255, 255, 255, 0.07) : null,
+        shadows: p.cardShadow,
       ),
       sliver: SliverList.builder(
         itemCount: itemCount + (hasHeader ? 1 : 0),

@@ -13,8 +13,8 @@ import '../../debug/bench_flags.dart';
 /// 一遍（三星 S23 Ultra 上实测 16 次页面切换掉帧约 300 帧）。改为缩放快照后视觉效果不变，开销只剩一次截图。
 /// Flutter 自带的安卓缩放转场（ZoomPageTransitionsBuilder）也是这样做的。
 ///
-/// 动画期间每 80 毫秒重拍一次快照：动画开始后才加载出来的图标、封面也会在动画中出现，不用等动画结束。
-/// 重拍一次的开销相当于正常绘制一帧页面，一次转场只有三四次。
+/// 动画进行到 160 毫秒时重拍一次快照：动画开始后才加载出来的图标、封面也会在动画中出现，不用等动画结束。
+/// 重拍一次的开销相当于把整页重新画一遍，所以只拍一次。
 class TransitionSnapshot extends StatefulWidget {
   const TransitionSnapshot({super.key, required this.animations, required this.child});
 
@@ -40,7 +40,9 @@ class _TransitionSnapshotState extends State<TransitionSnapshot> {
     if (animating && !_controller.allowSnapshotting) _controller.clear();
     _controller.allowSnapshotting = animating && !BenchFlags.noSnapshot;
     if (animating && !BenchFlags.noSnapshotRefresh) {
-      _refresh ??= Timer.periodic(const Duration(milliseconds: 80), (_) => _controller.clear());
+      // 动画进行到一半时重拍一次：这时动画开始后才加载出来的图标、封面大多已经出现。
+      // 此前每 80 毫秒重拍一次，每次都要把整页重新画一遍，真机测试中转场超时帧 48.8%，只拍一次后约 10%。
+      _refresh ??= Timer(const Duration(milliseconds: 160), _controller.clear);
     } else {
       _refresh?.cancel();
       _refresh = null;

@@ -680,8 +680,9 @@ class _QrSheetState extends State<_QrSheet> {
                         : QrImageView(
                             data: _ticket!.content,
                             padding: EdgeInsets.zero,
-                            eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: Color(0xFF1D1D1F)),
-                            dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.circle, color: Color(0xFF1D1D1F)),
+                            // 标准的方形码点与定位框：此前的圆点样式部分扫码器（包括 OpenCV 的标准解码）识别不出来。
+                            eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
+                            dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Colors.black),
                           ),
                   ),
           ),
