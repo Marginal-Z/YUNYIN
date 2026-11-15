@@ -527,7 +527,8 @@ class PlayerController extends ChangeNotifier {
         'bass': eqUnsupported ? settings.bassEnhance : 0.0,
       });
       _nativeBoost = settings.volumeBoost > 0 && r?['limiter'] == true;
-      _fxLimiter = r?['limiter'] == true;
+      // 原生端返回的 limiter 表示“设置成功”（没有要求限幅器时也是 true），只有要求了限幅器才算启用。
+      _fxLimiter = (settings.volumeBoost > 0 || _filterGains.any((g) => g > 0)) && r?['limiter'] == true;
       spatialUnsupported = settings.spatial > 0 && r?['spatial'] == false;
       bassUnsupported = eqUnsupported && settings.bassEnhance > 0 && r?['bass'] == false;
     } catch (e) {
