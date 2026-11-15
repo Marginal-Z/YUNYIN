@@ -151,6 +151,9 @@ Future<void> runLyricsWindow(String arguments) async {
   await windowManager.setMinimumSize(const Size(420, 96));
   await windowManager.setSize(_size);
   await windowManager.setAlwaysOnTop(true);
+  // 用户直接关掉歌词窗口（Alt+F4、任务切换器）时不真的销毁：改为通知主程序关闭桌面歌词并隐藏，
+  // 否则主程序还以为窗口在，之后再打开桌面歌词就什么也不显示。
+  await windowManager.setPreventClose(true);
   Offset? position;
   try {
     final p = jsonDecode('${args['position']}') as Map<String, dynamic>;
@@ -250,6 +253,9 @@ class _LyricsAppState extends State<_LyricsApp> with WindowListener {
       _channel.invokeMethod<void>('moved', {'x': p.dx, 'y': p.dy}).catchError((Object _) {});
     });
   }
+
+  @override
+  void onWindowClose() => _send('close');
 
   void _send(String method) => _channel.invokeMethod<void>(method).catchError((Object e) => debugPrint('desktop lyrics: $e'));
 

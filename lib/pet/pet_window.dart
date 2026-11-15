@@ -31,6 +31,8 @@ Future<void> runPetWindow(String arguments) async {
   await windowManager.setSkipTaskbar(true);
   await windowManager.setAlwaysOnTop(true);
   await windowManager.setResizable(false);
+  // 直接关掉窗口时不真的销毁，交给主程序关闭桌宠（否则之后再打开桌宠不显示）。
+  await windowManager.setPreventClose(true);
   final size = petWindowSize(PetKind.tuantuan, 132, bubble: false);
   await windowManager.setSize(size);
   Offset? position;
@@ -125,6 +127,11 @@ class _PetStageState extends State<_PetStage> with WindowListener {
     } else {
       await _overlayChannel.invokeMethod<void>('size', {'w': size.width, 'h': size.height});
     }
+  }
+
+  @override
+  void onWindowClose() {
+    if (widget.desktop) petWindowChannel.invokeMethod<void>('close').catchError((Object _) {});
   }
 
   @override

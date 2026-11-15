@@ -152,6 +152,9 @@ class PetHost with WindowListener {
       case 'moved':
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_positionKey, jsonEncode(call.arguments));
+      case 'close':
+        // 用户直接关掉了桌宠窗口（Alt+F4 等）：当作关闭桌宠。
+        settings.setPet('');
     }
     _push();
     return null;

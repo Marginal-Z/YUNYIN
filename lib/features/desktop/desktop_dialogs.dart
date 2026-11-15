@@ -150,7 +150,8 @@ class _DesktopLyricsPageState extends State<DesktopLyricsPage> {
     if (isDesktopPlatform) {
       windowManager.isFullScreen().then((v) {
         _wasFullScreen = v;
-        if (!v) windowManager.setFullScreen(true);
+        // 查询返回前已经按 Esc 关掉了全屏歌词：不能再进入全屏。
+        if (!v && mounted) windowManager.setFullScreen(true);
       });
     }
   }
