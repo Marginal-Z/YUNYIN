@@ -287,7 +287,10 @@ class AppSettings extends ChangeNotifier {
   /// 歌词字体样式。
   LyricFont lyricFont = LyricFont.system;
   String? downloadDir;
-  double volume = 0.65;
+  /// 应用内音量（桌面端；手机上由系统音量键控制，应用内始终满音量）。
+  /// 默认 100%：播放器的音量是三次方曲线，此前默认的 65% 实际只有约 -11 dB，再加上音量均衡，
+  /// 比其他播放器小很多（Linux 上尤其明显）。音量大小交给系统音量调节。
+  double volume = 1;
   List<String> searchHistory = [];
 
   final Map<(bool, AccentColor), Palette> _palettes = {};
@@ -385,7 +388,15 @@ class AppSettings extends ChangeNotifier {
     lyricScale = _number('lyricScale', 1, 0.5, 2);
     lyricFont = _enumValue('lyricFont', LyricFont.values, LyricFont.system);
     downloadDir = _read<String>('downloadDir');
-    volume = _number('volume', 0.65, 0, 1);
+    volume = _number('volume', 1, 0, 1);
+    // 一直停在旧默认值 65% 的（没有动过音量滑块）改成 100%，只改一次。
+    if (_read<bool>('volume.v2') != true) {
+      if (volume == 0.65) {
+        volume = 1;
+        _p.setDouble('volume', 1);
+      }
+      _p.setBool('volume.v2', true);
+    }
     searchHistory = _read<List<String>>('searchHistory') ?? [];
   }
 

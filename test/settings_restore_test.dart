@@ -35,13 +35,31 @@ void main() {
     addTearDown(settings.dispose);
     await settings.init();
     expect(settings.crossfade, isTrue);
-    expect(settings.volume, 0.65);
+    expect(settings.volume, 1);
     expect(settings.normalizeStrength, 1);
     expect(settings.lyricsOpacity, 1);
     expect(settings.statusLyricsOffset, -0.4);
     expect(settings.lyricScale, 1);
     expect(settings.volumeBoost, AppSettings.maxVolumeBoost);
     expect(settings.eqGains, everyElement(inInclusiveRange(-12, 12)));
+  });
+
+  test('一直停在旧默认音量 65% 的改成 100%（只改一次），自己调过的音量保留', () async {
+    SharedPreferences.setMockInitialValues({'volume': 0.65});
+    final a = AppSettings();
+    addTearDown(a.dispose);
+    await a.init();
+    expect(a.volume, 1);
+    a.setVolume(0.65);
+    final b = AppSettings();
+    addTearDown(b.dispose);
+    await b.init();
+    expect(b.volume, 0.65, reason: '迁移只做一次，之后用户设置的 65% 不再被改');
+    SharedPreferences.setMockInitialValues({'volume': 0.4});
+    final c = AppSettings();
+    addTearDown(c.dispose);
+    await c.init();
+    expect(c.volume, 0.4);
   });
 
   test('单个损坏的平台样式不影响其余平台样式恢复', () async {
@@ -64,7 +82,7 @@ void main() {
     settings.setEqGain(-1, 1);
     settings.setEqGain(0, double.nan);
     settings.setVolumeBoost(900);
-    expect(settings.volume, 0.65);
+    expect(settings.volume, 1);
     expect(settings.normalizeStrength, 1);
     expect(settings.eqGains.first, 0);
     expect(settings.volumeBoost, AppSettings.maxVolumeBoost);

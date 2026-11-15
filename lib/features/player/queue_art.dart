@@ -164,6 +164,9 @@ class _QueueFlowState extends State<QueueFlow> {
               // 绕封面本身的中心旋转（3D 封面流的卡片下方还有倒影）。
               alignment: _cover ? const Alignment(0, -0.25) : Alignment.center,
               transform: place.transform,
+              // Linux / Windows 渲染时没有多重采样，透视旋转后卡片的斜边是锯齿：先把卡片画成图像，再带过滤地变形，
+              // 斜边按像素覆盖率过渡（其他平台有多重采样，直接变形）。
+              filterQuality: kSoftClip ? FilterQuality.medium : null,
               child: Opacity(
                 opacity: place.opacity,
                 child: _cover

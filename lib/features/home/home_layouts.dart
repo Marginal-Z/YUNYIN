@@ -86,6 +86,7 @@ class _PhotoWallState extends State<PhotoWall> with SingleTickerProviderStateMix
   void didUpdateWidget(PhotoWall old) {
     super.didUpdateWidget(old);
     if (!identical(old.feed, widget.feed)) _items = feedItems(widget.feed);
+    _gridChild = null;
   }
 
   @override
@@ -136,35 +137,55 @@ class _PhotoWallState extends State<PhotoWall> with SingleTickerProviderStateMix
     );
   }
 
+  /// 已经搭好的格子：只在露出新的一行或一列（左上角格子变化）、尺寸或封面列表变化时重建。
+  /// 之间的移动只改整片格子的位移（单独的图层，不重建、不重绘每一张封面）：此前每一帧都重建、重新排版并重绘
+  /// 所有封面，Linux / Windows 上每张封面的圆角还各开一个图层，照片墙在这两个平台上掉帧严重。
+  (int, int, Size, int, double)? _gridKey;
+  Widget? _gridChild;
+
   Widget _grid(BuildContext context, Size size, Offset o) {
     final stride = widget.tile + widget.gap;
-    final dpr = MediaQuery.devicePixelRatioOf(context);
     final c0 = (-o.dx / stride).floor() - 1;
-    final c1 = ((size.width - o.dx) / stride).ceil();
-    final tiles = <Widget>[];
+    // 奇数列错开半格：按错开后的位置多留一行。
+    final r0 = ((-o.dy - stride / 2) / stride).floor() - 1;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final key = (c0, r0, size, _items.length, dpr);
+    if (key != _gridKey || _gridChild == null) {
+      _gridKey = key;
+      _gridChild = RepaintBoundary(child: _tiles(size, c0, r0, stride, dpr));
+    }
+    return Transform.translate(offset: Offset(c0 * stride + o.dx, r0 * stride + o.dy), child: _gridChild);
+  }
+
+  /// 以 ([c0], [r0]) 号格子为原点排出铺满 [size]（多留两格）的封面。
+  Widget _tiles(Size size, int c0, int r0, double stride, double dpr) {
+    final cols = (size.width / stride).ceil() + 3;
+    final rows = (size.height / stride).ceil() + 4;
     final n = _items.length;
-    for (var col = c0; col <= c1; col++) {
+    final tiles = <Widget>[];
+    for (var dc = 0; dc < cols; dc++) {
+      final col = c0 + dc;
       final stagger = col.isOdd ? stride / 2 : 0.0;
-      final r0 = ((-o.dy - stagger) / stride).floor() - 1;
-      final r1 = ((size.height - o.dy - stagger) / stride).ceil();
-      for (var row = r0; row <= r1; row++) {
+      for (var dr = 0; dr < rows; dr++) {
+        final row = r0 + dr;
         // 相邻格子取不同的封面：横向相差 7 张，纵向相差 3 张。
         final item = _items[((col * 7 + row * 3) % n + n) % n];
         tiles.add(
           Positioned(
             key: ValueKey((col, row)),
-            left: col * stride + o.dx,
-            top: row * stride + stagger + o.dy,
+            left: dc * stride,
+            top: dr * stride + stagger,
             width: widget.tile,
             height: widget.tile,
-            child: GestureDetector(
-              onTap: () => _open(context, item, _items),
-              child: YBox(
-                clip: true,
-                radius: BorderRadius.circular(16),
-                child: Semantics(
-                  label: item.title,
-                  button: true,
+            child: Semantics(
+              label: item.title,
+              button: true,
+              child: GestureDetector(
+                onTap: () => _open(context, item, _items),
+                // 封面直接作为圆角盒子的内容：桌面端走“画成抗锯齿圆角图片”的快速路径，不另开遮罩图层。
+                child: YBox(
+                  clip: true,
+                  radius: BorderRadius.circular(16),
                   child: CoverImage(item.cover, imageSize: (widget.tile * dpr).round()),
                 ),
               ),
@@ -173,7 +194,7 @@ class _PhotoWallState extends State<PhotoWall> with SingleTickerProviderStateMix
         );
       }
     }
-    return Stack(children: tiles);
+    return Stack(clipBehavior: Clip.none, children: tiles);
   }
 }
 
