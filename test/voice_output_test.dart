@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:yunyin/voice/engines/cloud_engines.dart';
 import 'package:yunyin/voice/prosody.dart';
 import 'package:yunyin/voice/speech_output.dart';
 import 'package:yunyin/voice/tts_types.dart';
@@ -110,7 +109,7 @@ void main() {
     expect(ProsodyPlanner.plan('好的', expressive: false).emotion, Emotion.neutral);
   });
 
-  test('引擎失败时自动降级到下一个，并在冷却期内跳过它；女声与男声在各引擎上是不同的声音，旧音色按性别对应', () async {
+  test('引擎失败时自动降级到下一个，并在冷却期内跳过它；女声与男声是不同的系统声音，旧音色按性别对应', () async {
     final a = _FakeEngine('cosyvoice', fail: true);
     final b = _FakeEngine('system', offline: true);
     final engines = VoiceEngines(settings, engines: [a, b]);
@@ -120,10 +119,8 @@ void main() {
     expect(sink.played, ['system:第一句。', 'system:第二句。']);
     expect(a.requests, hasLength(1), reason: '失败后进入冷却，第二句直接用下一个引擎');
     expect(out.lastEngine, 'system');
-    // 女声与男声在每个引擎上都是不同的声音。
-    for (final engine in ['system', 'cosyvoice', 'elevenlabs']) {
-      expect({for (final v in VoicePresets.all) v.binding(engine)!.voices[VoiceLanguage.zh]}, hasLength(2), reason: '$engine 的女声与男声是不同的声音');
-    }
+    // 女声与男声在系统朗读上是不同的声音。
+    expect({for (final v in VoicePresets.all) v.binding('system')!.voices[VoiceLanguage.zh]}, {'female', 'male'});
     // 旧版本的五个音色按性别换成女声或男声。
     for (final id in ['yunxi', 'xiaoyou', 'wanxing']) {
       expect(VoicePresets.byId(id), VoicePresets.female);
@@ -172,107 +169,13 @@ void main() {
     expect(engine.requests.map((r) => r.$2.prosody.emotion).toList(), [Emotion.happy, Emotion.sad]);
   });
 
-  test('用户在音色中心填写的声音 ID 覆盖默认值', () async {
-    final engine = _FakeEngine('fish');
+  test('指定系统声音：ID 带上系统声音名称，合成时直接用这个声音', () async {
+    final engine = _FakeEngine('system', offline: true);
     final out = SpeechOutput(settings, engines: VoiceEngines(settings, engines: [engine]), sink: _Sink());
-    settings.setOverride('female', 'fish', VoiceLanguage.zh, 'abc123');
-    await out.say('测试。');
-    expect(engine.requests.single.$1, 'abc123');
-  });
-
-  test('适配层：不支持的参数被换算或丢弃，数值在各引擎允许的范围内', () {
-    for (final e in Emotion.values) {
-      final s = ElevenLabsEngine.voiceSettings(Prosody(rate: 2, emotion: e, intensity: 1));
-      expect(s['speed'] as double, lessThanOrEqualTo(1.2));
-      expect(s['stability'] as double, inInclusiveRange(0.2, 0.85));
-      expect(s['style'] as double, inInclusiveRange(0, 0.8));
-      expect(CosyVoiceEngine.rateFor(Prosody(rate: 3, emotion: e, intensity: 1)), lessThanOrEqualTo(2));
-    }
-    expect(FishAudioEngine.withEmotion('你好', const Prosody(emotion: Emotion.happy, intensity: 0.8), 's1'), '(happy) 你好');
-    expect(FishAudioEngine.withEmotion('你好', const Prosody(emotion: Emotion.happy, intensity: 0.8), 'speech-1.5'), '你好');
-  });
-
-  test('ElevenLabs：请求路径、密钥头与模型；密钥错误时不重试', () async {
-    settings.setEngine('elevenlabs', const EngineConfig(apiKey: 'k'));
-    final seen = <RequestOptions>[];
-    var status = 200;
-    final dio = Dio()
-      ..interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (o, h) {
-            seen.add(o);
-            if (status != 200) {
-              h.reject(DioException(requestOptions: o, response: Response(requestOptions: o, statusCode: status, data: utf8.encode('bad key')), type: DioExceptionType.badResponse));
-              return;
-            }
-            h.resolve(Response(requestOptions: o, statusCode: 200, data: ResponseBody.fromBytes(utf8.encode('mp3'), 200)));
-          },
-        ),
-      );
-    final engine = ElevenLabsEngine(settings, dio: dio);
-    final b = VoicePresets.male.binding('elevenlabs')!;
-    final audio = await engine.synthesize(b, const TtsRequest('你好', language: VoiceLanguage.zh)).toList();
-    expect(audio.single.format, 'mp3');
-    expect(seen.single.path, contains('/v1/text-to-speech/${b.voices[VoiceLanguage.zh]}/stream'));
-    expect(seen.single.headers['xi-api-key'], 'k');
-    expect((jsonDecode(seen.single.data as String) as Map)['model_id'], 'eleven_multilingual_v2');
-    status = 401;
-    await expectLater(engine.synthesize(b, const TtsRequest('你好', language: VoiceLanguage.zh)).toList(), throwsA(isA<TtsException>().having((e) => e.retryable, 'retryable', false)));
-  });
-
-  test('CosyVoice：用 cosyvoice-v3-flash 的系统音色，带密钥连接；音频边收边交出，task-failed 报错', () async {
-    // 本地 WebSocket 服务扮演 DashScope：收到 run-task 回 task-started，收到 finish-task 后发两段 PCM 再回 task-finished。
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final runs = <Map>[];
-    final auth = <String?>[];
-    var failNext = false;
-    server.listen((req) async {
-      auth.add(req.headers.value('authorization'));
-      final ws = await WebSocketTransformer.upgrade(req);
-      ws.listen((m) {
-        final msg = jsonDecode(m as String) as Map;
-        final header = msg['header'] as Map;
-        final task = header['task_id'];
-        Map<String, Object> event(String name, [Map<String, Object> extra = const {}]) => {'header': {'event': name, 'task_id': task, ...extra}, 'payload': {}};
-        switch (header['action']) {
-          case 'run-task':
-            runs.add(msg['payload'] as Map);
-            if (failNext) {
-              ws.add(jsonEncode(event('task-failed', {'error_code': 'InvalidParameter', 'error_message': 'voice not found'})));
-            } else {
-              ws.add(jsonEncode(event('task-started')));
-            }
-          case 'finish-task':
-            ws.add(Uint8List(24000 * 2 ~/ 2));
-            ws.add(Uint8List(24000 * 2));
-            ws.add(jsonEncode(event('task-finished')));
-        }
-      });
-    });
-    addTearDown(() => server.close(force: true));
-    settings.setEngine('cosyvoice', EngineConfig(apiKey: 'sk-test', proxy: 'ws://127.0.0.1:${server.port}'));
-    final engine = CosyVoiceEngine(settings);
-    for (final preset in VoicePresets.all) {
-      final b = preset.binding('cosyvoice')!;
-      expect(b.model, 'cosyvoice-v3-flash', reason: preset.name);
-    }
-    final b = VoicePresets.female.binding('cosyvoice')!;
-    final audio = await engine.synthesize(b, const TtsRequest('你好，我是云汐。', language: VoiceLanguage.zh)).toList();
-    expect(audio, isNotEmpty);
-    expect(audio.every((a) => a.format == 'pcm16' && a.sampleRate == 24000), isTrue);
-    expect(audio.fold<int>(0, (n, a) => n + a.bytes.length), 24000 * 3);
-    expect(auth.single, 'bearer sk-test');
-    final run = runs.single;
-    expect(run['model'], 'cosyvoice-v3-flash');
-    final params = run['parameters'] as Map;
-    expect(params['voice'], 'longanwen_v3');
-    expect(params['sample_rate'], 24000);
-    expect(params['format'], 'pcm');
-    failNext = true;
-    await expectLater(
-      engine.synthesize(b, const TtsRequest('你好', language: VoiceLanguage.zh)).toList(),
-      throwsA(isA<TtsException>().having((e) => e.message, 'message', contains('voice not found')).having((e) => e.retryable, 'retryable', false)),
-    );
+    final v = VoicePresets.byId('sys:zh-cn-x-test');
+    expect(v.id, 'sys:zh-cn-x-test');
+    await out.say('你好。', voice: v);
+    expect(engine.requests.single.$1, 'voice:zh-cn-x-test');
   });
 
   test('等待合成时不算发声，开始播放后才算（打断检测只在发声时打开）', () async {

@@ -138,11 +138,11 @@ final List<DiagnosticCheck> diagnosticChecks = [
   }),
   DiagnosticCheck('助手的声音', (context, _) async {
     final voice = VoicePresets.byId(context.read<VoiceSettings>().voiceId);
-    final cloud = const ['cosyvoice', 'elevenlabs', 'fish'].where((e) => context.read<VoiceSettings>().engine(e).usable).toList();
-    final extra = [if (cloud.isNotEmpty) '已配置的云端引擎：${cloud.join('、')}（优先使用，不可用时换系统朗读）'];
+    const extra = <String>[];
     final binding = voice.binding('system')!;
     try {
-      final (name, pitch) = await SystemTtsEngine.describe(binding.voices[VoiceLanguage.zh] ?? 'female');
+      final want = binding.voices[VoiceLanguage.zh] ?? 'female';
+      final (name, pitch) = want.startsWith('voice:') ? (want.substring(6), null) : await SystemTtsEngine.describe(want);
       final sw = Stopwatch()..start();
       final audio = await SystemTtsEngine().synthesize(binding, const TtsRequest('你好，这是一次声音测试，听听清不清楚。', language: VoiceLanguage.zh)).toList();
       final ms = sw.elapsedMilliseconds;

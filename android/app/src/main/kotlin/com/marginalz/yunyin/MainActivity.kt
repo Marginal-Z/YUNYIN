@@ -186,6 +186,14 @@ class MainActivity : AudioServiceActivity() {
                         call.argument<String>("voice"),
                     ) { ok -> main.post { result.success(ok) } }
                 }
+                "openTtsSettings" -> {
+                    try {
+                        startActivity(Intent("com.android.settings.TTS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } catch (e: Exception) {
+                        startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                    result.success(null)
+                }
                 "systemVoices" -> {
                     val main = android.os.Handler(android.os.Looper.getMainLooper())
                     VoiceService.systemVoices(app) { voices -> main.post { result.success(voices) } }

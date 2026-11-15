@@ -8,10 +8,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../pitch.dart';
+import '../voice_library.dart';
 import '../tts_types.dart';
 
-/// 系统朗读：所有引擎都不可用时的最后降级。不区分具体音色，但 Android 上会按音色的性别选择系统里的
-/// 男声或女声（见 [_voiceFor]）。合成为 WAV 文件后与其他引擎一样进入播放队列，可以被打断。
+/// 系统朗读：云音助手唯一的语音引擎，用系统自带的“文字转语音”（Android）或系统语音（桌面端）。
+/// Android 上女声 / 男声按实测音高选系统里的声音（见 [_voiceFor]），也可以指定某一个系统声音（`voice:名称`）。
+/// 合成为 WAV 文件后进入播放队列，可以被打断。
 class SystemTtsEngine extends TtsEngine {
   static const _channel = MethodChannel('yunyin/voice');
 
@@ -41,8 +43,8 @@ class SystemTtsEngine extends TtsEngine {
     final lang = request.language;
     try {
       if (Platform.isAndroid) {
-        final gender = voice.voices[lang];
-        final systemVoice = gender == null ? null : await _voiceFor(gender);
+        final want = voice.voices[lang];
+        final systemVoice = want == null ? null : (want.startsWith('voice:') ? want.substring(6) : await _voiceFor(want));
         final ok = await _channel.invokeMethod<bool>('synthesize', {'text': request.text, 'path': path, 'rate': rate, 'lang': lang.name, 'voice': systemVoice});
         if (ok != true) throw TtsException('系统朗读不可用（请在系统设置中安装中文语音包）', engine: name);
       } else if (Platform.isMacOS) {
@@ -77,6 +79,27 @@ class SystemTtsEngine extends TtsEngine {
 
   /// 系统里各个中文声音的音高（Hz），每次启动只测一次；声音列表没变时用上次的结果。
   static Future<Map<String, double>>? _pitches;
+
+  /// 系统里的中文声音（Android），按音高从高到低排列，并为每个声音填好显示名称（女声 1、女声 2……男声 1……）。
+  static Future<List<SystemVoice>> voices() async {
+    if (kIsWeb || !Platform.isAndroid) return const [];
+    final pitches = await (_pitches ??= _measure());
+    final list = [for (final e in pitches.entries) SystemVoice(e.key, e.value)]..sort((a, b) => b.pitch.compareTo(a.pitch));
+    var f = 0, m = 0;
+    for (final v in list) {
+      v.label = v.female ? '女声 ${++f}' : '男声 ${++m}';
+      VoicePresets.systemLabels[v.name] = v.label;
+    }
+    return list;
+  }
+
+  /// 打开系统的“文字转语音”设置（安装更多声音、切换语音引擎）。
+  static Future<void> openSettings() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod<void>('openTtsSettings');
+    } catch (_) {}
+  }
 
   /// 问题诊断用：女声 / 男声实际用的是哪个系统声音（为 null 表示用系统默认），以及测到的音高。
   static Future<(String?, double?)> describe(String gender) async {
@@ -125,4 +148,16 @@ class SystemTtsEngine extends TtsEngine {
   }
 
   static const _prefsKey = 'voice.systemPitch';
+}
+
+/// 一个系统中文声音：名称与实测音高（以 165 Hz 为界分女声、男声）。
+class SystemVoice {
+  SystemVoice(this.name, this.pitch);
+
+  final String name;
+  final double pitch;
+  bool get female => pitch >= 165;
+
+  /// 显示名称（女声 1、男声 2……），由 [SystemTtsEngine.voices] 填写。
+  String label = '';
 }

@@ -12,7 +12,6 @@ import 'package:path_provider/path_provider.dart';
 
 import '../player/mpv_property.dart' if (dart.library.js_interop) '../player/mpv_property_web.dart';
 
-import 'engines/cloud_engines.dart';
 import 'engines/system_engine.dart';
 import 'prosody.dart';
 import 'tts_types.dart';
@@ -95,10 +94,10 @@ class MediaKitSpeechSink extends SpeechSink {
   }
 }
 
-/// 引擎注册表与选择：按“用户指定的引擎 → 已配置的云端引擎 → 系统朗读”的顺序降级。
+/// 引擎注册表与选择。现在只有系统朗读；保留注册表与失败冷却，测试可以注入假引擎。
 class VoiceEngines {
   VoiceEngines(this.settings, {List<TtsEngine>? engines})
-    : all = engines ?? [CosyVoiceEngine(settings), ElevenLabsEngine(settings), FishAudioEngine(settings), SystemTtsEngine()];
+    : all = engines ?? [SystemTtsEngine()];
 
   final VoiceSettings settings;
   final List<TtsEngine> all;
@@ -114,24 +113,15 @@ class VoiceEngines {
 
   void reportSuccess(String engine) => _cooldown.remove(engine);
 
-  /// 带用户覆盖的声音 ID 的绑定。
-  EngineVoice bindingFor(VoiceProfile voice, TtsEngine engine) {
-    final base = voice.binding(engine.id) ?? EngineVoice(engine.id, const {});
-    var b = base;
-    for (final lang in VoiceLanguage.values) {
-      final o = settings.override(voice.id, engine.id, lang);
-      if (o != null) b = b.withVoice(lang, o);
-    }
-    return b;
-  }
+  /// 这个声音在某个引擎上的绑定（没有时为空绑定）。
+  EngineVoice bindingFor(VoiceProfile voice, TtsEngine engine) => voice.binding(engine.id) ?? EngineVoice(engine.id, const {});
 
   /// 这个音色在这种语言上可用的引擎，按优先顺序。
   Future<List<(TtsEngine, EngineVoice)>> chain(VoiceProfile voice, VoiceLanguage lang, {bool ignoreCooldown = false}) async {
     final now = DateTime.now();
     final ordered = <TtsEngine>[
-      ?byId(settings.preferredEngine),
-      ...all.where((e) => !e.offline && e.id != settings.preferredEngine),
-      ...all.where((e) => e.offline && e.id != settings.preferredEngine),
+      ...all.where((e) => !e.offline),
+      ...all.where((e) => e.offline),
     ];
     final out = <(TtsEngine, EngineVoice)>[];
     for (final e in ordered) {
@@ -315,7 +305,7 @@ class SpeechOutput extends ChangeNotifier {
   /// 缓存键：音色、语言、文字与韵律相同的句子（试听、常用回答）直接复用。
   /// 系统朗读的结果不进缓存（见 [_write]）：配置云端引擎后，同一句话要换成云端的声音。
   String _key(_Utterance u) => sha1
-      .convert(utf8.encode('v5|${u.voice.id}|${settings.preferredEngine}|${u.language.name}|${u.text}|${u.prosody.rate.toStringAsFixed(2)}|${u.prosody.emotion.name}'))
+      .convert(utf8.encode('v6|${u.voice.id}|${u.language.name}|${u.text}|${u.prosody.rate.toStringAsFixed(2)}|${u.prosody.emotion.name}'))
       .toString();
 
   Future<String?> _cached(_Utterance u) async {
