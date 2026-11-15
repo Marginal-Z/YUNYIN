@@ -16,6 +16,7 @@ import '../../core/ui/text.dart';
 import '../../core/ui/widgets.dart';
 import '../../data/models.dart';
 import '../../data/sources/music_source.dart';
+import '../../data/sources/kugou/kugou_source.dart';
 import '../../data/sources/source_manager.dart';
 import '../common/actions.dart';
 import '../common/layout.dart';
@@ -251,7 +252,9 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 16),
                     PrimaryButton(label: _busy ? '登录中…' : '登录 / 注册', height: 52, fontSize: 17, onTap: _login),
-                  ] else if (source.supports(SourceFeature.cookieLogin)) ...[
+                  // 酷狗的登录卡片（两个版本的扫码、网页登录与 Cookie）只给酷狗：网易云的功能里也有 Cookie 登录，
+                  // 只按功能判断时，网易云去掉验证码登录后也走到了这里，显示成了酷狗的扫码。
+                  ] else if (source is KugouSource) ...[
                     // 酷狗：官方登录页（应用内网页）或粘贴 Cookie。
                     KugouLoginCard(onDone: _done, onQr: _qrLogin),
                   ] else ...[
@@ -314,7 +317,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
           // 只有还支持邮箱与密码登录的平台才显示“其他登录方式”：网易云与 QQ 音乐只能扫码（主按钮就是扫码），
           // 酷狗的登录方式都在卡片里（卡片也比其他平台高，显示时会和这一行重叠）。
-          if (canPwd && !source.supports(SourceFeature.cookieLogin))
+          if (canPwd && source is! KugouSource)
             Positioned(
               left: 20,
               right: 20,
@@ -329,7 +332,7 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
             ),
-          if (canPwd && !source.supports(SourceFeature.cookieLogin))
+          if (canPwd && source is! KugouSource)
             Positioned(
               left: 20,
               right: 20,
