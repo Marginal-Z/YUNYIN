@@ -186,6 +186,9 @@ class PlayerController extends ChangeNotifier {
   /// 这里统一以 16 位立体声交给系统混音，这是所有 Android 设备都支持的格式，手机上听感相同。
   Future<void> _configureAndroidAudio(Player p) async {
     if (!await setMpvProperty(p, 'audio-channels', 'stereo')) return;
+    // 音频缓冲从默认的 0.2 秒加到 0.4 秒：合成语音、语音唤醒等占满 CPU 时，解码线程偶尔慢一拍也不会断流
+    // （断流时 AudioTrack 补零，听起来是“咔哒”声）。音量与均衡器的调整因此最多晚 0.2 秒生效。
+    await setMpvProperty(p, 'audio-buffer', '0.4');
     // 播放器使用单独申请的音频会话，系统音效链（音量增强与限幅、空间音效、低频增强）挂在这个会话上。
     try {
       final session = await _fxChannel.invokeMethod<int>('session');
@@ -367,9 +370,10 @@ class PlayerController extends ChangeNotifier {
   /// 语音助手听指令时压低音乐的系数。
   double _duck = 1;
 
-  /// 语音助手听指令时把音乐压低到 25%（识别更准），说完后恢复。
+  /// 语音助手听指令、说话时把音乐压低（识别更准、人声清楚），结束后恢复。
   Future<void> duck(bool on) async {
-    final v = on ? 0.25 : 1.0;
+    // 压低到约 -18 dB：助手说话时音乐只作为很轻的背景，不和人声抢。
+    final v = on ? 0.12 : 1.0;
     if (v == _duck) return;
     _duck = v;
     await _applyVolume();
@@ -507,8 +511,22 @@ class PlayerController extends ChangeNotifier {
     // 后面有限幅器时不需要预先压低电平。Android 的系统限幅器在 mpv 之后：只有以浮点格式交给系统时
     // （高解析输出），超过满刻度的采样才能完整到达限幅器，否则在转换为 16 位时已经削波。
     if (_eqApplied.contains('alimiter') || (_isAndroid && _fxSession != 0 && settings.hiResOutput)) return 1;
-    final peak = _filterGains.fold<double>(0, math.max);
-    return peak > 0 ? math.pow(10, -peak * 0.6 / 20).toDouble() : 1;
+    final db = eqHeadroomDb(_filterGains);
+    return db > 0 ? math.pow(10, -db / 20).toDouble() : 1;
+  }
+
+  /// 均衡器提升后需要预留的余量（dB）：最大的合成提升再加 0.3 dB。
+  ///
+  /// 此前只预留最大提升的 60%：响度接近满刻度的流行歌在 +6 dB 的预设下仍超出约 2.4 dB，转换为 16 位时削波，
+  /// 听起来是“噼啪”的杂音。相邻频段（倍频程宽）的提升在交叠处会叠加，一个频段旁边的提升约有 30% 落在它的中心。
+  @visibleForTesting
+  static double eqHeadroomDb(List<double> gains) {
+    var worst = 0.0;
+    double pos(int i) => i >= 0 && i < gains.length ? math.max(0, gains[i]) : 0;
+    for (var i = 0; i < gains.length; i++) {
+      worst = math.max(worst, gains[i] + 0.3 * (pos(i - 1) + pos(i + 1)));
+    }
+    return worst > 0 ? worst + 0.3 : 0;
   }
 
   /// 拖动滑块时连续变化：合并为每 120ms 最多更新一次滤镜。

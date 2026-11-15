@@ -116,6 +116,15 @@ void main() {
     settings.dispose();
   });
 
+  test('均衡器余量：预留完整的合成提升（含相邻频段交叠），没有提升时不压低', () {
+    expect(PlayerController.eqHeadroomDb(const [0, 0, 0]), 0);
+    expect(PlayerController.eqHeadroomDb(const [-3, -2, 0]), 0);
+    // 单个 +6 dB：预留 6.3 dB（此前只有 3.6 dB，响的歌会削波）。
+    expect(PlayerController.eqHeadroomDb(const [0, 6, 0]), closeTo(6.3, 1e-9));
+    // 相邻两个 +6 dB：交叠处约 7.8 dB。
+    expect(PlayerController.eqHeadroomDb(const [6, 6, 0]), closeTo(6 + 1.8 + 0.3, 1e-9));
+  });
+
   test('播放引擎打开失败后结束加载并发出提示', () async {
     engine.failOpen = true;
     final notice = player.notices.first;
