@@ -110,12 +110,14 @@ class _PixelAlignedPainter extends SnapshotPainter {
     final aligned = m[1] == 0 && m[4] == 0 && sx > 0 && sy > 0;
     var o = offset;
     if (aligned) {
-      double snap(double v, double scale, double translate) => ((v * scale + translate).roundToDouble() - translate) / scale;
+      // 画布的变换不含设备像素比（根图层单独按像素比缩放），按物理像素取整要乘上它。
+      double snap(double v, double scale, double translate) =>
+          (((v * scale + translate) * pixelRatio).roundToDouble() / pixelRatio - translate) / scale;
       o = Offset(snap(offset.dx, sx, m[12]), snap(offset.dy, sy, m[13]));
     }
     final src = Rect.fromLTWH(0, 0, sourceSize.width, sourceSize.height);
     // 缩放为 1 时 1:1 贴图，不需要过滤；缩放中用较好的过滤，减少锯齿。
-    final exact = aligned && ((sx * size.width) - sourceSize.width).abs() < 0.5;
+    final exact = aligned && ((sx * size.width * pixelRatio) - sourceSize.width).abs() < 0.5;
     canvas.drawImageRect(image, src, o & size, Paint()..filterQuality = exact ? FilterQuality.none : FilterQuality.medium);
   }
 

@@ -698,6 +698,8 @@ class PlayerController extends ChangeNotifier {
     queueTitle = title;
     if (shuffle) {
       mode = PlayMode.shuffle;
+      // 与手动切换播放模式一样记住，重启后仍是随机播放。
+      unawaited(SharedPreferences.getInstance().then((prefs) => prefs.setString('player.mode', mode.name)));
       start = math.Random().nextInt(songs.length);
     }
     _index = start.clamp(0, songs.length - 1);
@@ -800,6 +802,19 @@ class PlayerController extends ChangeNotifier {
     _rebuildOrder();
     SharedPreferences.getInstance().then((prefs) => prefs.setString('player.mode', mode.name));
     notifyListeners();
+  }
+
+  /// 静音前的音量（取消静音时恢复）。
+  double _unmuteVolume = 1;
+
+  /// 静音 / 取消静音：取消时恢复静音前的音量（此前固定恢复到 65%）。
+  void toggleMute() {
+    if (volume == 0) {
+      setVolume(_unmuteVolume > 0 ? _unmuteVolume : 1);
+    } else {
+      _unmuteVolume = volume;
+      setVolume(0);
+    }
   }
 
   void cycleMode() => setMode(PlayMode.values[(mode.index + 1) % PlayMode.values.length]);

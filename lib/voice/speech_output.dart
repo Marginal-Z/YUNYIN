@@ -269,6 +269,8 @@ class SpeechOutput extends ChangeNotifier {
               if (generation != _generation) return;
               parts.add(a);
             }
+            // 被打断时引擎不输出音频，这不算失败（否则这个引擎会被冷却一分钟，期间退回系统朗读）。
+            if (parts.isEmpty && cancel.isCancelled) return;
             if (parts.isEmpty) throw TtsException('没有生成音频', engine: engine.name);
             files.addAll(await _write(u, engine, parts));
             engines.reportSuccess(engine.id);

@@ -31,6 +31,11 @@ class VoiceService : Service() {
         var onStopRequested: (() -> Unit)? = null
 
         fun start(context: Context): Boolean = try {
+            // 没有麦克风权限时启动麦克风类型的前台服务会失败；以 startForegroundService 启动却没能进入前台，
+            // 系统会让应用崩溃（“did not then call Service.startForeground()”），所以先检查权限。
+            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                throw SecurityException("没有麦克风权限")
+            }
             val intent = Intent(context, VoiceService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
             true
@@ -46,7 +51,6 @@ class VoiceService : Service() {
 
         private var tts: TextToSpeech? = null
         private var ttsReady = false
-        private var pendingSpeech: String? = null
 
         /** 声音是否从耳机播放（有线、蓝牙或 USB 耳机）：外放时麦克风会收到朗读声，不能用“开口打断”。 */
         fun headset(context: Context): Boolean {
@@ -68,25 +72,22 @@ class VoiceService : Service() {
 
         /** 用系统的文字转语音朗读（第一次调用时初始化引擎）。 */
         fun speak(context: Context, text: String) {
-            val engine = tts
-            if (engine == null) {
-                pendingSpeech = text
-                tts = TextToSpeech(context.applicationContext) { status ->
-                    ttsReady = status == TextToSpeech.SUCCESS
-                    if (ttsReady) {
-                        tts?.language = Locale.SIMPLIFIED_CHINESE
-                        pendingSpeech?.let { tts?.speak(it, TextToSpeech.QUEUE_FLUSH, null, "yunyin") }
-                    }
-                    pendingSpeech = null
-                }
-                return
+            withTts(context) { engine ->
+                engine?.language = Locale.SIMPLIFIED_CHINESE
+                engine?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "yunyin")
             }
-            if (ttsReady) engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "yunyin") else pendingSpeech = text
         }
 
         fun stopSpeaking() {
             tts?.stop()
         }
+
+        /** 初始化期间等待引擎的调用（初始化只进行一次，不会重复创建引擎）。 */
+        private val waiting = mutableListOf<(TextToSpeech?) -> Unit>()
+        private var initializing = false
+
+        /** 进行中的合成：按 utteranceId 回调（多处同时合成时互不覆盖）。 */
+        private val utterances = java.util.concurrent.ConcurrentHashMap<String, (Boolean) -> Unit>()
 
         /** 确保系统朗读引擎已初始化，然后在主线程执行 [block]（初始化失败时传入 null）。 */
         private fun withTts(context: Context, block: (TextToSpeech?) -> Unit) {
@@ -95,9 +96,29 @@ class VoiceService : Service() {
                 block(engine)
                 return
             }
+            waiting += block
+            if (initializing) return
+            initializing = true
+            // 上一次初始化失败的引擎先释放，避免每次重试泄漏一个与系统语音服务的绑定。
+            tts?.shutdown()
             tts = TextToSpeech(context.applicationContext) { status ->
+                initializing = false
                 ttsReady = status == TextToSpeech.SUCCESS
-                block(if (ttsReady) tts else null)
+                if (ttsReady) {
+                    tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {}
+                        override fun onDone(utteranceId: String?) { utteranceId?.let { utterances.remove(it)?.invoke(true) } }
+                        @Deprecated("Deprecated in Java")
+                        override fun onError(utteranceId: String?) { utteranceId?.let { utterances.remove(it)?.invoke(false) } }
+                        override fun onError(utteranceId: String?, errorCode: Int) { utteranceId?.let { utterances.remove(it)?.invoke(false) } }
+                    })
+                } else {
+                    tts?.shutdown()
+                    tts = null
+                }
+                val list = waiting.toList()
+                waiting.clear()
+                list.forEach { it(if (ttsReady) tts else null) }
             }
         }
 
@@ -128,15 +149,12 @@ class VoiceService : Service() {
                 if (chosen != null) engine.voice = chosen else engine.language = Locale.SIMPLIFIED_CHINESE
                 engine.setSpeechRate(rate)
                 val id = "yunyin-${System.nanoTime()}"
-                engine.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) { if (utteranceId == id) done(true) }
-                    @Deprecated("Deprecated in Java")
-                    override fun onError(utteranceId: String?) { if (utteranceId == id) done(false) }
-                    override fun onError(utteranceId: String?, errorCode: Int) { if (utteranceId == id) done(false) }
-                })
+                utterances[id] = done
                 val r = engine.synthesizeToFile(text, null, java.io.File(path), id)
-                if (r != TextToSpeech.SUCCESS) done(false)
+                if (r != TextToSpeech.SUCCESS) {
+                    utterances.remove(id)
+                    done(false)
+                }
             }
             withTts(context) { engine -> if (engine != null) run(engine) else done(false) }
         }

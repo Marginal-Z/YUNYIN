@@ -45,7 +45,10 @@ class SystemTtsEngine extends TtsEngine {
       if (Platform.isAndroid) {
         final want = voice.voices[lang];
         final systemVoice = want == null ? null : (want.startsWith('voice:') ? want.substring(6) : await _voiceFor(want));
-        final ok = await _channel.invokeMethod<bool>('synthesize', {'text': request.text, 'path': path, 'rate': rate, 'lang': lang.name, 'voice': systemVoice});
+        // 系统语音引擎偶尔不回调完成（引擎崩溃、被系统回收）：最多等 30 秒，否则整个朗读队列会一直卡住。
+        final ok = await _channel
+            .invokeMethod<bool>('synthesize', {'text': request.text, 'path': path, 'rate': rate, 'lang': lang.name, 'voice': systemVoice})
+            .timeout(const Duration(seconds: 30), onTimeout: () => false);
         if (ok != true) throw TtsException('系统朗读不可用（请在系统设置中安装中文语音包）', engine: name);
       } else if (Platform.isMacOS) {
         await _run('say', ['-v', 'Tingting', '-r', '${(180 * rate).round()}', '-o', path, '--file-format=WAVE', '--data-format=LEI16@22050', request.text]);

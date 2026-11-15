@@ -43,7 +43,9 @@ object MossTts {
     private var engine: Engine? = null
     private var release: ScheduledFuture<*>? = null
 
-    @Volatile private var generation = 0
+    /** 已取消的请求（按请求编号取消，旧的取消不会误伤之后的句子）；释放模型时取消全部。 */
+    private val cancelled = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<Int, Boolean>())
+    @Volatile private var cancelBefore = 0
 
     fun register(context: Context, messenger: BinaryMessenger) {
         val app = context.applicationContext
@@ -56,10 +58,12 @@ object MossTts {
                     val path = call.argument<String>("path") ?: ""
                     val maxFrames = call.argument<Int>("maxFrames") ?: 375
                     val seed = (call.argument<Number>("seed") ?: 1234).toLong()
-                    val gen = generation
+                    val id = call.argument<Int>("id") ?: 0
+                    val isCancelled = { id <= cancelBefore || cancelled.contains(id) }
                     worker.execute {
                         val reply = try {
                             release?.cancel(false)
+                            if (isCancelled()) throw CancelledException()
                             val e = engine?.takeIf { it.root == dir } ?: run {
                                 engine?.close()
                                 engine = null
@@ -69,10 +73,11 @@ object MossTts {
                                     Log.i(TAG, "model loaded in ${System.currentTimeMillis() - t0} ms")
                                 }
                             }
-                            val r = e.synthesize(ids, voice, File(path), maxFrames, seed) { gen != generation }
-                            scheduleRelease()
+                            val r = e.synthesize(ids, voice, File(path), maxFrames, seed, isCancelled)
                             if (r == null) mapOf("ok" to false, "cancelled" to true)
                             else mapOf("ok" to true, "frames" to r.frames, "elapsedMs" to r.elapsedMs, "durationMs" to r.durationMs, "peak" to r.peak.toDouble())
+                        } catch (c: CancelledException) {
+                            mapOf("ok" to false, "cancelled" to true)
                         } catch (t: Throwable) {
                             Log.e(TAG, "synthesize failed", t)
                             // 内存不足等错误后释放模型，下次重新加载。
@@ -81,16 +86,21 @@ object MossTts {
                                 engine = null
                             }
                             mapOf("ok" to false, "error" to (t.message ?: t.javaClass.simpleName))
+                        } finally {
+                            cancelled.remove(id)
+                            // 成功与失败都按时释放模型（约 700 MB 内存）。
+                            if (engine != null) scheduleRelease()
                         }
                         main.post { result.success(reply) }
                     }
                 }
                 "cancel" -> {
-                    generation++
+                    call.argument<Int>("id")?.let { cancelled.add(it) }
                     result.success(null)
                 }
                 "release" -> {
-                    generation++
+                    // 释放时取消编号小于 before 的全部请求（Dart 传入下一个请求的编号）。
+                    call.argument<Int>("before")?.let { cancelBefore = it }
                     worker.execute {
                         engine?.close()
                         engine = null
@@ -100,7 +110,15 @@ object MossTts {
                 "memory" -> {
                     val am = app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                     val info = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
-                    result.success(mapOf("total" to info.totalMem, "available" to info.availMem, "cores" to Runtime.getRuntime().availableProcessors()))
+                    result.success(
+                        mapOf(
+                            "total" to info.totalMem,
+                            "available" to info.availMem,
+                            "cores" to Runtime.getRuntime().availableProcessors(),
+                            // 推理库只打包了 arm64-v8a（见 build.gradle.kts 的 prepareMossOrt）。
+                            "abi" to (android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: ""),
+                        ),
+                    )
                 }
                 else -> result.notImplemented()
             }
@@ -115,6 +133,8 @@ object MossTts {
             Log.i(TAG, "model released after idle")
         }, 3, TimeUnit.MINUTES)
     }
+
+    private class CancelledException : Exception()
 
     class Result(val frames: Int, val elapsedMs: Long, val durationMs: Long, val peak: Float)
 
@@ -146,14 +166,29 @@ object MossTts {
             setInterOpNumThreads(1)
         }
         private val files = ttsMeta.getJSONObject("files")
-        private val prefill = session(File(ttsDir, files.getString("prefill")))
-        private val decode = session(File(ttsDir, files.getString("decode_step")))
-        private val localFrame = session(File(ttsDir, files.getString("local_fixed_sampled_frame")))
-        private val codecDecode = session(File(codecDir, codecMeta.getJSONObject("files").getString("decode_full")))
+        private val created = ArrayList<OrtSession>()
+        private val prefill: OrtSession
+        private val decode: OrtSession
+        private val localFrame: OrtSession
+        private val codecDecode: OrtSession
+
+        init {
+            // 某个会话加载失败（内存不足、文件损坏）时关掉已经加载的，避免每次重试再泄漏几百 MB。
+            try {
+                prefill = session(File(ttsDir, files.getString("prefill")))
+                decode = session(File(ttsDir, files.getString("decode_step")))
+                localFrame = session(File(ttsDir, files.getString("local_fixed_sampled_frame")))
+                codecDecode = session(File(codecDir, codecMeta.getJSONObject("files").getString("decode_full")))
+            } catch (t: Throwable) {
+                created.forEach { runCatching { it.close() } }
+                runCatching { options.close() }
+                throw t
+            }
+        }
 
         private fun session(f: File): OrtSession {
             require(f.isFile) { "缺少模型文件 ${f.name}" }
-            return env.createSession(f.absolutePath, options)
+            return env.createSession(f.absolutePath, options).also { created += it }
         }
 
         private fun ints(key: String): IntArray = templates.getJSONArray(key).let { a -> IntArray(a.length()) { a.getInt(it) } }
@@ -198,7 +233,12 @@ object MossTts {
                 input.close()
                 mask.close()
             }
-            var hidden = lastHidden(past.tensor("global_hidden"))
+            var hidden = try {
+                lastHidden(past.tensor("global_hidden"))
+            } catch (t: Throwable) {
+                past.close()
+                throw t
+            }
             var pastLength = rows.size
             val seen = Array(nVq) { HashSet<Int>() }
             val random = java.util.Random(seed)
@@ -218,7 +258,12 @@ object MossTts {
                             val feeds = linkedMapOf<String, OnnxTensorLike>("input_ids" to input, "past_valid_lengths" to len)
                             for (i in decodeInputs.indices) feeds[decodeInputs[i]] = past.tensor(decodeOutputs[i])
                             val next = decode.run(feeds)
-                            val nextHidden = lastHidden(next.tensor("global_hidden"))
+                            val nextHidden = try {
+                                lastHidden(next.tensor("global_hidden"))
+                            } catch (t: Throwable) {
+                                next.close()
+                                throw t
+                            }
                             hidden.close()
                             past.close()
                             past = next

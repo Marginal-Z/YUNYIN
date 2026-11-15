@@ -37,6 +37,14 @@ class Shadow2 {
   final Color color;
 
   Offset get offset => Offset(dx, dy);
+
+  // 按值比较：卡片装饰比较阴影列表决定是否重绘，非常量的阴影列表也不会每次重建都重绘。
+  @override
+  bool operator ==(Object other) =>
+      other is Shadow2 && other.dx == dx && other.dy == dy && other.blur == blur && other.spread == spread && other.color == color;
+
+  @override
+  int get hashCode => Object.hash(dx, dy, blur, spread, color);
 }
 
 /// 设计稿 token。字段命名对应设计规范页里的语义。

@@ -36,6 +36,7 @@ class MossTtsEngine extends TtsEngine {
       !kIsWeb && Platform.isAndroid && voice.voices[lang] != null && await MossModels.ready();
 
   static SentencePieceBpe? _tokenizer;
+  static int _nextId = 0;
 
   static Future<SentencePieceBpe> _tok() async {
     final t = _tokenizer;
@@ -62,29 +63,37 @@ class MossTtsEngine extends TtsEngine {
     if (text.isEmpty) return;
     final ids = (await _tok()).encode(text);
     final path = '${(await getTemporaryDirectory()).path}/yunyin_moss_${DateTime.now().microsecondsSinceEpoch}.wav';
-    cancel?.whenCancel.then((_) => _channel.invokeMethod<void>('cancel').catchError((_) {}));
-    final Map<String, Object?>? r;
-    try {
-      r = await _channel.invokeMapMethod<String, Object?>('synthesize', {
-        'dir': await MossModels.dir(),
-        'ids': Int32List.fromList(ids),
-        'voice': speaker,
-        'path': path,
-        'maxFrames': maxFrames(text),
-        'seed': text.hashCode & 0x7fffffff,
-      });
-    } on PlatformException catch (e) {
-      throw TtsException('本机语音不可用（${e.message}）', engine: name);
-    }
+    // 准备期间已经被打断：不再请求合成。
     if (cancel?.isCancelled ?? false) return;
-    if (r?['ok'] != true) {
-      if (r?['cancelled'] == true) return;
-      throw TtsException('本机语音合成失败（${r?['error'] ?? '未知原因'}）', engine: name);
-    }
-    debugPrint('moss: ${ids.length} 个字词 → ${r!['frames']} 帧，音频 ${r['durationMs']} ms，用时 ${r['elapsedMs']} ms，峰值 ${r['peak']}');
+    // 每个请求一个编号，打断时只取消这一个（此前全局计数，旧的打断会把之后排队的句子也取消掉）。
+    final id = ++_nextId;
+    cancel?.whenCancel.then((_) => _channel.invokeMethod<void>('cancel', {'id': id}).catchError((_) {}));
     final f = File(path);
-    final bytes = await f.readAsBytes();
-    f.deleteSync();
-    yield TtsAudio(bytes, format: 'wav');
+    try {
+      final Map<String, Object?>? r;
+      try {
+        r = await _channel.invokeMapMethod<String, Object?>('synthesize', {
+          'id': id,
+          'dir': await MossModels.dir(),
+          'ids': Int32List.fromList(ids),
+          'voice': speaker,
+          'path': path,
+          'maxFrames': maxFrames(text),
+          'seed': text.hashCode & 0x7fffffff,
+        });
+      } on PlatformException catch (e) {
+        throw TtsException('本机语音不可用（${e.message}）', engine: name);
+      }
+      if (cancel?.isCancelled ?? false) return;
+      if (r?['ok'] != true) {
+        if (r?['cancelled'] == true) return;
+        throw TtsException('本机语音合成失败（${r?['error'] ?? '未知原因'}）', engine: name);
+      }
+      debugPrint('moss: ${ids.length} 个字词 → ${r!['frames']} 帧，音频 ${r['durationMs']} ms，用时 ${r['elapsedMs']} ms，峰值 ${r['peak']}');
+      yield TtsAudio(await f.readAsBytes(), format: 'wav');
+    } finally {
+      // 被打断时原生端可能已经写好了文件。
+      if (f.existsSync()) f.deleteSync();
+    }
   }
 }

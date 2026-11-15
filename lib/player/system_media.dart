@@ -35,6 +35,7 @@ class SystemMediaHandler extends BaseAudioHandler with SeekHandler {
   final PlayerController player;
   String? _itemKey;
   Duration? _itemDuration;
+  String? _itemCover;
 
   static Future<void> attach(PlayerController player) async {
     if (!supportsSystemMedia) return;
@@ -61,9 +62,11 @@ class SystemMediaHandler extends BaseAudioHandler with SeekHandler {
       _itemDuration = null;
       mediaItem.add(null);
     }
-    if (s != null && (s.key != _itemKey || player.duration != _itemDuration)) {
+    // 封面可能在开始播放后才补上（本地歌曲联网匹配、平台补全），封面变化时也要更新通知栏与锁屏。
+    if (s != null && (s.key != _itemKey || player.duration != _itemDuration || s.coverUrl != _itemCover)) {
       _itemKey = s.key;
       _itemDuration = player.duration;
+      _itemCover = s.coverUrl;
       final cover = s.coverUrl;
       mediaItem.add(
         MediaItem(

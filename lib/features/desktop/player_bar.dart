@@ -157,7 +157,7 @@ class DesktopPlayerBar extends StatelessWidget {
                   iconSize: 20,
                   color: p.text3,
                   label: '静音',
-                  onTap: () => player.setVolume(player.volume == 0 ? 0.65 : 0),
+                  onTap: player.toggleMute,
                 ),
                 const SizedBox(width: 6),
                 SizedBox(

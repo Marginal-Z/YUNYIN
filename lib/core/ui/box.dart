@@ -179,12 +179,12 @@ class _OuterShadowPainter extends CustomPainter {
     final cached = _ShadowCache.instance.lookup(radius, shadows, size);
     if (cached != null) {
       // 预先画好的阴影九宫格：四角原样、四边拉伸，与直接模糊的结果相同。
-      final (image, margin, r, dpr) = cached;
+      final (image, margin, k, dpr) = cached;
       canvas.save();
       canvas.scale(1 / dpr);
       canvas.drawImageNine(
         image,
-        Rect.fromLTWH((margin + r) * dpr, (margin + r) * dpr, _ShadowCache.core * dpr, _ShadowCache.core * dpr),
+        Rect.fromLTWH((margin + k) * dpr, (margin + k) * dpr, _ShadowCache.core * dpr, _ShadowCache.core * dpr),
         Rect.fromLTWH(-margin * dpr, -margin * dpr, (size.width + margin * 2) * dpr, (size.height + margin * 2) * dpr),
         Paint()..filterQuality = FilterQuality.low,
       );
@@ -288,22 +288,25 @@ class _ShadowCache extends ChangeNotifier {
       margin = math.max(margin, math.max(s.dx.abs(), s.dy.abs()) + s.spread.abs() + cssSigma(s.blur) * 3);
     }
     margin = margin.ceilToDouble();
+    // 九宫格每个角从卡片边缘向内的长度：越过圆角与模糊的影响范围（偏移、扩展、3σ）之后，阴影沿边是均匀的，
+    // 中间拉伸的部分取自那里才与直接模糊相同（只取圆角的长度时，模糊比圆角大的阴影四边会变淡）。
+    final k = (r + margin).ceilToDouble();
     // 卡片比九宫格的四角还小时，拉伸会出错，直接模糊。
-    if (size.width < r * 2 + core || size.height < r * 2 + core) return null;
+    if (size.width < k * 2 + core || size.height < k * 2 + core) return null;
     final dpr = ui.PlatformDispatcher.instance.views.firstOrNull?.devicePixelRatio ?? 1;
     final key = '${r.toStringAsFixed(2)}|${dpr.toStringAsFixed(2)}|${[for (final s in shadows) '${s.dx},${s.dy},${s.blur},${s.spread},${s.color.toARGB32()}'].join(';')}';
     final hit = _images[key];
     if (hit != null) return hit;
-    if (_pending.add(key)) unawaited(_render(key, r, margin, dpr, shadows));
+    if (_pending.add(key)) unawaited(_render(key, r, k, margin, dpr, shadows));
     return null;
   }
 
-  Future<void> _render(String key, double r, double margin, double dpr, List<Shadow2> shadows) async {
-    final side = (r * 2 + core) + margin * 2;
+  Future<void> _render(String key, double r, double k, double margin, double dpr, List<Shadow2> shadows) async {
+    final side = (k * 2 + core) + margin * 2;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     canvas.scale(dpr);
-    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(margin, margin, r * 2 + core, r * 2 + core), Radius.circular(r));
+    final rrect = RRect.fromRectAndRadius(Rect.fromLTWH(margin, margin, k * 2 + core, k * 2 + core), Radius.circular(r));
     for (final s in shadows) {
       final p = Paint()..color = s.color;
       if (s.blur > 0) p.maskFilter = MaskFilter.blur(BlurStyle.normal, cssSigma(s.blur));
@@ -313,7 +316,7 @@ class _ShadowCache extends ChangeNotifier {
     try {
       final px = (side * dpr).ceil();
       final image = await picture.toImage(px, px);
-      _images[key] = (image, margin, r, dpr);
+      _images[key] = (image, margin, k, dpr);
       notifyListeners();
     } catch (_) {
       // 生成失败时一直直接模糊。

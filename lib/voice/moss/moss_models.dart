@@ -40,13 +40,14 @@ abstract final class MossModels {
 
   static Future<String> dir() async => '${(await getApplicationSupportDirectory()).path}/moss';
 
-  /// 这台设备能否运行：只支持 Android（64 位），并且内存不少于 6 GB（模型加载后约占 1 GB 内存）。
+  /// 这台设备能否运行：只支持 64 位（arm64）Android，并且内存不少于 6 GB（模型加载后约占 1 GB 内存）。
   static Future<bool> supported() async {
     if (kIsWeb || !Platform.isAndroid) return false;
     try {
       final m = await const MethodChannel('yunyin/moss').invokeMapMethod<String, Object?>('memory');
       final total = (m?['total'] as num?)?.toInt() ?? 0;
-      return total >= 5500 << 20;
+      // 推理库只打包了 64 位（arm64-v8a）。
+      return total >= 5500 << 20 && m?['abi'] == 'arm64-v8a';
     } catch (_) {
       return false;
     }

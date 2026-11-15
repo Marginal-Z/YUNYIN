@@ -58,6 +58,7 @@ class _AdaptiveScaleState extends State<AdaptiveScale> {
   double? _scale;
   double? _pending;
   Timer? _settle;
+  bool? _layoutDesktop;
 
   static bool get _desktopOs =>
       !kIsWeb && (defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux || defaultTargetPlatform == TargetPlatform.macOS);
@@ -76,8 +77,13 @@ class _AdaptiveScaleState extends State<AdaptiveScale> {
     if ((target - 1).abs() < 0.01) target = 1;
     // 电脑上拖动窗口边缘改变大小时，倍数按 0.05 一档变化，每跨一档整个界面突然放大或缩小 5%，看起来像窗口边缘在抖。
     // 改为拖动过程中保持原来的倍数（只是多显示或少显示一些内容），停下 0.2 秒后再换成新的倍数，整个过程只变一次。
-    if (_scale == null || !_desktopOs) {
+    final layoutDesktop = AdaptiveScale.isDesktopLayout(mq.size, widget.desktopBreakpoint);
+    final layoutChanged = _layoutDesktop != null && _layoutDesktop != layoutDesktop;
+    _layoutDesktop = layoutDesktop;
+    // 跨过桌面 / 手机布局的分界时立即换倍数：否则新布局会按旧倍数画 0.2 秒（挤压或溢出）。
+    if (_scale == null || !_desktopOs || layoutChanged) {
       _scale = target;
+      _pending = null;
       _settle?.cancel();
     } else if (target != _scale) {
       if (target != _pending) {
