@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show CircularProgressIndicator, Theme;
 import 'package:provider/provider.dart';
+import '../../debug/bench_flags.dart';
 
 import '../../core/settings.dart';
 import '../../core/theme/palette.dart';
@@ -124,7 +125,7 @@ class _MobileShellState extends State<MobileShell> {
                 ),
               ),
             ),
-          ] else ...[
+          ] else if (!BenchFlags.noChrome) ...[
             AnimatedPositioned(
               duration: const Duration(milliseconds: 260),
               curve: Motion.spring,

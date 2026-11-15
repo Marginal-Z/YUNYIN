@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
+import '../../debug/bench_flags.dart';
 
 /// 动画进行时用快照绘制子组件：动画开始时把子组件画成一张位图，之后的缩放、淡入等变换都作用在这张位图上，
 /// 动画结束后换回实时绘制。
@@ -37,8 +38,8 @@ class _TransitionSnapshotState extends State<TransitionSnapshot> {
     final animating = _animating;
     // 每次开始新的动画都重新截图（页面内容可能已经变了）。
     if (animating && !_controller.allowSnapshotting) _controller.clear();
-    _controller.allowSnapshotting = animating;
-    if (animating) {
+    _controller.allowSnapshotting = animating && !BenchFlags.noSnapshot;
+    if (animating && !BenchFlags.noSnapshotRefresh) {
       _refresh ??= Timer.periodic(const Duration(milliseconds: 80), (_) => _controller.clear());
     } else {
       _refresh?.cancel();

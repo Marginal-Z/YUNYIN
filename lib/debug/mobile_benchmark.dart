@@ -11,6 +11,7 @@ import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
 import '../core/settings.dart';
+import 'bench_flags.dart';
 import '../data/models.dart';
 import '../data/sources/source_manager.dart';
 import '../features/common/actions.dart';
@@ -66,7 +67,7 @@ Future<void> runMobileBenchmark(GlobalKey<NavigatorState> navKey) async {
   }
 
   var finished = false;
-  Timer(const Duration(minutes: 4), () {
+  Timer(const Duration(minutes: 7), () {
     if (finished) return;
     print('bench|超时，输出已收集的数据');
     report();
@@ -118,7 +119,7 @@ Future<void> runMobileBenchmark(GlobalKey<NavigatorState> navKey) async {
   }
 
   print('bench|等待首页数据');
-  await wait(6000);
+  await wait(10000);
   final ctx = navKey.currentContext!;
   final nav = ctx.read<AppNav>();
   final settings = ctx.read<AppSettings>();
@@ -203,6 +204,31 @@ Future<void> runMobileBenchmark(GlobalKey<NavigatorState> navKey) async {
   } else {
     print('bench|当前没有歌曲，跳过播放页与歌词页');
   }
+
+  // 对照实验：同样的首页滚动与四次进出设置页，逐项关掉一种绘制开销。
+  Future<void> experiment(String name, void Function(bool on) flag) async {
+    flag(true);
+    WidgetsBinding.instance.reassembleApplication();
+    await wait(1200);
+    await phase('对照·$name·首页滚动', scrollPage);
+    await phase('对照·$name·转场', () async {
+      for (var i = 0; i < 4; i++) {
+        nav.push(SettingsRoute());
+        await wait(900);
+        nav.pop();
+        await wait(900);
+      }
+    });
+    flag(false);
+    WidgetsBinding.instance.reassembleApplication();
+    await wait(1200);
+  }
+
+  await experiment('默认', (_) {});
+  await experiment('不画阴影', (on) => BenchFlags.noShadow = on);
+  await experiment('隐藏底栏', (on) => BenchFlags.noChrome = on);
+  await experiment('转场不用快照', (on) => BenchFlags.noSnapshot = on);
+  await experiment('快照不重拍', (on) => BenchFlags.noSnapshotRefresh = on);
 
   finished = true;
   report();

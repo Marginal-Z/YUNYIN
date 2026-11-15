@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../settings.dart';
 import '../theme/palette.dart';
 import 'cover.dart';
+import '../../debug/bench_flags.dart';
 import 'liquid_glass_filter.dart';
 
 /// 桌面端（Linux 的 OpenGL、Windows 的 ANGLE）渲染时没有多重采样，圆角裁剪的边缘是锯齿；
@@ -164,7 +165,7 @@ class _OuterShadowPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (shadows.isEmpty) return;
+    if (shadows.isEmpty || BenchFlags.noShadow) return;
     final rrect = radius.toRRect(Offset.zero & size);
     if (clipInside) {
       canvas.save();
