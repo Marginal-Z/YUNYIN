@@ -537,6 +537,7 @@ class PlayerController extends ChangeNotifier {
       _nativeBoost = false;
       _fxLimiter = false;
     }
+    if (_disposed) return;
     // 有没有提升决定以浮点还是 16 位输出（见 _wantFloat）；变化时在原位置重新加载当前歌曲。
     await _applyOutput();
     await _applyVolume();
@@ -626,6 +627,8 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> _applyVolume() async {
+    // 音效与输出设置是异步生效的，可能在播放器关闭之后才走到这里。
+    if (_disposed) return;
     await _player?.setVolume(_effectiveVolume);
   }
 
