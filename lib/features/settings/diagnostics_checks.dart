@@ -17,7 +17,9 @@ import '../../core/settings.dart';
 import '../../core/ui/adaptive_scale.dart';
 import '../../data/sources/source_manager.dart';
 import '../../player/player_controller.dart';
+import '../../voice/engines/moss_engine.dart';
 import '../../voice/engines/system_engine.dart';
+import '../../voice/moss/moss_models.dart';
 import '../../voice/tts_types.dart';
 import '../../voice/voice_library.dart';
 import '../../voice/voice_settings.dart';
@@ -138,13 +140,23 @@ final List<DiagnosticCheck> diagnosticChecks = [
   }),
   DiagnosticCheck('助手的声音', (context, _) async {
     final voice = VoicePresets.byId(context.read<VoiceSettings>().voiceId);
-    const extra = <String>[];
-    final binding = voice.binding('system')!;
+    // 本机语音（MOSS-TTS-Nano）下载后优先使用，否则用系统朗读：检查实际会用的那个。
+    final moss = voice.binding('moss');
+    final mossSupported = await MossModels.supported();
+    final useMoss = moss != null && mossSupported && await MossModels.ready();
+    final TtsEngine engine = useMoss ? MossTtsEngine() : SystemTtsEngine();
+    final binding = useMoss ? moss : voice.binding('system')!;
+    final extra = <String>[
+      if (!useMoss && mossSupported) '本机语音（MOSS-TTS-Nano）还没有下载，正在用系统朗读；可在音色中心下载',
+      if (!mossSupported && !kIsWeb && Platform.isAndroid) '这台设备内存不足 6 GB，不使用本机语音',
+    ];
     try {
       final want = binding.voices[VoiceLanguage.zh] ?? 'female';
-      final (name, pitch) = want.startsWith('voice:') ? (want.substring(6), null) : await SystemTtsEngine.describe(want);
+      final (name, pitch) = useMoss
+          ? ('MOSS-TTS-Nano · $want', null)
+          : (want.startsWith('voice:') ? (want.substring(6), null) : await SystemTtsEngine.describe(want));
       final sw = Stopwatch()..start();
-      final audio = await SystemTtsEngine().synthesize(binding, const TtsRequest('你好，这是一次声音测试，听听清不清楚。', language: VoiceLanguage.zh)).toList();
+      final audio = await engine.synthesize(binding, const TtsRequest('你好，这是一次声音测试，听听清不清楚。', language: VoiceLanguage.zh)).toList();
       final ms = sw.elapsedMilliseconds;
       final (samples, rate) = decodeWav16(audio.single.bytes);
       final seconds = samples.length / rate;
@@ -153,14 +165,18 @@ final List<DiagnosticCheck> diagnosticChecks = [
       for (var i = 1; i < samples.length; i++) {
         if ((samples[i] - samples[i - 1]).abs() > 0.35) glitches++;
       }
-      final status = peak >= 0.99 || glitches >= 10 ? CheckStatus.fail : CheckStatus.ok;
-      return CheckResult(status, '${voice.name}：系统朗读正常（${seconds.toStringAsFixed(1)} 秒语音用了 ${(ms / 1000).toStringAsFixed(1)} 秒）', [
-        '系统声音：${name ?? '系统默认'}${pitch == null ? '' : '（音高约 ${pitch.round()} Hz）'}，$rate Hz',
+      final status = peak >= 0.99 || glitches >= 10 ? CheckStatus.fail : (seconds < 0.5 ? CheckStatus.warn : CheckStatus.ok);
+      return CheckResult(status, '${voice.name}：${engine.name}正常（${seconds.toStringAsFixed(1)} 秒语音用了 ${(ms / 1000).toStringAsFixed(1)} 秒）', [
+        '声音：${name ?? '系统默认'}${pitch == null ? '' : '（音高约 ${pitch.round()} Hz）'}，$rate Hz',
         '峰值 ${peak.toStringAsFixed(2)}${peak >= 0.99 ? '（削波）' : ''}，毛刺 $glitches 处',
         ...extra,
       ]);
     } catch (e) {
-      return CheckResult(CheckStatus.fail, '系统朗读不可用', ['$e', '请在系统设置的“文字转语音”中安装中文语音', ...extra]);
+      return CheckResult(CheckStatus.fail, '${engine.name}不可用', [
+        '$e',
+        if (!useMoss) '请在系统设置的“文字转语音”中安装中文语音',
+        ...extra,
+      ]);
     }
   }),
   DiagnosticCheck('语音识别与唤醒', (context, _) async {
@@ -176,7 +192,7 @@ final List<DiagnosticCheck> diagnosticChecks = [
     var voices = 0;
     if (!kIsWeb) {
       final root = (await getApplicationSupportDirectory()).path;
-      for (final d in ['voices', 'voice']) {
+      for (final d in ['voices', 'voice', 'moss']) {
         final dir = Directory('$root/$d');
         if (!dir.existsSync()) continue;
         await for (final e in dir.list(recursive: true, followLinks: false)) {

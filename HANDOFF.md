@@ -160,11 +160,16 @@ flutter test --no-pub -j 4
 
 ### 6.2.1 还没解决（2026-11-15）
 
-- **Windows 窗口边缘抖动**：本机没有 Windows，无法复现；怀疑与 `window_manager` 的 `TitleBarStyle.hidden` 改窗口大小时的重绘，或 `AdaptiveScale` 在窗口小于 1180×760 时按 0.05 一档缩放有关，需要在 Windows 上确认。
-- **流畅度**：S23 Ultra 实际使用 3 分钟被动采样（SurfaceFlinger）：97.4% 的帧按时，约 30 次超过 50 ms 的停顿，还没定位到具体页面；建议做一个手机上自动走遍页面的测试（类似 `lib/debug/benchmark.dart` 的桌面版）。
-- **Linux 60 帧上限**：Flutter Linux 嵌入层没有垂直同步回调，见上文。
-- **汽水音乐**：只用公开分享页与网页接口；登录、会员整曲、榜单、热搜需要伪造签名或解密，不做。
-- **网易云扫码**：修了确认后仍是游客身份的问题（游客 Cookie 没去掉），但还没有用真实账号扫码验证。
+- **Windows 窗口边缘抖动**：本机没有 Windows，无法复现。已改：桌面端拖动窗口时 `AdaptiveScale` 的缩放倍数停下 0.2 秒后才变化（此前每跨 0.05 一档整体跳 5%）。如果仍抖，下一步看 `window_manager` 的 `TitleBarStyle.hidden` 在改大小时的重绘（windows/runner 是默认模板）。
+- **Linux 60 帧上限**：Flutter Linux 嵌入层没有垂直同步回调，见上文；需要自己编译嵌入层。
+- **汽水音乐**：官网没有网页登录，账号只能在官方客户端登录；登录、会员整曲、热搜只能伪装客户端 / 伪造签名 / 解密，不做。已加官方排行榜（公开榜单接口）。
+- **本机语音 MOSS-TTS-Nano**（lib/voice/moss/、lib/voice/engines/moss_engine.dart、android/.../MossTts.kt）：
+  - 模型约 717 MB（FP32），从魔搭社区下载（hf-mirror / Hugging Face 兜底），SHA-256 写在 `MossModels.files`。只支持 Android、内存 ≥ 6 GB。
+  - 分词（SentencePiece BPE）移植到 Dart，test/moss_tokenizer_test.dart 与官方 Python 库 1516 段逐个 ID 对比。
+  - ONNX Runtime：`onnxruntime-android:1.28.0`，与 sherpa-onnx 自带的 1.28.2 共用 `libonnxruntime.so`（`pickFirsts`）。如果以后升级 sherpa-onnx，要同步 ORT 的大版本。
+  - 没有测过的：真机上的合成速度（每帧约多少毫秒）、加载时间与内存；`proguard-rules.pro` 保留了 `ai.onnxruntime.**`。
+  - 可以改进：声音解码器有 `decode_step`（流式），现在整句生成完再解码；模型可以量化到 INT8（约 180 MB），需要自己量化并托管。
+- **流畅度**：手机流畅度测试（`adb shell am start -S -n com.marginalz.yunyin/.MainActivity --ez yunyin_bench true`，结果在 logcat 的 `bench|` 行）。第二次结果：转场超时帧 48.8%（快照每 80 ms 重拍）→ 只拍一次后约 10%；首页滚动 16%（底栏玻璃约 4 ms 光栅、卡片阴影约 2.5 ms，阴影已改为预渲染九宫格）；播放页 84%、歌词页 58% 还没查。
 
 ### 6.3 测试手机
 
