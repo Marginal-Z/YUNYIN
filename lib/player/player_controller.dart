@@ -601,7 +601,14 @@ class PlayerController extends ChangeNotifier {
     await p.setInt(key, (p.getInt(key) ?? 0) + 1);
   }
 
+  /// 最近一次处理滤镜失败的时间：一次失败 mpv 会连着报好几行，只处理第一行（否则第二行会把限幅器失败
+  /// 误当成均衡器失败，整个均衡器被关掉并记为不支持）。
+  DateTime? _eqFailHandled;
+
   Future<void> _onEqFailed() async {
+    final now = DateTime.now();
+    if (_eqFailHandled != null && now.difference(_eqFailHandled!) < const Duration(seconds: 2)) return;
+    _eqFailHandled = now;
     // 滤镜链中有限幅器且还没确认过：先认为是限幅器不可用（精简版播放引擎没有 alimiter），去掉它再试，
     // 不连带关闭均衡器。
     if (_eqApplied.contains('alimiter') && !limiterUnsupported) {
@@ -1014,6 +1021,8 @@ class PlayerController extends ChangeNotifier {
     _restoringQueue = false;
     _saveQueue();
     notifyListeners();
+    // 上一首因为卡住被暂时去掉了均衡器（见 _watchEq）：换歌时重新加上。
+    if (!keepPosition) unawaited(_applyEq());
 
     // 切歌后上一首立即静音：取新歌地址可能要等洛雪音源十几秒，期间不应继续听到上一首（淡入淡出时由下方渐隐处理）。
     StreamInfo info;

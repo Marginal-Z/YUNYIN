@@ -33,6 +33,10 @@ import '../../core/ui/motion.dart';
 class DesktopShell extends StatefulWidget {
   const DesktopShell({super.key});
 
+  /// 是否处于迷你模式。迷你窗口只有 420 宽，按宽度判断会换成手机布局、销毁桌面外壳（连同迷你模式与 Ctrl+M），
+  /// 窗口就再也恢复不了；迷你模式下应用根部始终保留桌面外壳。
+  static final mini = ValueNotifier<bool>(false);
+
   @override
   State<DesktopShell> createState() => _DesktopShellState();
 }
@@ -57,7 +61,10 @@ class _DesktopShellState extends State<DesktopShell> {
       return;
     }
     if (!_mini) {
+      // 最大化时直接改大小无效（Windows）或恢复后尺寸错乱，先取消最大化。
+      if (await windowManager.isMaximized()) await windowManager.unmaximize();
       _restoreSize = await windowManager.getSize();
+      DesktopShell.mini.value = true;
       setState(() => _mini = true);
       await windowManager.setMinimumSize(const Size(360, 96));
       await windowManager.setSize(const Size(420, 96));
@@ -67,6 +74,7 @@ class _DesktopShellState extends State<DesktopShell> {
       await windowManager.setAlwaysOnTop(false);
       await windowManager.setMinimumSize(const Size(960, 640));
       await windowManager.setSize(_restoreSize ?? const Size(1280, 820));
+      DesktopShell.mini.value = false;
     }
   }
 

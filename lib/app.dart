@@ -260,8 +260,11 @@ class _Root extends StatelessWidget {
   const _Root();
 
   @override
-  Widget build(BuildContext context) {
-    final desktop = LayoutScope.isDesktop(context);
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(valueListenable: DesktopShell.mini, builder: (context, _, _) => _build(context));
+
+  Widget _build(BuildContext context) {
+    // 迷你模式的窗口很窄，仍然保留桌面外壳（见 DesktopShell.mini）。
+    final desktop = LayoutScope.isDesktop(context) || DesktopShell.mini.value;
     // 首次启动：阅读并同意使用声明后才能使用（截图与性能测试模式跳过）。
     final consent = context.select<AppSettings, bool>((s) => s.consentAccepted) || benchmarkRequested || screenshotsRequested;
     final shell = ScrollConfiguration(

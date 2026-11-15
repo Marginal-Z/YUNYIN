@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -236,8 +237,9 @@ class NeteaseSource extends MusicSource {
     if (code != 200 && code != 800 && code != 801 && code != 802 && code != 803) {
       final msg = (j['message'] ?? j['msg'] ?? '请求失败（$code）').toString();
       if (code == 301) {
-        _user = null;
-        notifyListeners();
+        // 个别接口偶尔误报 301：先确认账号是否真的失效，失效时清掉过期的登录凭据（否则之后的请求一直带着它，
+        // 也不会退回游客身份），没失效时保持登录。
+        if (_cookies.containsKey('MUSIC_U')) unawaited(_verifySession());
         throw NeteaseApiException(code, '请先登录网易云音乐账号');
       }
       throw NeteaseApiException(code, '$msg（$code）');
@@ -513,6 +515,31 @@ class NeteaseSource extends MusicSource {
     _absorbCookieString(j['cookie']);
     if (!_cookies.containsKey('MUSIC_U')) throw NeteaseApiException(-1, '登录失败，请稍后重试');
     await _refreshAccount();
+  }
+
+  Future<void>? _verifying;
+
+  Future<void> _verifySession() => _verifying ??= () async {
+    try {
+      final j = await _weapi('/w/nuser/account/get');
+      if (j['profile'] == null) await _dropLogin();
+    } on NeteaseApiException catch (e) {
+      if (e.code == 301) await _dropLogin();
+    } catch (_) {
+      // 网络错误：不能确定，保持现状。
+    } finally {
+      _verifying = null;
+    }
+  }();
+
+  /// 登录凭据已失效：清掉凭据与保存的资料，退回游客身份。
+  Future<void> _dropLogin() async {
+    _cookies.removeWhere((k, _) => k == 'MUSIC_U' || k == '__csrf' || k == 'MUSIC_A_T' || k == 'MUSIC_R_T');
+    await _saveCookies();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsProfile);
+    _user = null;
+    notifyListeners();
   }
 
   @override
