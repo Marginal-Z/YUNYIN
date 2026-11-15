@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
@@ -25,6 +27,7 @@ class TransitionSnapshot extends StatefulWidget {
 
 class _TransitionSnapshotState extends State<TransitionSnapshot> {
   final _controller = SnapshotController();
+  final _painter = _PixelAlignedPainter();
 
   bool get _animating => widget.animations.any((a) => a.status == AnimationStatus.forward || a.status == AnimationStatus.reverse);
 
@@ -71,6 +74,7 @@ class _TransitionSnapshotState extends State<TransitionSnapshot> {
       a.removeStatusListener(_sync);
     }
     _controller.dispose();
+    _painter.dispose();
     super.dispose();
   }
 
@@ -80,8 +84,40 @@ class _TransitionSnapshotState extends State<TransitionSnapshot> {
     // 子组件含有平台视图等无法截图的内容时直接实时绘制，不报错。
     mode: SnapshotMode.permissive,
     autoresize: true,
+    painter: _painter,
     child: widget.child,
   );
+}
+
+/// 把快照画在整数个物理像素的位置上。
+///
+/// 默认的画法按页面的逻辑坐标贴图：位置落在半个像素上时，位图被重新采样，滑动中的页面发虚，
+/// 动画结束换回实时绘制的那一帧还会错开半个像素，看起来是一闪、一抖。对齐到物理像素后，
+/// 缩放为 1 时快照与实时绘制逐像素相同。
+class _PixelAlignedPainter extends SnapshotPainter {
+  @override
+  void paint(PaintingContext context, Offset offset, Size size, PaintingContextCallback painter) => painter(context, offset);
+
+  @override
+  void paintSnapshot(PaintingContext context, Offset offset, Size size, ui.Image image, Size sourceSize, double pixelRatio) {
+    final canvas = context.canvas;
+    final m = canvas.getTransform();
+    // 只有平移与正的等比缩放（页面转场都是这种）时才能对齐；其余情况按原样绘制。
+    final sx = m[0], sy = m[5];
+    final aligned = m[1] == 0 && m[4] == 0 && sx > 0 && sy > 0;
+    var o = offset;
+    if (aligned) {
+      double snap(double v, double scale, double translate) => ((v * scale + translate).roundToDouble() - translate) / scale;
+      o = Offset(snap(offset.dx, sx, m[12]), snap(offset.dy, sy, m[13]));
+    }
+    final src = Rect.fromLTWH(0, 0, sourceSize.width, sourceSize.height);
+    // 缩放为 1 时 1:1 贴图，不需要过滤；缩放中用较好的过滤，减少锯齿。
+    final exact = aligned && ((sx * size.width) - sourceSize.width).abs() < 0.5;
+    canvas.drawImageRect(image, src, o & size, Paint()..filterQuality = exact ? FilterQuality.none : FilterQuality.medium);
+  }
+
+  @override
+  bool shouldRepaint(_PixelAlignedPainter oldPainter) => false;
 }
 
 /// 推迟页面转场的起点：新页面推入的那一帧先停在动画起点，完成首帧的构建、布局与截图，下一帧再开始播放。

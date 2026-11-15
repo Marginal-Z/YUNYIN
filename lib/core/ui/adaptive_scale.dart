@@ -42,7 +42,10 @@ class AdaptiveScale extends StatelessWidget {
       return (raw * 20).floorToDouble() / 20;
     }
     // 按短边缩放：竖屏即宽度；横屏时不会因为宽度大而把高度压得过矮。平板竖屏最多放大 1.4 倍。
-    return damp(size.shortestSide / _mobileDesignWidth, 0.82, 1.4);
+    // 接近设计宽度（±6%）时按 1:1 渲染：例如三星 S23 Ultra 宽 384 时原来缩小到 0.985 倍，整个界面的文字、
+    // 细线与图标都落在物理像素之间，看起来发虚，滚动时边缘闪烁。这个范围内布局本身就放得下。
+    final raw = damp(size.shortestSide / _mobileDesignWidth, 0.82, 1.4);
+    return (raw - 1).abs() < 0.06 ? 1 : raw;
   }
 
   @override
